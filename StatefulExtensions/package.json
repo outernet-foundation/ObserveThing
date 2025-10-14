@@ -9,6 +9,7 @@
     "email": "epjecha@gmail.com"
   },
   "dependencies": {
-    "com.fofx.stateful": "1.0.0"
+    "com.fofx.stateful": "1.0.0",
+    "com.fofx.observething": "1.0.0"
   }
 }
