@@ -15,7 +15,7 @@ namespace ObserveThing.StatefulExtensions
         private class StatefulPrimitiveMapObservable<TLeft, TRight> : ICollectionObservable<PrimitiveMapPair<TLeft, TRight>>
         {
             private ObservablePrimitiveMap<TLeft, TRight> _source;
-            private CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>> _args;
+            private CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>> _args = new CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>();
             private List<IObserver<ICollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>>> _observers = new List<IObserver<ICollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>>>();
 
             public StatefulPrimitiveMapObservable(ObservablePrimitiveMap<TLeft, TRight> source)
@@ -116,7 +116,7 @@ namespace ObserveThing.StatefulExtensions
         {
             private ObservablePrimitiveArray<T> _source;
             private T[] _previousValue;
-            private ValueEventArgs<T[]> _args;
+            private ValueEventArgs<T[]> _args = new ValueEventArgs<T[]>();
             private List<IObserver<IValueEventArgs<T[]>>> _observers = new List<IObserver<IValueEventArgs<T[]>>>();
 
             public StatefulPrimitiveArrayObservable(ObservablePrimitiveArray<T> source)
@@ -196,7 +196,7 @@ namespace ObserveThing.StatefulExtensions
         private class StatefulDictionaryObservable<TKey, TValue> : IDictionaryObservable<TKey, TValue> where TValue : IObservableNode, new()
         {
             private ObservableDictionary<TKey, TValue> _source;
-            private DictionaryEventArgs<TKey, TValue> _args;
+            private DictionaryEventArgs<TKey, TValue> _args = new DictionaryEventArgs<TKey, TValue>();
             private List<IObserver<IDictionaryEventArgs<TKey, TValue>>> _observers = new List<IObserver<IDictionaryEventArgs<TKey, TValue>>>();
 
             public StatefulDictionaryObservable(ObservableDictionary<TKey, TValue> source)
@@ -299,7 +299,7 @@ namespace ObserveThing.StatefulExtensions
         private class StatefulListObservable<T> : IListObservable<T> where T : IObservableNode, new()
         {
             private ObservableList<T> _source;
-            private ListEventArgs<T> _args;
+            private ListEventArgs<T> _args = new ListEventArgs<T>();
             private List<IObserver<IListEventArgs<T>>> _observers = new List<IObserver<IListEventArgs<T>>>();
 
             public StatefulListObservable(ObservableList<T> source)
@@ -402,7 +402,7 @@ namespace ObserveThing.StatefulExtensions
         private class StatefulSetObservable<T> : ICollectionObservable<T>
         {
             private ObservableSet<T> _source;
-            private CollectionEventArgs<T> _args;
+            private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
             private List<IObserver<ICollectionEventArgs<T>>> _observers = new List<IObserver<ICollectionEventArgs<T>>>();
 
             public StatefulSetObservable(ObservableSet<T> source)
@@ -503,7 +503,7 @@ namespace ObserveThing.StatefulExtensions
         {
             private ObservablePrimitive<T> _source;
             private T _previousValue;
-            private ValueEventArgs<T> _args;
+            private ValueEventArgs<T> _args = new ValueEventArgs<T>();
             private List<IObserver<IValueEventArgs<T>>> _observers = new List<IObserver<IValueEventArgs<T>>>();
 
             public StatefulPrimitiveObservable(ObservablePrimitive<T> source)
