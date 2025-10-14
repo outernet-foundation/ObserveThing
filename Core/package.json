@@ -1,0 +1,11 @@
+{
+  "name": "com.fofx.observething",
+  "version": "1.0.0",
+  "displayName": "ObserveThing",
+  "description": "An observable event stream library.",
+  "unity": "6000.0",
+  "author": {
+    "name": "Elliot Pjecha",
+    "email": "epjecha@gmail.com"
+  }
+}
