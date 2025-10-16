@@ -10,6 +10,7 @@ namespace ObserveThing
         IEnumerator IEnumerable.GetEnumerator() => _list.GetEnumerator();
 
         public int count => _list.Count;
+        public T this[int index] => _list[index];
 
         private List<T> _list = new List<T>();
         private ListEventArgs<T> _args = new ListEventArgs<T>();
