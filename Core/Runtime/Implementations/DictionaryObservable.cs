@@ -10,6 +10,8 @@ namespace ObserveThing
         IEnumerator<KeyValuePair<TKey, TValue>> IEnumerable<KeyValuePair<TKey, TValue>>.GetEnumerator() => _dictionary.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _dictionary.GetEnumerator();
 
+        public int count => _dictionary.Count;
+
         private Dictionary<TKey, TValue> _dictionary = new Dictionary<TKey, TValue>();
         private DictionaryEventArgs<TKey, TValue> _args = new DictionaryEventArgs<TKey, TValue>();
         private List<Instance> _instances = new List<Instance>();

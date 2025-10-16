@@ -9,6 +9,8 @@ namespace ObserveThing
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => _list.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _list.GetEnumerator();
 
+        public int count => _list.Count;
+
         private List<T> _list = new List<T>();
         private ListEventArgs<T> _args = new ListEventArgs<T>();
         private List<Instance> _instances = new List<Instance>();
