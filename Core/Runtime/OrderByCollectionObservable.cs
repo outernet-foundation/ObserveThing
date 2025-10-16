@@ -5,40 +5,41 @@ namespace ObserveThing
 {
     public class OrderByCollectionObservable<T, U> : IListObservable<T>
     {
-        public ICollectionObservable<T> source;
+        public ICollectionObservable<T> collection;
         public Func<T, U> orderBy;
 
-        public OrderByCollectionObservable(ICollectionObservable<T> source, Func<T, U> orderBy)
+        public OrderByCollectionObservable(ICollectionObservable<T> collection, Func<T, U> orderBy)
         {
-            this.source = source;
+            this.collection = collection;
             this.orderBy = orderBy;
         }
 
-        public IDisposable Subscribe(IObserver<IListEventArgs<T>> observer)
-            => new Instance(source, orderBy, observer);
+        public IDisposable Subscribe(IObserver<ListEventArgs<T>> observer)
+            => new Instance(this, collection, orderBy, observer);
 
         private class Instance : IDisposable
         {
-            private IDisposable _source;
+            private IDisposable _collectionStream;
             private Func<T, U> _orderBy;
-            private IObserver<IListEventArgs<T>> _observer;
+            private IObserver<ListEventArgs<T>> _observer;
             private ListEventArgs<T> _args = new ListEventArgs<T>();
             private bool _disposed = false;
 
             private List<(T value, U orderedBy)> _elements = new List<(T value, U orderedBy)>();
 
-            public Instance(ICollectionObservable<T> source, Func<T, U> orderBy, IObserver<IListEventArgs<T>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, U> orderBy, IObserver<ListEventArgs<T>> observer)
             {
                 _orderBy = orderBy;
                 _observer = observer;
-                _source = source.Subscribe(
+                _args.source = source;
+                _collectionStream = collection.Subscribe(
                     HandleSourceChanged,
                     HandleSourceError,
                     HandleSourceDisposed
                 );
             }
 
-            private void HandleSourceChanged(ICollectionEventArgs<T> args)
+            private void HandleSourceChanged(CollectionEventArgs<T> args)
             {
                 switch (args.operationType)
                 {
@@ -108,7 +109,7 @@ namespace ObserveThing
 
                 _disposed = true;
 
-                _source.Dispose();
+                _collectionStream.Dispose();
                 _observer.OnDispose();
             }
         }

@@ -4,38 +4,39 @@ namespace ObserveThing
 {
     public class TrackValueObservable<TKey, TValue> : IValueObservable<(bool keyPresent, TValue value)>
     {
-        public IDictionaryObservable<TKey, TValue> source;
+        public IDictionaryObservable<TKey, TValue> dictionary;
         public TKey key;
 
-        public TrackValueObservable(IDictionaryObservable<TKey, TValue> source, TKey key)
+        public TrackValueObservable(IDictionaryObservable<TKey, TValue> dictionary, TKey key)
         {
-            this.source = source;
+            this.dictionary = dictionary;
             this.key = key;
         }
 
-        public IDisposable Subscribe(IObserver<IValueEventArgs<(bool keyPresent, TValue value)>> observer)
-            => new Instance(source, key, observer);
+        public IDisposable Subscribe(IObserver<ValueEventArgs<(bool keyPresent, TValue value)>> observer)
+            => new Instance(this, dictionary, key, observer);
 
         private class Instance : IDisposable
         {
-            private IDisposable _source;
+            private IDisposable _dictionaryStream;
             private TKey _key;
-            private IObserver<IValueEventArgs<(bool keyPresent, TValue value)>> _observer;
+            private IObserver<ValueEventArgs<(bool keyPresent, TValue value)>> _observer;
             private ValueEventArgs<(bool keyPresent, TValue value)> _args = new ValueEventArgs<(bool keyPresent, TValue value)>();
             private bool _disposed = false;
 
-            public Instance(IDictionaryObservable<TKey, TValue> source, TKey key, IObserver<IValueEventArgs<(bool keyPresent, TValue value)>> observer)
+            public Instance(IObservable source, IDictionaryObservable<TKey, TValue> dictionary, TKey key, IObserver<ValueEventArgs<(bool keyPresent, TValue value)>> observer)
             {
                 _key = key;
                 _observer = observer;
-                _source = source.Subscribe(
+                _args.source = source;
+                _dictionaryStream = dictionary.Subscribe(
                     HandleSourceChanged,
                     HandleSourceError,
                     HandleSourceDisposed
                 );
             }
 
-            private void HandleSourceChanged(IDictionaryEventArgs<TKey, TValue> args)
+            private void HandleSourceChanged(DictionaryEventArgs<TKey, TValue> args)
             {
                 switch (args.operationType)
                 {
@@ -80,7 +81,7 @@ namespace ObserveThing
 
                 _disposed = true;
 
-                _source.Dispose();
+                _dictionaryStream.Dispose();
                 _observer.OnDispose();
             }
         }

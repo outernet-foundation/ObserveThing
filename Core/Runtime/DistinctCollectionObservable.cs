@@ -5,36 +5,37 @@ namespace ObserveThing
 {
     public class DistinctCollectionObservable<T> : ICollectionObservable<T>
     {
-        public ICollectionObservable<T> source;
+        public ICollectionObservable<T> collection;
 
-        public DistinctCollectionObservable(ICollectionObservable<T> source)
+        public DistinctCollectionObservable(ICollectionObservable<T> collection)
         {
-            this.source = source;
+            this.collection = collection;
         }
 
-        public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
-            => new Instance(source, observer);
+        public IDisposable Subscribe(IObserver<CollectionEventArgs<T>> observer)
+            => new Instance(this, collection, observer);
 
         private class Instance : IDisposable
         {
-            private IDisposable _source;
-            private IObserver<ICollectionEventArgs<T>> _observer;
+            private IDisposable _collection;
+            private IObserver<CollectionEventArgs<T>> _observer;
             private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
             private bool _disposed = false;
 
             private Dictionary<T, int> _elements = new Dictionary<T, int>();
 
-            public Instance(ICollectionObservable<T> source, IObserver<ICollectionEventArgs<T>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection, IObserver<CollectionEventArgs<T>> observer)
             {
                 _observer = observer;
-                _source = source.Subscribe(
+                _args.source = source;
+                _collection = collection.Subscribe(
                     HandleSourceChanged,
                     HandleSourceError,
                     HandleSourceDisposed
                 );
             }
 
-            private void HandleSourceChanged(ICollectionEventArgs<T> args)
+            private void HandleSourceChanged(CollectionEventArgs<T> args)
             {
                 switch (args.operationType)
                 {
@@ -93,7 +94,7 @@ namespace ObserveThing
 
                 _disposed = true;
 
-                _source.Dispose();
+                _collection.Dispose();
                 _observer.OnDispose();
             }
         }

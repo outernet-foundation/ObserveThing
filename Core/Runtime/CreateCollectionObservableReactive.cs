@@ -5,23 +5,23 @@ namespace ObserveThing
 {
     public class CreateCollectionObservableReactive<T, U> : ICollectionObservable<U> where U : IDisposable
     {
-        public ICollectionObservable<T> source;
+        public ICollectionObservable<T> collection;
         public Func<T, IValueObservable<U>> select;
 
-        public CreateCollectionObservableReactive(ICollectionObservable<T> source, Func<T, IValueObservable<U>> select)
+        public CreateCollectionObservableReactive(ICollectionObservable<T> collection, Func<T, IValueObservable<U>> select)
         {
-            this.source = source;
+            this.collection = collection;
             this.select = select;
         }
 
-        public IDisposable Subscribe(IObserver<ICollectionEventArgs<U>> observer)
-            => new Instance(source, select, observer);
+        public IDisposable Subscribe(IObserver<CollectionEventArgs<U>> observer)
+            => new Instance(this, collection, select, observer);
 
         private class Instance : IDisposable
         {
-            private IDisposable _source;
+            private IDisposable _collectionStream;
             private Func<T, IValueObservable<U>> _select;
-            private IObserver<ICollectionEventArgs<U>> _observer;
+            private IObserver<CollectionEventArgs<U>> _observer;
             private CollectionEventArgs<U> _args = new CollectionEventArgs<U>();
             private bool _disposed = false;
 
@@ -35,18 +35,19 @@ namespace ObserveThing
 
             private Dictionary<T, SelectData> _selectData = new Dictionary<T, SelectData>();
 
-            public Instance(ICollectionObservable<T> source, Func<T, IValueObservable<U>> select, IObserver<ICollectionEventArgs<U>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, IValueObservable<U>> select, IObserver<CollectionEventArgs<U>> observer)
             {
                 _select = select;
                 _observer = observer;
-                _source = source.Subscribe(
+                _args.source = source;
+                _collectionStream = collection.Subscribe(
                     HandleSourceChanged,
                     HandleSourceError,
                     HandleSourceDisposed
                 );
             }
 
-            private void HandleSourceChanged(ICollectionEventArgs<T> args)
+            private void HandleSourceChanged(CollectionEventArgs<T> args)
             {
                 switch (args.operationType)
                 {
@@ -128,7 +129,7 @@ namespace ObserveThing
                     data.select.Dispose();
                 }
 
-                _source.Dispose();
+                _collectionStream.Dispose();
                 _observer.OnDispose();
             }
         }

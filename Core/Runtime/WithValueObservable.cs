@@ -4,35 +4,36 @@ namespace ObserveThing
 {
     public class WithValueObservable<T1, T2> : IValueObservable<(T1 value1, T2 value2)>
     {
-        private IValueObservable<T1> _source1;
-        private IValueObservable<T2> _source2;
+        private IValueObservable<T1> _value1;
+        private IValueObservable<T2> _value2;
 
-        public WithValueObservable(IValueObservable<T1> source1, IValueObservable<T2> source2)
+        public WithValueObservable(IValueObservable<T1> value1, IValueObservable<T2> value2)
         {
-            _source1 = source1;
-            _source2 = source2;
+            _value1 = value1;
+            _value2 = value2;
         }
 
-        public IDisposable Subscribe(IObserver<IValueEventArgs<(T1 value1, T2 value2)>> observer)
-            => new Instance(_source1, _source2, observer);
+        public IDisposable Subscribe(IObserver<ValueEventArgs<(T1 value1, T2 value2)>> observer)
+            => new Instance(this, _value1, _value2, observer);
 
         private class Instance : IDisposable
         {
-            private IDisposable _source1;
-            private IDisposable _source2;
-            private IObserver<IValueEventArgs<(T1 value1, T2 value2)>> _observer;
+            private IDisposable _value1Stream;
+            private IDisposable _value2Stream;
+            private IObserver<ValueEventArgs<(T1 value1, T2 value2)>> _observer;
             private ValueEventArgs<(T1 value1, T2 value2)> _args = new ValueEventArgs<(T1 value1, T2 value2)>();
             private bool _awaitingInit = true;
             private bool _disposed = false;
 
-            public Instance(IValueObservable<T1> source1, IValueObservable<T2> source2, IObserver<IValueEventArgs<(T1 value1, T2 value2)>> observer)
+            public Instance(IObservable source, IValueObservable<T1> value1, IValueObservable<T2> value2, IObserver<ValueEventArgs<(T1 value1, T2 value2)>> observer)
             {
                 _observer = observer;
-                _source1 = source1.Subscribe(HandleSource1Changed, HandleSourceError, HandleSourceDisposed);
-                _source2 = source2.Subscribe(HandleSource2Changed, HandleSourceError, HandleSourceDisposed);
+                _args.source = source;
+                _value1Stream = value1.Subscribe(HandleSource1Changed, HandleSourceError, HandleSourceDisposed);
+                _value2Stream = value2.Subscribe(HandleSource2Changed, HandleSourceError, HandleSourceDisposed);
             }
 
-            private void HandleSource1Changed(IValueEventArgs<T1> args)
+            private void HandleSource1Changed(ValueEventArgs<T1> args)
             {
                 if (_awaitingInit)
                 {
@@ -45,7 +46,7 @@ namespace ObserveThing
                 _observer.OnNext(_args);
             }
 
-            private void HandleSource2Changed(IValueEventArgs<T2> args)
+            private void HandleSource2Changed(ValueEventArgs<T2> args)
             {
                 if (_awaitingInit)
                 {
@@ -77,8 +78,8 @@ namespace ObserveThing
 
                 _disposed = true;
 
-                _source1.Dispose();
-                _source2.Dispose();
+                _value1Stream.Dispose();
+                _value2Stream.Dispose();
                 _observer.OnDispose();
             }
         }

@@ -5,44 +5,45 @@ namespace ObserveThing
 {
     public class ConcatCollectionObservableReactive<T> : ICollectionObservable<T>
     {
-        public ICollectionObservable<T> source1;
-        public ICollectionObservable<T> source2;
+        public ICollectionObservable<T> collection1;
+        public ICollectionObservable<T> collection2;
 
-        public ConcatCollectionObservableReactive(ICollectionObservable<T> source1, ICollectionObservable<T> source2)
+        public ConcatCollectionObservableReactive(ICollectionObservable<T> collection1, ICollectionObservable<T> collection2)
         {
-            this.source1 = source1;
-            this.source2 = source2;
+            this.collection1 = collection1;
+            this.collection2 = collection2;
         }
 
-        public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
-            => new Instance(source1, source2, observer);
+        public IDisposable Subscribe(IObserver<CollectionEventArgs<T>> observer)
+            => new Instance(this, collection1, collection2, observer);
 
         private class Instance : IDisposable
         {
-            private IDisposable _source1;
-            private IDisposable _source2;
-            private IObserver<ICollectionEventArgs<T>> _observer;
+            private IDisposable _collection1Stream;
+            private IDisposable _collection2Stream;
+            private IObserver<CollectionEventArgs<T>> _observer;
             private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
             private bool _disposed = false;
 
-            public Instance(ICollectionObservable<T> source1, ICollectionObservable<T> source2, IObserver<ICollectionEventArgs<T>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection1, ICollectionObservable<T> collection2, IObserver<CollectionEventArgs<T>> observer)
             {
                 _observer = observer;
+                _args.source = source;
 
-                _source1 = source1.Subscribe(
+                _collection1Stream = collection1.Subscribe(
                     HandleSourceChanged,
                     HandleSourceError,
                     HandleSourceDisposed
                 );
 
-                _source2 = source2.Subscribe(
+                _collection2Stream = collection2.Subscribe(
                     HandleSourceChanged,
                     HandleSourceError,
                     HandleSourceDisposed
                 );
             }
 
-            private void HandleSourceChanged(ICollectionEventArgs<T> args)
+            private void HandleSourceChanged(CollectionEventArgs<T> args)
             {
                 _args.operationType = args.operationType;
 
@@ -81,8 +82,8 @@ namespace ObserveThing
 
                 _disposed = true;
 
-                _source1.Dispose();
-                _source2.Dispose();
+                _collection1Stream.Dispose();
+                _collection2Stream.Dispose();
                 _observer.OnDispose();
             }
         }

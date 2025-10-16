@@ -16,14 +16,14 @@ namespace ObserveThing.StatefulExtensions
         {
             private ObservablePrimitiveMap<TLeft, TRight> _source;
             private CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>> _args = new CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>();
-            private List<IObserver<ICollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>>> _observers = new List<IObserver<ICollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>>>();
+            private List<IObserver<CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>>> _observers = new List<IObserver<CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>>>();
 
             public StatefulPrimitiveMapObservable(ObservablePrimitiveMap<TLeft, TRight> source)
             {
                 _source = source;
             }
 
-            public IDisposable Subscribe(IObserver<ICollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>> observer)
+            public IDisposable Subscribe(IObserver<CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>> observer)
             {
                 _observers.Add(observer);
 
@@ -69,7 +69,7 @@ namespace ObserveThing.StatefulExtensions
                 }
             }
 
-            private void NotifyObservers(ICollectionEventArgs<PrimitiveMapPair<TLeft, TRight>> args)
+            private void NotifyObservers(CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>> args)
             {
                 foreach (var observer in _observers)
                     observer.OnNext(args);
@@ -83,7 +83,7 @@ namespace ObserveThing.StatefulExtensions
                 _observers.Clear();
             }
 
-            private void Unsubscribe(IObserver<ICollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>> observer)
+            private void Unsubscribe(IObserver<CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>> observer)
             {
                 if (_observers.Remove(observer) && _observers.Count == 0)
                     _source.context.DeregisterObserver(HandleSourceChanged);
@@ -91,7 +91,7 @@ namespace ObserveThing.StatefulExtensions
 
             private class ObserverHandle : IDisposable
             {
-                public IObserver<ICollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>> observer;
+                public IObserver<CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>> observer;
                 public StatefulPrimitiveMapObservable<TLeft, TRight> source;
 
                 private bool _disposed;
@@ -117,14 +117,14 @@ namespace ObserveThing.StatefulExtensions
             private ObservablePrimitiveArray<T> _source;
             private T[] _previousValue;
             private ValueEventArgs<T[]> _args = new ValueEventArgs<T[]>();
-            private List<IObserver<IValueEventArgs<T[]>>> _observers = new List<IObserver<IValueEventArgs<T[]>>>();
+            private List<IObserver<ValueEventArgs<T[]>>> _observers = new List<IObserver<ValueEventArgs<T[]>>>();
 
             public StatefulPrimitiveArrayObservable(ObservablePrimitiveArray<T> source)
             {
                 _source = source;
             }
 
-            public IDisposable Subscribe(IObserver<IValueEventArgs<T[]>> observer)
+            public IDisposable Subscribe(IObserver<ValueEventArgs<T[]>> observer)
             {
                 _observers.Add(observer);
 
@@ -163,7 +163,7 @@ namespace ObserveThing.StatefulExtensions
                 _previousValue = _args.currentValue;
             }
 
-            private void Unsubscribe(IObserver<IValueEventArgs<T[]>> observer)
+            private void Unsubscribe(IObserver<ValueEventArgs<T[]>> observer)
             {
                 if (_observers.Remove(observer) && _observers.Count == 0)
                     _source.context.DeregisterObserver(HandleSourceChanged);
@@ -171,7 +171,7 @@ namespace ObserveThing.StatefulExtensions
 
             private class ObserverHandle : IDisposable
             {
-                public IObserver<IValueEventArgs<T[]>> observer;
+                public IObserver<ValueEventArgs<T[]>> observer;
                 public StatefulPrimitiveArrayObservable<T> source;
 
                 private bool _disposed;
@@ -197,14 +197,14 @@ namespace ObserveThing.StatefulExtensions
         {
             private ObservableDictionary<TKey, TValue> _source;
             private DictionaryEventArgs<TKey, TValue> _args = new DictionaryEventArgs<TKey, TValue>();
-            private List<IObserver<IDictionaryEventArgs<TKey, TValue>>> _observers = new List<IObserver<IDictionaryEventArgs<TKey, TValue>>>();
+            private List<IObserver<DictionaryEventArgs<TKey, TValue>>> _observers = new List<IObserver<DictionaryEventArgs<TKey, TValue>>>();
 
             public StatefulDictionaryObservable(ObservableDictionary<TKey, TValue> source)
             {
                 _source = source;
             }
 
-            public IDisposable Subscribe(IObserver<IDictionaryEventArgs<TKey, TValue>> observer)
+            public IDisposable Subscribe(IObserver<DictionaryEventArgs<TKey, TValue>> observer)
             {
                 _observers.Add(observer);
 
@@ -252,7 +252,7 @@ namespace ObserveThing.StatefulExtensions
                 }
             }
 
-            private void NotifyObservers(IDictionaryEventArgs<TKey, TValue> args)
+            private void NotifyObservers(DictionaryEventArgs<TKey, TValue> args)
             {
                 foreach (var observer in _observers)
                     observer.OnNext(args);
@@ -266,7 +266,7 @@ namespace ObserveThing.StatefulExtensions
                 _observers.Clear();
             }
 
-            private void Unsubscribe(IObserver<IDictionaryEventArgs<TKey, TValue>> observer)
+            private void Unsubscribe(IObserver<DictionaryEventArgs<TKey, TValue>> observer)
             {
                 if (_observers.Remove(observer) && _observers.Count == 0)
                     _source.context.DeregisterObserver(HandleSourceChanged);
@@ -274,7 +274,7 @@ namespace ObserveThing.StatefulExtensions
 
             private class ObserverHandle : IDisposable
             {
-                public IObserver<IDictionaryEventArgs<TKey, TValue>> observer;
+                public IObserver<DictionaryEventArgs<TKey, TValue>> observer;
                 public StatefulDictionaryObservable<TKey, TValue> source;
 
                 private bool _disposed;
@@ -300,14 +300,14 @@ namespace ObserveThing.StatefulExtensions
         {
             private ObservableList<T> _source;
             private ListEventArgs<T> _args = new ListEventArgs<T>();
-            private List<IObserver<IListEventArgs<T>>> _observers = new List<IObserver<IListEventArgs<T>>>();
+            private List<IObserver<ListEventArgs<T>>> _observers = new List<IObserver<ListEventArgs<T>>>();
 
             public StatefulListObservable(ObservableList<T> source)
             {
                 _source = source;
             }
 
-            public IDisposable Subscribe(IObserver<IListEventArgs<T>> observer)
+            public IDisposable Subscribe(IObserver<ListEventArgs<T>> observer)
             {
                 _observers.Add(observer);
 
@@ -356,7 +356,7 @@ namespace ObserveThing.StatefulExtensions
                 }
             }
 
-            private void NotifyObservers(IListEventArgs<T> args)
+            private void NotifyObservers(ListEventArgs<T> args)
             {
                 foreach (var observer in _observers)
                     observer.OnNext(args);
@@ -370,7 +370,7 @@ namespace ObserveThing.StatefulExtensions
                 _observers.Clear();
             }
 
-            private void Unsubscribe(IObserver<IListEventArgs<T>> observer)
+            private void Unsubscribe(IObserver<ListEventArgs<T>> observer)
             {
                 if (_observers.Remove(observer) && _observers.Count == 0)
                     _source.context.DeregisterObserver(HandleSourceChanged);
@@ -378,7 +378,7 @@ namespace ObserveThing.StatefulExtensions
 
             private class ObserverHandle : IDisposable
             {
-                public IObserver<IListEventArgs<T>> observer;
+                public IObserver<ListEventArgs<T>> observer;
                 public StatefulListObservable<T> source;
 
                 private bool _disposed;
@@ -403,14 +403,14 @@ namespace ObserveThing.StatefulExtensions
         {
             private ObservableSet<T> _source;
             private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
-            private List<IObserver<ICollectionEventArgs<T>>> _observers = new List<IObserver<ICollectionEventArgs<T>>>();
+            private List<IObserver<CollectionEventArgs<T>>> _observers = new List<IObserver<CollectionEventArgs<T>>>();
 
             public StatefulSetObservable(ObservableSet<T> source)
             {
                 _source = source;
             }
 
-            public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
+            public IDisposable Subscribe(IObserver<CollectionEventArgs<T>> observer)
             {
                 _observers.Add(observer);
 
@@ -456,7 +456,7 @@ namespace ObserveThing.StatefulExtensions
                 }
             }
 
-            private void NotifyObservers(ICollectionEventArgs<T> args)
+            private void NotifyObservers(CollectionEventArgs<T> args)
             {
                 foreach (var observer in _observers)
                     observer.OnNext(args);
@@ -470,7 +470,7 @@ namespace ObserveThing.StatefulExtensions
                 _observers.Clear();
             }
 
-            private void Unsubscribe(IObserver<ICollectionEventArgs<T>> observer)
+            private void Unsubscribe(IObserver<CollectionEventArgs<T>> observer)
             {
                 if (_observers.Remove(observer) && _observers.Count == 0)
                     _source.context.DeregisterObserver(HandleSourceChanged);
@@ -478,7 +478,7 @@ namespace ObserveThing.StatefulExtensions
 
             private class ObserverHandle : IDisposable
             {
-                public IObserver<ICollectionEventArgs<T>> observer;
+                public IObserver<CollectionEventArgs<T>> observer;
                 public StatefulSetObservable<T> source;
 
                 private bool _disposed;
@@ -504,14 +504,14 @@ namespace ObserveThing.StatefulExtensions
             private ObservablePrimitive<T> _source;
             private T _previousValue;
             private ValueEventArgs<T> _args = new ValueEventArgs<T>();
-            private List<IObserver<IValueEventArgs<T>>> _observers = new List<IObserver<IValueEventArgs<T>>>();
+            private List<IObserver<ValueEventArgs<T>>> _observers = new List<IObserver<ValueEventArgs<T>>>();
 
             public StatefulPrimitiveObservable(ObservablePrimitive<T> source)
             {
                 _source = source;
             }
 
-            public IDisposable Subscribe(IObserver<IValueEventArgs<T>> observer)
+            public IDisposable Subscribe(IObserver<ValueEventArgs<T>> observer)
             {
                 _observers.Add(observer);
 
@@ -550,7 +550,7 @@ namespace ObserveThing.StatefulExtensions
                 _previousValue = _source.value;
             }
 
-            private void Unsubscribe(IObserver<IValueEventArgs<T>> observer)
+            private void Unsubscribe(IObserver<ValueEventArgs<T>> observer)
             {
                 if (_observers.Remove(observer) && _observers.Count == 0)
                     _source.context.DeregisterObserver(HandleSourceChanged);
@@ -558,7 +558,7 @@ namespace ObserveThing.StatefulExtensions
 
             private class ObserverHandle : IDisposable
             {
-                public IObserver<IValueEventArgs<T>> observer;
+                public IObserver<ValueEventArgs<T>> observer;
                 public StatefulPrimitiveObservable<T> source;
 
                 private bool _disposed;

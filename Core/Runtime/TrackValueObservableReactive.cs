@@ -5,23 +5,23 @@ namespace ObserveThing
 {
     public class TrackValueObservableReactive<TKey, TValue> : IValueObservable<(bool keyPresent, TValue value)>
     {
-        public IDictionaryObservable<TKey, TValue> source;
+        public IDictionaryObservable<TKey, TValue> dictionary;
         public IValueObservable<TKey> key;
 
-        public TrackValueObservableReactive(IDictionaryObservable<TKey, TValue> source, IValueObservable<TKey> key)
+        public TrackValueObservableReactive(IDictionaryObservable<TKey, TValue> dictionary, IValueObservable<TKey> key)
         {
-            this.source = source;
+            this.dictionary = dictionary;
             this.key = key;
         }
 
-        public IDisposable Subscribe(IObserver<IValueEventArgs<(bool keyPresent, TValue value)>> observer)
-            => new Instance(source, key, observer);
+        public IDisposable Subscribe(IObserver<ValueEventArgs<(bool keyPresent, TValue value)>> observer)
+            => new Instance(this, dictionary, key, observer);
 
         private class Instance : IDisposable
         {
-            private IDisposable _source;
-            private IDisposable _key;
-            private IObserver<IValueEventArgs<(bool keyPresent, TValue value)>> _observer;
+            private IDisposable _dictionaryStream;
+            private IDisposable _keyStream;
+            private IObserver<ValueEventArgs<(bool keyPresent, TValue value)>> _observer;
             private ValueEventArgs<(bool keyPresent, TValue value)> _args = new ValueEventArgs<(bool keyPresent, TValue value)>();
             private bool _awaitingInit = true;
             private bool _disposed = false;
@@ -29,24 +29,25 @@ namespace ObserveThing
             private Dictionary<TKey, TValue> _currentDict = new Dictionary<TKey, TValue>();
             private TKey _currentKey;
 
-            public Instance(IDictionaryObservable<TKey, TValue> source, IValueObservable<TKey> key, IObserver<IValueEventArgs<(bool keyPresent, TValue value)>> observer)
+            public Instance(IObservable source, IDictionaryObservable<TKey, TValue> dictionary, IValueObservable<TKey> key, IObserver<ValueEventArgs<(bool keyPresent, TValue value)>> observer)
             {
                 _observer = observer;
+                _args.source = source;
 
-                _source = source.Subscribe(
+                _dictionaryStream = dictionary.Subscribe(
                     HandleSourceChanged,
                     HandleSourceOrKeyError,
                     HandleSourceOrKeyDisposed
                 );
 
-                _key = key.Subscribe(
+                _keyStream = key.Subscribe(
                     HandleKeyChanged,
                     HandleSourceOrKeyError,
                     HandleSourceOrKeyDisposed
                 );
             }
 
-            private void HandleSourceChanged(IDictionaryEventArgs<TKey, TValue> args)
+            private void HandleSourceChanged(DictionaryEventArgs<TKey, TValue> args)
             {
                 switch (args.operationType)
                 {
@@ -78,7 +79,7 @@ namespace ObserveThing
                 }
             }
 
-            private void HandleKeyChanged(IValueEventArgs<TKey> args)
+            private void HandleKeyChanged(ValueEventArgs<TKey> args)
             {
                 _currentKey = args.currentValue;
                 _awaitingInit = false;
@@ -114,8 +115,8 @@ namespace ObserveThing
 
                 _disposed = true;
 
-                _source.Dispose();
-                _key.Dispose();
+                _dictionaryStream.Dispose();
+                _keyStream.Dispose();
                 _observer.OnDispose();
             }
         }

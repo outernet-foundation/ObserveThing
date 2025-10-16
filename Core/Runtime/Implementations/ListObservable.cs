@@ -18,6 +18,11 @@ namespace ObserveThing
         private bool _disposed;
         private IDisposable _fromSubscription;
 
+        public ListObservable()
+        {
+            _args.source = this;
+        }
+
         public void Add(T added)
             => Insert(_list.Count, added);
 
@@ -85,7 +90,7 @@ namespace ObserveThing
             );
         }
 
-        public IDisposable Subscribe(IObserver<IListEventArgs<T>> observer)
+        public IDisposable Subscribe(IObserver<ListEventArgs<T>> observer)
         {
             var instance = new Instance(observer, x =>
             {
@@ -122,16 +127,16 @@ namespace ObserveThing
 
         private class Instance : IDisposable
         {
-            private IObserver<IListEventArgs<T>> _observer;
+            private IObserver<ListEventArgs<T>> _observer;
             private Action<Instance> _onDispose;
 
-            public Instance(IObserver<IListEventArgs<T>> observer, Action<Instance> onDispose)
+            public Instance(IObserver<ListEventArgs<T>> observer, Action<Instance> onDispose)
             {
                 _observer = observer;
                 _onDispose = onDispose;
             }
 
-            public void OnNext(IListEventArgs<T> args)
+            public void OnNext(ListEventArgs<T> args)
             {
                 _observer?.OnNext(args);
             }

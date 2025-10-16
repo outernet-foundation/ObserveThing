@@ -5,29 +5,30 @@ namespace ObserveThing
 {
     public class ConcatCollectionObservable<T> : ICollectionObservable<T>
     {
-        public ICollectionObservable<T> source;
+        public ICollectionObservable<T> collection;
         public IEnumerable<T> concat;
 
-        public ConcatCollectionObservable(ICollectionObservable<T> source, IEnumerable<T> concat)
+        public ConcatCollectionObservable(ICollectionObservable<T> collection, IEnumerable<T> concat)
         {
-            this.source = source;
+            this.collection = collection;
             this.concat = concat;
         }
 
-        public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
-            => new Instance(source, concat, observer);
+        public IDisposable Subscribe(IObserver<CollectionEventArgs<T>> observer)
+            => new Instance(this, collection, concat, observer);
 
         private class Instance : IDisposable
         {
-            private IDisposable _source;
-            private IObserver<ICollectionEventArgs<T>> _observer;
+            private IDisposable _collectionStream;
+            private IObserver<CollectionEventArgs<T>> _observer;
             private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
             private bool _disposed = false;
 
-            public Instance(ICollectionObservable<T> source, IEnumerable<T> concat, IObserver<ICollectionEventArgs<T>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection, IEnumerable<T> concat, IObserver<CollectionEventArgs<T>> observer)
             {
                 _observer = observer;
-                _source = source.Subscribe(
+                _args.source = source;
+                _collectionStream = collection.Subscribe(
                     HandleSourceChanged,
                     HandleSourceError,
                     HandleSourceDisposed
@@ -42,7 +43,7 @@ namespace ObserveThing
                 }
             }
 
-            private void HandleSourceChanged(ICollectionEventArgs<T> args)
+            private void HandleSourceChanged(CollectionEventArgs<T> args)
             {
                 _args.operationType = args.operationType;
 
@@ -81,7 +82,7 @@ namespace ObserveThing
 
                 _disposed = true;
 
-                _source.Dispose();
+                _collectionStream.Dispose();
                 _observer.OnDispose();
             }
         }

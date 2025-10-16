@@ -6,23 +6,23 @@ namespace ObserveThing
 {
     public class SelectManyCollectionObservable<T, U> : ICollectionObservable<U>
     {
-        public ICollectionObservable<T> source;
+        public ICollectionObservable<T> collection;
         public Func<T, IEnumerable<U>> selectMany;
 
-        public SelectManyCollectionObservable(ICollectionObservable<T> source, Func<T, IEnumerable<U>> selectMany)
+        public SelectManyCollectionObservable(ICollectionObservable<T> collection, Func<T, IEnumerable<U>> selectMany)
         {
-            this.source = source;
+            this.collection = collection;
             this.selectMany = selectMany;
         }
 
-        public IDisposable Subscribe(IObserver<ICollectionEventArgs<U>> observer)
-            => new Instance(source, selectMany, observer);
+        public IDisposable Subscribe(IObserver<CollectionEventArgs<U>> observer)
+            => new Instance(this, collection, selectMany, observer);
 
         private class Instance : IDisposable
         {
-            private IDisposable _source;
+            private IDisposable _collectionStream;
             private Func<T, IEnumerable<U>> _selectMany;
-            private IObserver<ICollectionEventArgs<U>> _observer;
+            private IObserver<CollectionEventArgs<U>> _observer;
             private CollectionEventArgs<U> _args = new CollectionEventArgs<U>();
             private bool _disposed = false;
 
@@ -34,18 +34,19 @@ namespace ObserveThing
                 public U[] addedElements;
             }
 
-            public Instance(ICollectionObservable<T> source, Func<T, IEnumerable<U>> selectMany, IObserver<ICollectionEventArgs<U>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, IEnumerable<U>> selectMany, IObserver<CollectionEventArgs<U>> observer)
             {
                 _observer = observer;
                 _selectMany = selectMany;
-                _source = source.Subscribe(
+                _args.source = source;
+                _collectionStream = collection.Subscribe(
                     HandleSourceChanged,
                     HandleSourceError,
                     HandleSourceDisposed
                 );
             }
 
-            private void HandleSourceChanged(ICollectionEventArgs<T> args)
+            private void HandleSourceChanged(CollectionEventArgs<T> args)
             {
                 _args.operationType = args.operationType;
 
@@ -107,7 +108,7 @@ namespace ObserveThing
 
                 _disposed = true;
 
-                _source.Dispose();
+                _collectionStream.Dispose();
                 _observer.OnDispose();
             }
         }

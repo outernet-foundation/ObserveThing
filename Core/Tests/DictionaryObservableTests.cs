@@ -52,7 +52,7 @@ namespace ObserveThing.Tests
             _disposing = false;
         }
 
-        public IDisposable Subscribe(IObserver<IDictionaryEventArgs<TKey, TValue>> observer)
+        public IDisposable Subscribe(IObserver<DictionaryEventArgs<TKey, TValue>> observer)
         {
             var instance = new Instance(observer, x =>
             {
@@ -74,16 +74,16 @@ namespace ObserveThing.Tests
 
         private class Instance : IDisposable
         {
-            private IObserver<IDictionaryEventArgs<TKey, TValue>> _observer;
+            private IObserver<DictionaryEventArgs<TKey, TValue>> _observer;
             private Action<Instance> _onDispose;
 
-            public Instance(IObserver<IDictionaryEventArgs<TKey, TValue>> observer, Action<Instance> onDispose)
+            public Instance(IObserver<DictionaryEventArgs<TKey, TValue>> observer, Action<Instance> onDispose)
             {
                 _observer = observer;
                 _onDispose = onDispose;
             }
 
-            public void OnNext(IDictionaryEventArgs<TKey, TValue> args)
+            public void OnNext(DictionaryEventArgs<TKey, TValue> args)
             {
                 _observer?.OnNext(args);
             }

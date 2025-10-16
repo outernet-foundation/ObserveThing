@@ -4,35 +4,36 @@ namespace ObserveThing
 {
     public class CountCollectionObservable<T> : IValueObservable<int>
     {
-        public ICollectionObservable<T> source;
+        public ICollectionObservable<T> collection;
 
-        public CountCollectionObservable(ICollectionObservable<T> source)
+        public CountCollectionObservable(ICollectionObservable<T> collection)
         {
-            this.source = source;
+            this.collection = collection;
         }
 
-        public IDisposable Subscribe(IObserver<IValueEventArgs<int>> observer)
-            => new Instance(source, observer);
+        public IDisposable Subscribe(IObserver<ValueEventArgs<int>> observer)
+            => new Instance(this, collection, observer);
 
         private class Instance : IDisposable
         {
-            private IDisposable _source;
-            private IObserver<IValueEventArgs<int>> _observer;
+            private IDisposable _collectionStream;
+            private IObserver<ValueEventArgs<int>> _observer;
             private ValueEventArgs<int> _args = new ValueEventArgs<int>();
             private int _count;
             private bool _disposed = false;
 
-            public Instance(ICollectionObservable<T> source, IObserver<IValueEventArgs<int>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection, IObserver<ValueEventArgs<int>> observer)
             {
                 _observer = observer;
-                _source = source.Subscribe(
+                _args.source = source;
+                _collectionStream = collection.Subscribe(
                     HandleSourceChanged,
                     HandleSourceError,
                     HandleSourceDisposed
                 );
             }
 
-            private void HandleSourceChanged(ICollectionEventArgs<T> args)
+            private void HandleSourceChanged(CollectionEventArgs<T> args)
             {
                 switch (args.operationType)
                 {
@@ -73,7 +74,7 @@ namespace ObserveThing
 
                 _disposed = true;
 
-                _source.Dispose();
+                _collectionStream.Dispose();
                 _observer.OnDispose();
             }
         }

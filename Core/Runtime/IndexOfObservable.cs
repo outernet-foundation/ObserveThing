@@ -4,36 +4,37 @@ namespace ObserveThing
 {
     public class IndexOfObservable<T> : IValueObservable<int>
     {
-        public IListObservable<T> source;
+        public IListObservable<T> list;
         public T indexOf;
 
-        public IndexOfObservable(IListObservable<T> source, T indexOf)
+        public IndexOfObservable(IListObservable<T> list, T indexOf)
         {
-            this.source = source;
+            this.list = list;
             this.indexOf = indexOf;
         }
 
-        public IDisposable Subscribe(IObserver<IValueEventArgs<int>> observer)
-            => new Instance(source, indexOf, observer);
+        public IDisposable Subscribe(IObserver<ValueEventArgs<int>> observer)
+            => new Instance(this, list, indexOf, observer);
 
         private class Instance : IDisposable
         {
-            private IDisposable _source;
+            private IDisposable _listStream;
             private T _indexOf;
-            private IObserver<IValueEventArgs<int>> _observer;
+            private IObserver<ValueEventArgs<int>> _observer;
             private ValueEventArgs<int> _args = new ValueEventArgs<int>();
             private bool _disposed = false;
 
-            public Instance(IListObservable<T> source, T indexOf, IObserver<IValueEventArgs<int>> observer)
+            public Instance(IObservable source, IListObservable<T> list, T indexOf, IObserver<ValueEventArgs<int>> observer)
             {
                 _indexOf = indexOf;
                 _observer = observer;
+                _args.source = source;
                 _args.previousValue = -1;
                 _args.currentValue = -1;
-                _source = source.Subscribe(HandleSourceChanged, HandleSourceError, HandleSourceDisposed);
+                _listStream = list.Subscribe(HandleSourceChanged, HandleSourceError, HandleSourceDisposed);
             }
 
-            private void HandleSourceChanged(IListEventArgs<T> args)
+            private void HandleSourceChanged(ListEventArgs<T> args)
             {
                 if (Equals(args.element, _indexOf))
                 {
@@ -77,7 +78,7 @@ namespace ObserveThing
 
                 _disposed = true;
 
-                _source.Dispose();
+                _listStream.Dispose();
                 _observer.OnDispose();
             }
         }

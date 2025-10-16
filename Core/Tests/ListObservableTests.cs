@@ -56,7 +56,7 @@ namespace ObserveThing.Tests
             _disposing = false;
         }
 
-        public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
+        public IDisposable Subscribe(IObserver<CollectionEventArgs<T>> observer)
         {
             var instance = new Instance(observer, x =>
             {
@@ -79,16 +79,16 @@ namespace ObserveThing.Tests
 
         private class Instance : IDisposable
         {
-            private IObserver<IListEventArgs<T>> _observer;
+            private IObserver<ListEventArgs<T>> _observer;
             private Action<Instance> _onDispose;
 
-            public Instance(IObserver<IListEventArgs<T>> observer, Action<Instance> onDispose)
+            public Instance(IObserver<ListEventArgs<T>> observer, Action<Instance> onDispose)
             {
                 _observer = observer;
                 _onDispose = onDispose;
             }
 
-            public void OnNext(IListEventArgs<T> args)
+            public void OnNext(ListEventArgs<T> args)
             {
                 _observer?.OnNext(args);
             }

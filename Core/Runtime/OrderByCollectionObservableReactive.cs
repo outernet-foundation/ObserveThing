@@ -7,23 +7,23 @@ namespace ObserveThing
 {
     public class OrderByCollectionObservableReactive<T, U> : IListObservable<T>
     {
-        public ICollectionObservable<T> source;
+        public ICollectionObservable<T> collection;
         public Func<T, IValueObservable<U>> orderBy;
 
-        public OrderByCollectionObservableReactive(ICollectionObservable<T> source, Func<T, IValueObservable<U>> orderBy)
+        public OrderByCollectionObservableReactive(ICollectionObservable<T> collection, Func<T, IValueObservable<U>> orderBy)
         {
-            this.source = source;
+            this.collection = collection;
             this.orderBy = orderBy;
         }
 
-        public IDisposable Subscribe(IObserver<IListEventArgs<T>> observer)
-            => new Instance(source, orderBy, observer);
+        public IDisposable Subscribe(IObserver<ListEventArgs<T>> observer)
+            => new Instance(this, collection, orderBy, observer);
 
         private class Instance : IDisposable
         {
-            private IDisposable _source;
+            private IDisposable _collection;
             private Func<T, IValueObservable<U>> _orderBy;
-            private IObserver<IListEventArgs<T>> _observer;
+            private IObserver<ListEventArgs<T>> _observer;
             private ListEventArgs<T> _args = new ListEventArgs<T>();
             private bool _disposed = false;
 
@@ -42,7 +42,7 @@ namespace ObserveThing
                     _observer = orderByObservable.Subscribe(HandleOrderbyChanged);
                 }
 
-                private void HandleOrderbyChanged(IValueEventArgs<U> args)
+                private void HandleOrderbyChanged(ValueEventArgs<U> args)
                 {
                     orderedBy = args.currentValue;
                     _requestResort(this);
@@ -57,18 +57,19 @@ namespace ObserveThing
             private Dictionary<T, OrderByData> _dataByElement = new Dictionary<T, OrderByData>();
             private List<OrderByData> _elementsInOrder = new List<OrderByData>();
 
-            public Instance(ICollectionObservable<T> source, Func<T, IValueObservable<U>> orderBy, IObserver<IListEventArgs<T>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, IValueObservable<U>> orderBy, IObserver<ListEventArgs<T>> observer)
             {
                 _orderBy = orderBy;
                 _observer = observer;
-                _source = source.Subscribe(
+                _args.source = source;
+                _collection = collection.Subscribe(
                     HandleSourceChanged,
                     HandleSourceError,
                     HandleSourceDisposed
                 );
             }
 
-            private void HandleSourceChanged(ICollectionEventArgs<T> args)
+            private void HandleSourceChanged(CollectionEventArgs<T> args)
             {
                 switch (args.operationType)
                 {
@@ -228,7 +229,7 @@ namespace ObserveThing
                 foreach (var data in _dataByElement.Values)
                     data.Dispose();
 
-                _source.Dispose();
+                _collection.Dispose();
                 _observer.OnDispose();
             }
         }
