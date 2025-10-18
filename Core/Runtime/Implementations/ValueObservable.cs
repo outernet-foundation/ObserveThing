@@ -17,14 +17,15 @@ namespace ObserveThing
                 _value = value;
                 _args.currentValue = value;
 
-                foreach (var instance in _instances)
-                    instance.OnNext(_args);
+                SafeOnNext(_args);
             }
         }
 
         private T _value = default;
         private ValueEventArgs<T> _args = new ValueEventArgs<T>();
         private List<Instance> _instances = new List<Instance>();
+        private List<Instance> _disposedInstances = new List<Instance>();
+        private bool _executingOnNext;
         private bool _disposed;
         private IDisposable _fromSubscription;
 
@@ -35,19 +36,24 @@ namespace ObserveThing
             _args.source = this;
         }
 
-        public void Dispose()
+        private void SafeOnNext(ValueEventArgs<T> args)
         {
-            if (_disposed)
-                return;
+            _executingOnNext = true;
 
-            _fromSubscription?.Dispose();
+            int count = _instances.Count;
+            for (int i = 0; i < count; i++)
+            {
+                var instance = _instances[i];
+                if (instance.disposed)
+                    continue;
 
-            _disposed = true;
+                instance.OnNext(args);
+            }
 
-            foreach (var instance in _instances)
-                instance.Dispose();
+            foreach (var disposedInstance in _disposedInstances)
+                _instances.Remove(disposedInstance);
 
-            _instances.Clear();
+            _executingOnNext = false;
         }
 
         public void From(T source)
@@ -66,8 +72,16 @@ namespace ObserveThing
         {
             var instance = new Instance(observer, x =>
             {
-                if (!_disposed)
-                    _instances.Remove(x);
+                if (_disposed)
+                    return;
+
+                if (_executingOnNext)
+                {
+                    _disposedInstances.Add(x);
+                    return;
+                }
+
+                _instances.Remove(x);
             });
 
             _instances.Add(instance);
@@ -79,8 +93,25 @@ namespace ObserveThing
             return instance;
         }
 
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            _fromSubscription?.Dispose();
+
+            _disposed = true;
+
+            foreach (var instance in _instances)
+                instance.Dispose();
+
+            _instances.Clear();
+        }
+
         private class Instance : IDisposable
         {
+            public bool disposed { get; private set; }
+
             private IObserver<ValueEventArgs<T>> _observer;
             private Action<Instance> _onDispose;
 
@@ -102,8 +133,10 @@ namespace ObserveThing
 
             public void Dispose()
             {
-                if (_observer == null)
+                if (disposed)
                     return;
+
+                disposed = true;
 
                 _observer.OnDispose();
                 _observer = null;

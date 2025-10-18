@@ -15,12 +15,34 @@ namespace ObserveThing
         private List<T> _list = new List<T>();
         private ListEventArgs<T> _args = new ListEventArgs<T>();
         private List<Instance> _instances = new List<Instance>();
+        private List<Instance> _disposedInstances = new List<Instance>();
+        private bool _executingOnNext;
         private bool _disposed;
         private IDisposable _fromSubscription;
 
         public ListObservable()
         {
             _args.source = this;
+        }
+
+        private void SafeOnNext(ListEventArgs<T> args)
+        {
+            _executingOnNext = true;
+
+            int count = _instances.Count;
+            for (int i = 0; i < count; i++)
+            {
+                var instance = _instances[i];
+                if (instance.disposed)
+                    continue;
+
+                instance.OnNext(args);
+            }
+
+            foreach (var disposedInstance in _disposedInstances)
+                _instances.Remove(disposedInstance);
+
+            _executingOnNext = false;
         }
 
         public void Add(T added)
@@ -42,8 +64,8 @@ namespace ObserveThing
             _args.index = index;
             _args.element = element;
             _args.operationType = OpType.Remove;
-            foreach (var instance in _instances)
-                instance.OnNext(_args);
+
+            SafeOnNext(_args);
         }
 
         public void Insert(int index, T inserted)
@@ -52,8 +74,8 @@ namespace ObserveThing
             _args.index = index;
             _args.element = inserted;
             _args.operationType = OpType.Add;
-            foreach (var instance in _instances)
-                instance.OnNext(_args);
+
+            SafeOnNext(_args);
         }
 
         public void Clear()
@@ -94,8 +116,16 @@ namespace ObserveThing
         {
             var instance = new Instance(observer, x =>
             {
-                if (!_disposed)
-                    _instances.Remove(x);
+                if (_disposed)
+                    return;
+
+                if (_executingOnNext)
+                {
+                    _disposedInstances.Add(x);
+                    return;
+                }
+
+                _instances.Remove(x);
             });
 
             _instances.Add(instance);
@@ -127,6 +157,8 @@ namespace ObserveThing
 
         private class Instance : IDisposable
         {
+            public bool disposed { get; private set; }
+
             private IObserver<ListEventArgs<T>> _observer;
             private Action<Instance> _onDispose;
 
@@ -148,8 +180,10 @@ namespace ObserveThing
 
             public void Dispose()
             {
-                if (_observer == null)
+                if (disposed)
                     return;
+
+                disposed = true;
 
                 _observer.OnDispose();
                 _observer = null;

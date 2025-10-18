@@ -15,6 +15,8 @@ namespace ObserveThing
         private Dictionary<TKey, TValue> _dictionary = new Dictionary<TKey, TValue>();
         private DictionaryEventArgs<TKey, TValue> _args = new DictionaryEventArgs<TKey, TValue>();
         private List<Instance> _instances = new List<Instance>();
+        private List<Instance> _disposedInstances = new List<Instance>();
+        private bool _executingOnNext;
         private bool _disposed;
         private IDisposable _fromSubscription;
 
@@ -23,13 +25,33 @@ namespace ObserveThing
             _args.source = this;
         }
 
+        private void SafeOnNext(DictionaryEventArgs<TKey, TValue> args)
+        {
+            _executingOnNext = true;
+
+            int count = _instances.Count;
+            for (int i = 0; i < count; i++)
+            {
+                var instance = _instances[i];
+                if (instance.disposed)
+                    continue;
+
+                instance.OnNext(args);
+            }
+
+            foreach (var disposedInstance in _disposedInstances)
+                _instances.Remove(disposedInstance);
+
+            _executingOnNext = false;
+        }
+
         public void Add(TKey key, TValue value)
         {
             _dictionary.Add(key, value);
             _args.element = new KeyValuePair<TKey, TValue>(key, value);
             _args.operationType = OpType.Add;
-            foreach (var instance in _instances)
-                instance.OnNext(_args);
+
+            SafeOnNext(_args);
         }
 
         public bool Remove(TKey key)
@@ -40,8 +62,8 @@ namespace ObserveThing
             _dictionary.Remove(key);
             _args.element = new KeyValuePair<TKey, TValue>(key, value);
             _args.operationType = OpType.Remove;
-            foreach (var instance in _instances)
-                instance.OnNext(_args);
+
+            SafeOnNext(_args);
 
             return true;
         }
@@ -79,8 +101,16 @@ namespace ObserveThing
         {
             var instance = new Instance(observer, x =>
             {
-                if (!_disposed)
-                    _instances.Remove(x);
+                if (_disposed)
+                    return;
+
+                if (_executingOnNext)
+                {
+                    _disposedInstances.Add(x);
+                    return;
+                }
+
+                _instances.Remove(x);
             });
 
             _instances.Add(instance);
@@ -111,6 +141,8 @@ namespace ObserveThing
 
         private class Instance : IDisposable
         {
+            public bool disposed { get; private set; }
+
             private IObserver<DictionaryEventArgs<TKey, TValue>> _observer;
             private Action<Instance> _onDispose;
 
@@ -132,8 +164,10 @@ namespace ObserveThing
 
             public void Dispose()
             {
-                if (_observer == null)
+                if (disposed)
                     return;
+
+                disposed = true;
 
                 _observer.OnDispose();
                 _observer = null;
