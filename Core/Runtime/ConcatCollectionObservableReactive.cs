@@ -14,18 +14,18 @@ namespace ObserveThing
             this.collection2 = collection2;
         }
 
-        public IDisposable Subscribe(IObserver<CollectionEventArgs<T>> observer)
+        public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
             => new Instance(this, collection1, collection2, observer);
 
         private class Instance : IDisposable
         {
             private IDisposable _collection1Stream;
             private IDisposable _collection2Stream;
-            private IObserver<CollectionEventArgs<T>> _observer;
+            private IObserver<ICollectionEventArgs<T>> _observer;
             private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
             private bool _disposed = false;
 
-            public Instance(IObservable source, ICollectionObservable<T> collection1, ICollectionObservable<T> collection2, IObserver<CollectionEventArgs<T>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection1, ICollectionObservable<T> collection2, IObserver<ICollectionEventArgs<T>> observer)
             {
                 _observer = observer;
                 _args.source = source;
@@ -43,7 +43,7 @@ namespace ObserveThing
                 );
             }
 
-            private void HandleSourceChanged(CollectionEventArgs<T> args)
+            private void HandleSourceChanged(ICollectionEventArgs<T> args)
             {
                 _args.operationType = args.operationType;
 

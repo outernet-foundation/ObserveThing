@@ -14,14 +14,14 @@ namespace ObserveThing
             this.selectMany = selectMany;
         }
 
-        public IDisposable Subscribe(IObserver<CollectionEventArgs<U>> observer)
+        public IDisposable Subscribe(IObserver<ICollectionEventArgs<U>> observer)
             => new Instance(this, collection, selectMany, observer);
 
         private class Instance : IDisposable
         {
             private IDisposable _collection;
             private Func<T, ICollectionObservable<U>> _selectMany;
-            private IObserver<CollectionEventArgs<U>> _observer;
+            private IObserver<ICollectionEventArgs<U>> _observer;
             private CollectionEventArgs<U> _args = new CollectionEventArgs<U>();
             private bool _disposed = false;
 
@@ -34,7 +34,7 @@ namespace ObserveThing
                 public IDisposable selectMany;
             }
 
-            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, ICollectionObservable<U>> selectMany, IObserver<CollectionEventArgs<U>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, ICollectionObservable<U>> selectMany, IObserver<ICollectionEventArgs<U>> observer)
             {
                 _observer = observer;
                 _selectMany = selectMany;
@@ -46,7 +46,7 @@ namespace ObserveThing
                 );
             }
 
-            private void HandleSourceChanged(CollectionEventArgs<T> args)
+            private void HandleSourceChanged(ICollectionEventArgs<T> args)
             {
                 _args.operationType = args.operationType;
 
@@ -95,7 +95,7 @@ namespace ObserveThing
                 }
             }
 
-            private void HandleSelectManyUpdated(SelectManyData selectManyData, CollectionEventArgs<U> args)
+            private void HandleSelectManyUpdated(SelectManyData selectManyData, ICollectionEventArgs<U> args)
             {
                 switch (args.operationType)
                 {

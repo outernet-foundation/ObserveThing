@@ -13,19 +13,19 @@ namespace ObserveThing
             _contains = contains;
         }
 
-        public IDisposable Subscribe(IObserver<ValueEventArgs<bool>> observer)
+        public IDisposable Subscribe(IObserver<IValueEventArgs<bool>> observer)
             => new Instance(this, _collection, _contains, observer);
 
         private class Instance : IDisposable
         {
             private IDisposable _collectionStream;
             private T _contains;
-            private IObserver<ValueEventArgs<bool>> _observer;
+            private IObserver<IValueEventArgs<bool>> _observer;
             private ValueEventArgs<bool> _args = new ValueEventArgs<bool>();
             private bool _disposed = false;
             private int _count;
 
-            public Instance(IObservable source, ICollectionObservable<T> collection, T contains, IObserver<ValueEventArgs<bool>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection, T contains, IObserver<IValueEventArgs<bool>> observer)
             {
                 _contains = contains;
                 _observer = observer;
@@ -33,7 +33,7 @@ namespace ObserveThing
                 _collectionStream = collection.Subscribe(HandleSourceChanged, HandleSourceError, HandleSourceDisposed);
             }
 
-            private void HandleSourceChanged(CollectionEventArgs<T> args)
+            private void HandleSourceChanged(ICollectionEventArgs<T> args)
             {
                 switch (args.operationType)
                 {

@@ -24,7 +24,7 @@ namespace ObserveThing
             _args.source = this;
         }
 
-        private void SafeOnNext(CollectionEventArgs<T> args)
+        private void SafeOnNext(ICollectionEventArgs<T> args)
         {
             _executingOnNext = true;
 
@@ -96,7 +96,7 @@ namespace ObserveThing
             );
         }
 
-        public IDisposable Subscribe(IObserver<CollectionEventArgs<T>> observer)
+        public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
         {
             var instance = new Instance(observer, x =>
             {
@@ -142,16 +142,16 @@ namespace ObserveThing
         {
             public bool disposed { get; private set; }
 
-            private IObserver<CollectionEventArgs<T>> _observer;
+            private IObserver<ICollectionEventArgs<T>> _observer;
             private Action<Instance> _onDispose;
 
-            public Instance(IObserver<CollectionEventArgs<T>> observer, Action<Instance> onDispose)
+            public Instance(IObserver<ICollectionEventArgs<T>> observer, Action<Instance> onDispose)
             {
                 _observer = observer;
                 _onDispose = onDispose;
             }
 
-            public void OnNext(CollectionEventArgs<T> args)
+            public void OnNext(ICollectionEventArgs<T> args)
             {
                 _observer?.OnNext(args);
             }

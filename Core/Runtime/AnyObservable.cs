@@ -4,26 +4,26 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class AllObservable : IObservable
+    public class AnyObservable : IObservable
     {
         public IObservable[] observables;
 
-        public AllObservable(params IObservable[] observables)
+        public AnyObservable(params IObservable[] observables)
         {
             this.observables = observables;
         }
 
-        public IDisposable Subscribe(IObserver<ObservableEventArgs> observer)
+        public IDisposable Subscribe(IObserver<IObservableEventArgs> observer)
             => new Instance(observables, observer);
 
         private class Instance : IDisposable
         {
-            private IObserver<ObservableEventArgs> _observer;
+            private IObserver<IObservableEventArgs> _observer;
             private List<IObservable> _activeObservers = new List<IObservable>();
             private IDisposable _streams;
             private bool _disposed;
 
-            public Instance(IObservable[] observables, IObserver<ObservableEventArgs> observer)
+            public Instance(IObservable[] observables, IObserver<IObservableEventArgs> observer)
             {
                 _observer = observer;
                 _activeObservers.AddRange(observables);
@@ -36,7 +36,7 @@ namespace ObserveThing
                 );
             }
 
-            private void HandleObservableChanged(ObservableEventArgs args)
+            private void HandleObservableChanged(IObservableEventArgs args)
             {
                 _observer.OnNext(args);
             }

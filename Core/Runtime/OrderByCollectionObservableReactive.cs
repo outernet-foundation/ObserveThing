@@ -16,7 +16,7 @@ namespace ObserveThing
             this.orderBy = orderBy;
         }
 
-        public IDisposable Subscribe(IObserver<ListEventArgs<T>> observer)
+        public IDisposable Subscribe(IObserver<IListEventArgs<T>> observer)
             => new Instance(this, collection, orderBy, observer);
 
         private class Instance : IDisposable
@@ -42,7 +42,7 @@ namespace ObserveThing
                     _observer = orderByObservable.Subscribe(HandleOrderbyChanged);
                 }
 
-                private void HandleOrderbyChanged(ValueEventArgs<U> args)
+                private void HandleOrderbyChanged(IValueEventArgs<U> args)
                 {
                     orderedBy = args.currentValue;
                     _requestResort(this);
@@ -69,7 +69,7 @@ namespace ObserveThing
                 );
             }
 
-            private void HandleSourceChanged(CollectionEventArgs<T> args)
+            private void HandleSourceChanged(ICollectionEventArgs<T> args)
             {
                 switch (args.operationType)
                 {

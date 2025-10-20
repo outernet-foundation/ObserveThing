@@ -13,7 +13,7 @@ namespace ObserveThing
             this.select = select;
         }
 
-        public IDisposable Subscribe(IObserver<ValueEventArgs<U>> observer)
+        public IDisposable Subscribe(IObserver<IValueEventArgs<U>> observer)
             => new Instance(this, value, select, observer);
 
         private class Instance : IDisposable
@@ -21,12 +21,12 @@ namespace ObserveThing
             private IDisposable _valueStream;
             private IDisposable _nestedSource;
             private Func<T, IValueObservable<U>> _select;
-            private IObserver<ValueEventArgs<U>> _observer;
+            private IObserver<IValueEventArgs<U>> _observer;
             private ValueEventArgs<U> _args = new ValueEventArgs<U>();
             private bool _initializeCalled = false;
             private bool _disposed = false;
 
-            public Instance(IObservable source, IValueObservable<T> value, Func<T, IValueObservable<U>> select, IObserver<ValueEventArgs<U>> observer)
+            public Instance(IObservable source, IValueObservable<T> value, Func<T, IValueObservable<U>> select, IObserver<IValueEventArgs<U>> observer)
             {
                 _select = select;
                 _observer = observer;
@@ -37,7 +37,7 @@ namespace ObserveThing
                     _observer.OnNext(_args); // we should always send an initial call, even if there's no change
             }
 
-            private void HandleSourceChanged(ValueEventArgs<T> args)
+            private void HandleSourceChanged(IValueEventArgs<T> args)
             {
                 _nestedSource?.Dispose();
                 _nestedSource = _select(args.currentValue).Subscribe(HandleNestedSourceChanged, HandleSourceError, HandleNestedSourceDisposed);
@@ -53,7 +53,7 @@ namespace ObserveThing
                 Dispose();
             }
 
-            private void HandleNestedSourceChanged(ValueEventArgs<U> args)
+            private void HandleNestedSourceChanged(IValueEventArgs<U> args)
             {
                 _args.previousValue = _args.currentValue;
                 _args.currentValue = args.currentValue;

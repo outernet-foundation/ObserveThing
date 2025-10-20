@@ -112,7 +112,7 @@ namespace ObserveThing
             );
         }
 
-        public IDisposable Subscribe(IObserver<ListEventArgs<T>> observer)
+        public IDisposable Subscribe(IObserver<IListEventArgs<T>> observer)
         {
             var instance = new Instance(observer, x =>
             {

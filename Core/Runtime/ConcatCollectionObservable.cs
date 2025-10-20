@@ -14,17 +14,17 @@ namespace ObserveThing
             this.concat = concat;
         }
 
-        public IDisposable Subscribe(IObserver<CollectionEventArgs<T>> observer)
+        public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
             => new Instance(this, collection, concat, observer);
 
         private class Instance : IDisposable
         {
             private IDisposable _collectionStream;
-            private IObserver<CollectionEventArgs<T>> _observer;
+            private IObserver<ICollectionEventArgs<T>> _observer;
             private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
             private bool _disposed = false;
 
-            public Instance(IObservable source, ICollectionObservable<T> collection, IEnumerable<T> concat, IObserver<CollectionEventArgs<T>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection, IEnumerable<T> concat, IObserver<ICollectionEventArgs<T>> observer)
             {
                 _observer = observer;
                 _args.source = source;
@@ -43,7 +43,7 @@ namespace ObserveThing
                 }
             }
 
-            private void HandleSourceChanged(CollectionEventArgs<T> args)
+            private void HandleSourceChanged(ICollectionEventArgs<T> args)
             {
                 _args.operationType = args.operationType;
 

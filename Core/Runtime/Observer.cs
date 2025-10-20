@@ -2,22 +2,14 @@ using System;
 
 namespace ObserveThing
 {
-    public interface IObserver
-    {
-        void OnNext(ObservableEventArgs args);
-    }
-
-    public interface IObserver<in T> : IObserver where T : ObservableEventArgs
+    public interface IObserver<in T>
     {
         void OnNext(T args);
         void OnError(Exception exception);
         void OnDispose();
-
-        void IObserver.OnNext(ObservableEventArgs args)
-            => OnNext((T)args);
     }
 
-    public sealed class Observer<T> : IObserver<T> where T : ObservableEventArgs
+    public sealed class Observer<T> : IObserver<T> where T : IObservableEventArgs
     {
         public Action<T> onNext;
         public Action<Exception> onError;

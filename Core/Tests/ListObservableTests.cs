@@ -56,7 +56,7 @@ namespace ObserveThing.Tests
             _disposing = false;
         }
 
-        public IDisposable Subscribe(IObserver<CollectionEventArgs<T>> observer)
+        public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
         {
             var instance = new Instance(observer, x =>
             {

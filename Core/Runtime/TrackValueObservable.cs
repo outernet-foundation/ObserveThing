@@ -13,18 +13,18 @@ namespace ObserveThing
             this.key = key;
         }
 
-        public IDisposable Subscribe(IObserver<ValueEventArgs<(bool keyPresent, TValue value)>> observer)
+        public IDisposable Subscribe(IObserver<IValueEventArgs<(bool keyPresent, TValue value)>> observer)
             => new Instance(this, dictionary, key, observer);
 
         private class Instance : IDisposable
         {
             private IDisposable _dictionaryStream;
             private TKey _key;
-            private IObserver<ValueEventArgs<(bool keyPresent, TValue value)>> _observer;
+            private IObserver<IValueEventArgs<(bool keyPresent, TValue value)>> _observer;
             private ValueEventArgs<(bool keyPresent, TValue value)> _args = new ValueEventArgs<(bool keyPresent, TValue value)>();
             private bool _disposed = false;
 
-            public Instance(IObservable source, IDictionaryObservable<TKey, TValue> dictionary, TKey key, IObserver<ValueEventArgs<(bool keyPresent, TValue value)>> observer)
+            public Instance(IObservable source, IDictionaryObservable<TKey, TValue> dictionary, TKey key, IObserver<IValueEventArgs<(bool keyPresent, TValue value)>> observer)
             {
                 _key = key;
                 _observer = observer;
@@ -36,7 +36,7 @@ namespace ObserveThing
                 );
             }
 
-            private void HandleSourceChanged(DictionaryEventArgs<TKey, TValue> args)
+            private void HandleSourceChanged(IDictionaryEventArgs<TKey, TValue> args)
             {
                 switch (args.operationType)
                 {

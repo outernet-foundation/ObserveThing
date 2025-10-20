@@ -11,18 +11,18 @@ namespace ObserveThing
             this.collection = collection;
         }
 
-        public IDisposable Subscribe(IObserver<ValueEventArgs<int>> observer)
+        public IDisposable Subscribe(IObserver<IValueEventArgs<int>> observer)
             => new Instance(this, collection, observer);
 
         private class Instance : IDisposable
         {
             private IDisposable _collectionStream;
-            private IObserver<ValueEventArgs<int>> _observer;
+            private IObserver<IValueEventArgs<int>> _observer;
             private ValueEventArgs<int> _args = new ValueEventArgs<int>();
             private int _count;
             private bool _disposed = false;
 
-            public Instance(IObservable source, ICollectionObservable<T> collection, IObserver<ValueEventArgs<int>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection, IObserver<IValueEventArgs<int>> observer)
             {
                 _observer = observer;
                 _args.source = source;
@@ -33,7 +33,7 @@ namespace ObserveThing
                 );
             }
 
-            private void HandleSourceChanged(CollectionEventArgs<T> args)
+            private void HandleSourceChanged(ICollectionEventArgs<T> args)
             {
                 switch (args.operationType)
                 {

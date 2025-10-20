@@ -36,7 +36,7 @@ namespace ObserveThing
             _args.source = this;
         }
 
-        private void SafeOnNext(ValueEventArgs<T> args)
+        private void SafeOnNext(IValueEventArgs<T> args)
         {
             _executingOnNext = true;
 
@@ -68,7 +68,7 @@ namespace ObserveThing
             _fromSubscription = source.Subscribe(x => value = x.currentValue);
         }
 
-        public IDisposable Subscribe(IObserver<ValueEventArgs<T>> observer)
+        public IDisposable Subscribe(IObserver<IValueEventArgs<T>> observer)
         {
             var instance = new Instance(observer, x =>
             {
@@ -112,16 +112,16 @@ namespace ObserveThing
         {
             public bool disposed { get; private set; }
 
-            private IObserver<ValueEventArgs<T>> _observer;
+            private IObserver<IValueEventArgs<T>> _observer;
             private Action<Instance> _onDispose;
 
-            public Instance(IObserver<ValueEventArgs<T>> observer, Action<Instance> onDispose)
+            public Instance(IObserver<IValueEventArgs<T>> observer, Action<Instance> onDispose)
             {
                 _observer = observer;
                 _onDispose = onDispose;
             }
 
-            public void OnNext(ValueEventArgs<T> args)
+            public void OnNext(IValueEventArgs<T> args)
             {
                 _observer?.OnNext(args);
             }

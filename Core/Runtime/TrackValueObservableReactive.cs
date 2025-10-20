@@ -14,14 +14,14 @@ namespace ObserveThing
             this.key = key;
         }
 
-        public IDisposable Subscribe(IObserver<ValueEventArgs<(bool keyPresent, TValue value)>> observer)
+        public IDisposable Subscribe(IObserver<IValueEventArgs<(bool keyPresent, TValue value)>> observer)
             => new Instance(this, dictionary, key, observer);
 
         private class Instance : IDisposable
         {
             private IDisposable _dictionaryStream;
             private IDisposable _keyStream;
-            private IObserver<ValueEventArgs<(bool keyPresent, TValue value)>> _observer;
+            private IObserver<IValueEventArgs<(bool keyPresent, TValue value)>> _observer;
             private ValueEventArgs<(bool keyPresent, TValue value)> _args = new ValueEventArgs<(bool keyPresent, TValue value)>();
             private bool _awaitingInit = true;
             private bool _disposed = false;
@@ -29,7 +29,7 @@ namespace ObserveThing
             private Dictionary<TKey, TValue> _currentDict = new Dictionary<TKey, TValue>();
             private TKey _currentKey;
 
-            public Instance(IObservable source, IDictionaryObservable<TKey, TValue> dictionary, IValueObservable<TKey> key, IObserver<ValueEventArgs<(bool keyPresent, TValue value)>> observer)
+            public Instance(IObservable source, IDictionaryObservable<TKey, TValue> dictionary, IValueObservable<TKey> key, IObserver<IValueEventArgs<(bool keyPresent, TValue value)>> observer)
             {
                 _observer = observer;
                 _args.source = source;
@@ -47,7 +47,7 @@ namespace ObserveThing
                 );
             }
 
-            private void HandleSourceChanged(DictionaryEventArgs<TKey, TValue> args)
+            private void HandleSourceChanged(IDictionaryEventArgs<TKey, TValue> args)
             {
                 switch (args.operationType)
                 {
@@ -79,7 +79,7 @@ namespace ObserveThing
                 }
             }
 
-            private void HandleKeyChanged(ValueEventArgs<TKey> args)
+            private void HandleKeyChanged(IValueEventArgs<TKey> args)
             {
                 _currentKey = args.currentValue;
                 _awaitingInit = false;

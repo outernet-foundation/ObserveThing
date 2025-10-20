@@ -97,7 +97,7 @@ namespace ObserveThing
             );
         }
 
-        public IDisposable Subscribe(IObserver<DictionaryEventArgs<TKey, TValue>> observer)
+        public IDisposable Subscribe(IObserver<IDictionaryEventArgs<TKey, TValue>> observer)
         {
             var instance = new Instance(observer, x =>
             {

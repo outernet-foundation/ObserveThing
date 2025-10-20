@@ -14,20 +14,20 @@ namespace ObserveThing
             this.select = select;
         }
 
-        public IDisposable Subscribe(IObserver<CollectionEventArgs<T>> observer)
+        public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
             => new Instance(this, collection, select, observer);
 
         private class Instance : IDisposable
         {
             private IDisposable _collectionStream;
             private Func<T, bool> _select;
-            private IObserver<CollectionEventArgs<T>> _observer;
+            private IObserver<ICollectionEventArgs<T>> _observer;
             private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
             private bool _disposed = false;
 
             private List<T> _elements = new List<T>();
 
-            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, bool> select, IObserver<CollectionEventArgs<T>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, bool> select, IObserver<ICollectionEventArgs<T>> observer)
             {
                 _select = select;
                 _observer = observer;
@@ -39,7 +39,7 @@ namespace ObserveThing
                 );
             }
 
-            private void HandleSourceChanged(CollectionEventArgs<T> args)
+            private void HandleSourceChanged(ICollectionEventArgs<T> args)
             {
                 _args.operationType = args.operationType;
 

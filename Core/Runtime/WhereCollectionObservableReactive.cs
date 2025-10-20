@@ -14,14 +14,14 @@ namespace ObserveThing
             this.select = select;
         }
 
-        public IDisposable Subscribe(IObserver<CollectionEventArgs<T>> observer)
+        public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
             => new Instance(this, collection, select, observer);
 
         private class Instance : IDisposable
         {
             private IDisposable _collectionStream;
             private Func<T, IValueObservable<bool>> _select;
-            private IObserver<CollectionEventArgs<T>> _observer;
+            private IObserver<ICollectionEventArgs<T>> _observer;
             private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
             private bool _disposed = false;
 
@@ -35,7 +35,7 @@ namespace ObserveThing
 
             private Dictionary<T, FilterData> _filterData = new Dictionary<T, FilterData>();
 
-            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, IValueObservable<bool>> select, IObserver<CollectionEventArgs<T>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, IValueObservable<bool>> select, IObserver<ICollectionEventArgs<T>> observer)
             {
                 _select = select;
                 _observer = observer;
@@ -57,7 +57,7 @@ namespace ObserveThing
                 Dispose();
             }
 
-            private void HandleSourceChanged(CollectionEventArgs<T> args)
+            private void HandleSourceChanged(ICollectionEventArgs<T> args)
             {
                 switch (args.operationType)
                 {
