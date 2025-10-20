@@ -89,12 +89,16 @@ namespace ObserveThing
         IDisposable Subscribe(IObserver<IDictionaryEventArgs<TKey, TValue>> observer);
         IDisposable ICollectionObservable<KeyValuePair<TKey, TValue>>.Subscribe(IObserver<ICollectionEventArgs<KeyValuePair<TKey, TValue>>> observer)
             => Subscribe(observer);
+        IDisposable IObservable.Subscribe(IObserver<IObservableEventArgs> observer)
+            => Subscribe(observer);
     }
 
     public interface IListObservable<out T> : ICollectionObservable<T>
     {
         IDisposable Subscribe(IObserver<IListEventArgs<T>> observer);
         IDisposable ICollectionObservable<T>.Subscribe(IObserver<ICollectionEventArgs<T>> observer)
+            => Subscribe(observer);
+        IDisposable IObservable.Subscribe(IObserver<IObservableEventArgs> observer)
             => Subscribe(observer);
     }
 
