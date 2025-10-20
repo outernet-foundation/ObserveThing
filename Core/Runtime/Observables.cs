@@ -73,6 +73,7 @@ namespace ObserveThing
     public interface IValueObservable<T> : IObservable
     {
         IDisposable Subscribe(IObserver<IValueEventArgs<T>> observer);
+
         IDisposable IObservable.Subscribe(IObserver<IObservableEventArgs> observer)
             => Subscribe(observer);
     }
@@ -80,6 +81,7 @@ namespace ObserveThing
     public interface ICollectionObservable<out T> : IObservable
     {
         IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer);
+
         IDisposable IObservable.Subscribe(IObserver<IObservableEventArgs> observer)
             => Subscribe(observer);
     }
@@ -87,18 +89,16 @@ namespace ObserveThing
     public interface IDictionaryObservable<TKey, TValue> : ICollectionObservable<KeyValuePair<TKey, TValue>>
     {
         IDisposable Subscribe(IObserver<IDictionaryEventArgs<TKey, TValue>> observer);
+
         IDisposable ICollectionObservable<KeyValuePair<TKey, TValue>>.Subscribe(IObserver<ICollectionEventArgs<KeyValuePair<TKey, TValue>>> observer)
-            => Subscribe(observer);
-        IDisposable IObservable.Subscribe(IObserver<IObservableEventArgs> observer)
             => Subscribe(observer);
     }
 
     public interface IListObservable<out T> : ICollectionObservable<T>
     {
         IDisposable Subscribe(IObserver<IListEventArgs<T>> observer);
+
         IDisposable ICollectionObservable<T>.Subscribe(IObserver<ICollectionEventArgs<T>> observer)
-            => Subscribe(observer);
-        IDisposable IObservable.Subscribe(IObserver<IObservableEventArgs> observer)
             => Subscribe(observer);
     }
 
