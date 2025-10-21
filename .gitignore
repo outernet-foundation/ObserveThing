@@ -1,2 +1,15 @@
-bin/
-obj/
+*.csproj
+*.sln
+Assets/Packages/
+Build/
+Build.meta
+Builds/
+Library/
+Logs/
+Temp/
+UserSettings/
+Assets/_LocalWorkspace
+Assets/_LocalWorkspace.meta
+Recordings/
+
+.utmp/
