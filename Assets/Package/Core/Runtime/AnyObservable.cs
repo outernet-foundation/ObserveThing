@@ -13,44 +13,23 @@ namespace ObserveThing
             this.observables = observables;
         }
 
-        public IDisposable Subscribe(IObserver<IObservableEventArgs> observer)
+        public IDisposable Subscribe(Action<IObservableEventArgs> observer)
             => new Instance(observables, observer);
 
         private class Instance : IDisposable
         {
-            private IObserver<IObservableEventArgs> _observer;
+            private Action<IObservableEventArgs> _observer;
             private List<IObservable> _activeObservers = new List<IObservable>();
             private IDisposable _streams;
             private bool _disposed;
 
-            public Instance(IObservable[] observables, IObserver<IObservableEventArgs> observer)
+            public Instance(IObservable[] observables, Action<IObservableEventArgs> observer)
             {
                 _observer = observer;
                 _activeObservers.AddRange(observables);
                 _streams = new ComposedDisposable(
-                    observables.Select(x => x.Subscribe(
-                        HandleObservableChanged,
-                        HandleObservableError,
-                        () => HandleObservableDisposed(x)
-                    )).ToArray()
+                    observables.Select(x => x.Subscribe(_observer)).ToArray()
                 );
-            }
-
-            private void HandleObservableChanged(IObservableEventArgs args)
-            {
-                _observer.OnNext(args);
-            }
-
-            public void HandleObservableError(Exception exception)
-            {
-                _observer.OnError(exception);
-            }
-
-            public void HandleObservableDisposed(IObservable observable)
-            {
-                _activeObservers.Remove(observable);
-                if (_activeObservers.Count == 0)
-                    Dispose();
             }
 
             public void Dispose()
@@ -60,7 +39,7 @@ namespace ObserveThing
 
                 _disposed = true;
                 _streams.Dispose();
-                _observer.OnDispose();
+                _observer(new ObservableEventArgs() { isDispose = true });
             }
         }
     }

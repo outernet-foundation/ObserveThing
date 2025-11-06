@@ -5,6 +5,7 @@ namespace ObserveThing
 {
     public enum OpType
     {
+        None,
         Add,
         Remove
     }
@@ -12,6 +13,9 @@ namespace ObserveThing
     public interface IObservableEventArgs
     {
         IObservable source { get; }
+        Exception error { get; }
+        bool isError { get; }
+        bool isDispose { get; }
     }
 
     public interface IValueEventArgs<out T> : IObservableEventArgs
@@ -40,18 +44,81 @@ namespace ObserveThing
     public class ObservableEventArgs : IObservableEventArgs
     {
         public IObservable source { get; set; }
+        public Exception error { get; set; }
+        public bool isError { get; set; }
+        public bool isDispose { get; set; }
+
+        public virtual void AsError(Exception error)
+        {
+            this.error = error;
+            isError = true;
+            isDispose = false;
+        }
+
+        public virtual void AsDispose()
+        {
+            error = default;
+            isError = false;
+            isDispose = true;
+        }
     }
 
     public class ValueEventArgs<T> : ObservableEventArgs, IValueEventArgs<T>
     {
         public T currentValue { get; set; }
         public T previousValue { get; set; }
+
+        public void AsNotify(T currentValue, T previousValue)
+        {
+            error = default;
+            isError = false;
+            isDispose = false;
+            this.currentValue = currentValue;
+            this.previousValue = previousValue;
+        }
+
+        public override void AsDispose()
+        {
+            currentValue = default;
+            previousValue = default;
+            base.AsDispose();
+        }
+
+        public override void AsError(Exception error)
+        {
+            currentValue = default;
+            previousValue = default;
+            base.AsError(error);
+        }
     }
 
     public class CollectionEventArgs<T> : ObservableEventArgs, ICollectionEventArgs<T>
     {
         public T element { get; set; }
         public OpType operationType { get; set; }
+
+        public virtual void AsNotify(T element, OpType operationType)
+        {
+            error = default;
+            isError = false;
+            isDispose = false;
+            this.element = element;
+            this.operationType = operationType;
+        }
+
+        public override void AsDispose()
+        {
+            element = default;
+            operationType = default;
+            base.AsDispose();
+        }
+
+        public override void AsError(Exception error)
+        {
+            element = default;
+            operationType = default;
+            base.AsError(error);
+        }
     }
 
     public class DictionaryEventArgs<TKey, TValue> : CollectionEventArgs<KeyValuePair<TKey, TValue>>, IDictionaryEventArgs<TKey, TValue>
@@ -63,42 +130,48 @@ namespace ObserveThing
     public class ListEventArgs<T> : CollectionEventArgs<T>, IListEventArgs<T>
     {
         public int index { get; set; }
+
+        public void AsNotify(int index, T element, OpType operationType)
+        {
+            this.index = index;
+            base.AsNotify(element, operationType);
+        }
     }
 
     public interface IObservable
     {
-        IDisposable Subscribe(IObserver<IObservableEventArgs> observer);
+        IDisposable Subscribe(Action<IObservableEventArgs> observer);
     }
 
     public interface IValueObservable<T> : IObservable
     {
-        IDisposable Subscribe(IObserver<IValueEventArgs<T>> observer);
+        IDisposable Subscribe(Action<IValueEventArgs<T>> observer);
 
-        IDisposable IObservable.Subscribe(IObserver<IObservableEventArgs> observer)
+        IDisposable IObservable.Subscribe(Action<IObservableEventArgs> observer)
             => Subscribe(observer);
     }
 
     public interface ICollectionObservable<out T> : IObservable
     {
-        IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer);
+        IDisposable Subscribe(Action<ICollectionEventArgs<T>> observer);
 
-        IDisposable IObservable.Subscribe(IObserver<IObservableEventArgs> observer)
+        IDisposable IObservable.Subscribe(Action<IObservableEventArgs> observer)
             => Subscribe(observer);
     }
 
     public interface IDictionaryObservable<TKey, TValue> : ICollectionObservable<KeyValuePair<TKey, TValue>>
     {
-        IDisposable Subscribe(IObserver<IDictionaryEventArgs<TKey, TValue>> observer);
+        IDisposable Subscribe(Action<IDictionaryEventArgs<TKey, TValue>> observer);
 
-        IDisposable ICollectionObservable<KeyValuePair<TKey, TValue>>.Subscribe(IObserver<ICollectionEventArgs<KeyValuePair<TKey, TValue>>> observer)
+        IDisposable ICollectionObservable<KeyValuePair<TKey, TValue>>.Subscribe(Action<ICollectionEventArgs<KeyValuePair<TKey, TValue>>> observer)
             => Subscribe(observer);
     }
 
     public interface IListObservable<out T> : ICollectionObservable<T>
     {
-        IDisposable Subscribe(IObserver<IListEventArgs<T>> observer);
+        IDisposable Subscribe(Action<IListEventArgs<T>> observer);
 
-        IDisposable ICollectionObservable<T>.Subscribe(IObserver<ICollectionEventArgs<T>> observer)
+        IDisposable ICollectionObservable<T>.Subscribe(Action<ICollectionEventArgs<T>> observer)
             => Subscribe(observer);
     }
 
@@ -193,21 +266,6 @@ namespace ObserveThing
 
         public static IValueObservable<int> IndexOfDynamic<T>(this IListObservable<T> source, T value)
             => new IndexOfObservable<T>(source, value);
-
-        public static IDisposable Subscribe(this IObservable source, Action<IObservableEventArgs> observer = default, Action<Exception> onError = default, Action onDispose = default)
-            => source.Subscribe(new Observer<IObservableEventArgs>() { onNext = observer, onError = onError, onDispose = onDispose });
-
-        public static IDisposable Subscribe<T>(this IValueObservable<T> source, Action<IValueEventArgs<T>> observer = default, Action<Exception> onError = default, Action onDispose = default)
-            => source.Subscribe(new Observer<IValueEventArgs<T>>() { onNext = observer, onError = onError, onDispose = onDispose });
-
-        public static IDisposable Subscribe<T>(this ICollectionObservable<T> source, Action<ICollectionEventArgs<T>> observer = default, Action<Exception> onError = default, Action onDispose = default)
-            => source.Subscribe(new Observer<ICollectionEventArgs<T>>() { onNext = observer, onError = onError, onDispose = onDispose });
-
-        public static IDisposable Subscribe<T>(this IListObservable<T> source, Action<IListEventArgs<T>> observer = default, Action<Exception> onError = default, Action onDispose = default)
-            => source.Subscribe(new Observer<IListEventArgs<T>>() { onNext = observer, onError = onError, onDispose = onDispose });
-
-        public static IDisposable Subscribe<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<IDictionaryEventArgs<TKey, TValue>> observer = default, Action<Exception> onError = default, Action onDispose = default)
-            => source.Subscribe(new Observer<IDictionaryEventArgs<TKey, TValue>>() { onNext = observer, onError = onError, onDispose = onDispose });
 
         public static IValueObservable<T> AsObservable<T>(this IValueObservable<T> observable)
             => observable;

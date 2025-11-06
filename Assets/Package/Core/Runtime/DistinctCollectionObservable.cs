@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEditor.PackageManager;
 
 namespace ObserveThing
 {
@@ -12,31 +13,41 @@ namespace ObserveThing
             this.collection = collection;
         }
 
-        public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
+        public IDisposable Subscribe(Action<ICollectionEventArgs<T>> observer)
             => new Instance(this, collection, observer);
 
         private class Instance : IDisposable
         {
             private IDisposable _collection;
-            private IObserver<ICollectionEventArgs<T>> _observer;
+            private Action<ICollectionEventArgs<T>> _observer;
             private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
             private bool _disposed = false;
 
             private Dictionary<T, int> _elements = new Dictionary<T, int>();
 
-            public Instance(IObservable source, ICollectionObservable<T> collection, IObserver<ICollectionEventArgs<T>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection, Action<ICollectionEventArgs<T>> observer)
             {
                 _observer = observer;
                 _args.source = source;
-                _collection = collection.Subscribe(
-                    HandleSourceChanged,
-                    HandleSourceError,
-                    HandleSourceDisposed
-                );
+                _collection = collection.Subscribe(HandleSourceChanged);
             }
 
             private void HandleSourceChanged(ICollectionEventArgs<T> args)
             {
+                if (args.isDispose)
+                {
+                    _args.AsDispose();
+                    _observer(args);
+                    return;
+                }
+
+                if (args.isError)
+                {
+                    _args.AsError(args.error);
+                    _observer(args);
+                    return;
+                }
+
                 switch (args.operationType)
                 {
                     case OpType.Add:
@@ -51,7 +62,7 @@ namespace ObserveThing
                             {
                                 _args.operationType = OpType.Add;
                                 _args.element = args.element;
-                                _observer.OnNext(_args);
+                                _observer(_args);
                             }
                         }
 
@@ -69,22 +80,12 @@ namespace ObserveThing
                                 _elements.Remove(args.element);
                                 _args.operationType = OpType.Remove;
                                 _args.element = args.element;
-                                _observer.OnNext(_args);
+                                _observer(_args);
                             }
                         }
 
                         break;
                 }
-            }
-
-            private void HandleSourceError(Exception error)
-            {
-                _observer.OnError(error);
-            }
-
-            private void HandleSourceDisposed()
-            {
-                Dispose();
             }
 
             public void Dispose()
@@ -95,7 +96,8 @@ namespace ObserveThing
                 _disposed = true;
 
                 _collection.Dispose();
-                _observer.OnDispose();
+                _args.AsDispose();
+                _observer.Invoke(_args);
             }
         }
     }

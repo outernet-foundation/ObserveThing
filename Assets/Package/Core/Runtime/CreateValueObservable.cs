@@ -13,24 +13,24 @@ namespace ObserveThing
             this.select = select;
         }
 
-        public IDisposable Subscribe(IObserver<IValueEventArgs<U>> observer)
+        public IDisposable Subscribe(Action<IValueEventArgs<U>> observer)
             => new Instance(this, value, select, observer);
 
         private class Instance : IDisposable
         {
             private IDisposable _valueStream;
             private Func<T, U> _select;
-            private IObserver<IValueEventArgs<U>> _observer;
+            private Action<IValueEventArgs<U>> _observer;
             private ValueEventArgs<U> _args = new ValueEventArgs<U>();
             private bool _initializeCalled = false;
             private bool _disposed = false;
 
-            public Instance(IObservable source, IValueObservable<T> value, Func<T, U> select, IObserver<IValueEventArgs<U>> observer)
+            public Instance(IObservable source, IValueObservable<T> value, Func<T, U> select, Action<IValueEventArgs<U>> observer)
             {
                 _select = select;
                 _observer = observer;
                 _args.source = source;
-                _valueStream = value.Subscribe(HandleSourceChanged, HandleSourceError, HandleSourceDisposed);
+                _valueStream = value.Subscribe(HandleSourceChanged);
 
                 if (!_initializeCalled)
                     _observer.OnNext(_args); // we should always send an initial call, even if there's no change
@@ -38,6 +38,22 @@ namespace ObserveThing
 
             private void HandleSourceChanged(IValueEventArgs<T> args)
             {
+                if (args.isDispose)
+                {
+                    _args.AsDispose();
+                    _observer(_args);
+                    return;
+                }
+
+                if (args.isError)
+                {
+                    _args.AsError(args.error);
+                    _observer(_args);
+                    return;
+                }
+
+                _args.AsNotify(_select(args.currentValue), _args.currentValue);
+
                 _args.previousValue = _args.currentValue;
                 _args.currentValue = _select(args.currentValue);
 
