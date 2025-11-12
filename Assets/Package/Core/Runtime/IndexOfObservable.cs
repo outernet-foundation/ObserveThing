@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace ObserveThing
 {
@@ -24,6 +25,8 @@ namespace ObserveThing
             private ValueEventArgs<int> _args = new ValueEventArgs<int>();
             private bool _disposed = false;
 
+            private List<T> _list = new List<T>();
+
             public Instance(IObservable source, IListObservable<T> list, T indexOf, IObserver<IValueEventArgs<int>> observer)
             {
                 _indexOf = indexOf;
@@ -36,6 +39,15 @@ namespace ObserveThing
 
             private void HandleSourceChanged(IListEventArgs<T> args)
             {
+                if (args.operationType == OpType.Add)
+                {
+                    _list.Insert(args.index, args.element);
+                }
+                else
+                {
+                    _list.RemoveAt(args.index);
+                }
+
                 if (Equals(args.element, _indexOf))
                 {
                     if (args.operationType == OpType.Add)
@@ -59,6 +71,7 @@ namespace ObserveThing
 
                 _args.previousValue = _args.currentValue;
                 _args.currentValue = args.operationType == OpType.Add ? _args.currentValue++ : _args.currentValue--;
+                _observer.OnNext(_args);
             }
 
             private void HandleSourceError(Exception error)
