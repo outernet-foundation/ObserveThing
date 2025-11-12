@@ -89,6 +89,12 @@ namespace ObserveThing
             return _list.IndexOf(item);
         }
 
+        public bool Contains(T item)
+            => _list.Contains(item);
+
+        public void From(params T[] source)
+            => From((IEnumerable<T>)source);
+
         public void From(IEnumerable<T> source)
         {
             _fromSubscription?.Dispose();

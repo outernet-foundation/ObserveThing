@@ -73,6 +73,12 @@ namespace ObserveThing
                 Remove(element);
         }
 
+        public bool Contains(T element)
+            => _collection.Contains(element);
+
+        public void From(params T[] source)
+            => From((IEnumerable<T>)source);
+
         public void From(IEnumerable<T> source)
         {
             _fromSubscription?.Dispose();

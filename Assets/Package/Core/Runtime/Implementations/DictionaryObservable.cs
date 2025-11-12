@@ -74,6 +74,12 @@ namespace ObserveThing
                 Remove(key);
         }
 
+        public bool ContainsKey(TKey key)
+            => _dictionary.ContainsKey(key);
+
+        public bool ContainsValue(TValue value)
+            => _dictionary.ContainsValue(value);
+
         public void From(IEnumerable<KeyValuePair<TKey, TValue>> source)
         {
             _fromSubscription?.Dispose();
