@@ -288,6 +288,27 @@ namespace ObserveThing.Tests
         }
 
         [Test]
+        public void TestOrderByExternalCollection()
+        {
+            ListObservable<string> source = new ListObservable<string>();
+            ListObservable<string> destination = new ListObservable<string>();
+
+            destination.From(source.SelectDynamic(x => x).OrderByDynamic(x => source.IndexOfDynamic(x)));
+
+            source.Add("cat");
+            source.Add("dog");
+            source.Add("frog");
+
+            Assert.AreEqual(source, destination);
+
+            source.Remove("dog");
+            source.Add("me");
+            source.Insert(0, "meee");
+
+            Assert.AreEqual(source, destination);
+        }
+
+        [Test]
         public void TestWhere()
         {
             int callCount = 0;
