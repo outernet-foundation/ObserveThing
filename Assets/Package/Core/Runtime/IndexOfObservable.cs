@@ -58,7 +58,7 @@ namespace ObserveThing
                     return;
 
                 _args.previousValue = _args.currentValue;
-                _args.currentValue = _args.currentValue++;
+                _args.currentValue = args.operationType == OpType.Add ? _args.currentValue++ : _args.currentValue--;
             }
 
             private void HandleSourceError(Exception error)
