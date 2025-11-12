@@ -195,19 +195,19 @@ namespace ObserveThing
             => new IndexOfObservable<T>(source, value);
 
         public static IDisposable Subscribe(this IObservable source, Action<IObservableEventArgs> observer = default, Action<Exception> onError = default, Action onDispose = default)
-            => source.Subscribe(new Observer<IObservableEventArgs>() { onNext = observer, onError = onError, onDispose = onDispose });
+            => source.Subscribe(new Observer<IObservableEventArgs>(observer, onError, onDispose));
 
         public static IDisposable Subscribe<T>(this IValueObservable<T> source, Action<IValueEventArgs<T>> observer = default, Action<Exception> onError = default, Action onDispose = default)
-            => source.Subscribe(new Observer<IValueEventArgs<T>>() { onNext = observer, onError = onError, onDispose = onDispose });
+            => source.Subscribe(new Observer<IValueEventArgs<T>>(observer, onError, onDispose));
 
         public static IDisposable Subscribe<T>(this ICollectionObservable<T> source, Action<ICollectionEventArgs<T>> observer = default, Action<Exception> onError = default, Action onDispose = default)
-            => source.Subscribe(new Observer<ICollectionEventArgs<T>>() { onNext = observer, onError = onError, onDispose = onDispose });
+            => source.Subscribe(new Observer<ICollectionEventArgs<T>>(observer, onError, onDispose));
 
         public static IDisposable Subscribe<T>(this IListObservable<T> source, Action<IListEventArgs<T>> observer = default, Action<Exception> onError = default, Action onDispose = default)
-            => source.Subscribe(new Observer<IListEventArgs<T>>() { onNext = observer, onError = onError, onDispose = onDispose });
+            => source.Subscribe(new Observer<IListEventArgs<T>>(observer, onError, onDispose));
 
         public static IDisposable Subscribe<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<IDictionaryEventArgs<TKey, TValue>> observer = default, Action<Exception> onError = default, Action onDispose = default)
-            => source.Subscribe(new Observer<IDictionaryEventArgs<TKey, TValue>>() { onNext = observer, onError = onError, onDispose = onDispose });
+            => source.Subscribe(new Observer<IDictionaryEventArgs<TKey, TValue>>(observer, onError, onDispose));
 
         public static IValueObservable<T> AsObservable<T>(this IValueObservable<T> observable)
             => observable;
