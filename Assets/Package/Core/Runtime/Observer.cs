@@ -18,8 +18,13 @@ namespace ObserveThing
         public Observer(Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default)
         {
             this.onNext = onNext;
-            this.onError = onError ?? UnityEngine.Debug.LogError;
+            this.onError = onError ?? ThrowError;
             this.onDispose = onDispose;
+        }
+
+        private void ThrowError(Exception error)
+        {
+            throw error;
         }
 
         public void OnNext(T args)
