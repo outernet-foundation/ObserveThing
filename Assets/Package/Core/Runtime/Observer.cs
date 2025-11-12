@@ -12,7 +12,7 @@ namespace ObserveThing
     public sealed class Observer<T> : IObserver<T> where T : IObservableEventArgs
     {
         public Action<T> onNext;
-        public Action<Exception> onError;
+        public Action<Exception> onError = UnityEngine.Debug.LogError;
         public Action onDispose;
 
         public void OnNext(T args)
