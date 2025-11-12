@@ -48,30 +48,39 @@ namespace ObserveThing
                     _list.RemoveAt(args.index);
                 }
 
-                if (Equals(args.element, _indexOf))
-                {
-                    if (args.operationType == OpType.Add)
-                    {
-                        _args.previousValue = _args.currentValue;
-                        _args.currentValue = args.index;
-                        _observer.OnNext(_args);
-                    }
-                    else
-                    {
-                        _args.previousValue = _args.currentValue;
-                        _args.currentValue = -1;
-                        _observer.OnNext(_args);
-                    }
-
-                    return;
-                }
-
-                if (args.index > _args.currentValue)
+                var newIndex = _list.IndexOf(_indexOf);
+                if (newIndex == _args.currentValue)
                     return;
 
                 _args.previousValue = _args.currentValue;
-                _args.currentValue = args.operationType == OpType.Add ? _args.currentValue++ : _args.currentValue--;
+                _args.currentValue = newIndex;
+
                 _observer.OnNext(_args);
+
+                // if (Equals(args.element, _indexOf))
+                // {
+                //     if (args.operationType == OpType.Add)
+                //     {
+                //         _args.previousValue = _args.currentValue;
+                //         _args.currentValue = args.index;
+                //         _observer.OnNext(_args);
+                //     }
+                //     else
+                //     {
+                //         _args.previousValue = _args.currentValue;
+                //         _args.currentValue = -1;
+                //         _observer.OnNext(_args);
+                //     }
+
+                //     return;
+                // }
+
+                // if (args.index > _args.currentValue)
+                //     return;
+
+                // _args.previousValue = _args.currentValue;
+                // _args.currentValue = args.operationType == OpType.Add ? _args.currentValue++ : _args.currentValue--;
+                // _observer.OnNext(_args);
             }
 
             private void HandleSourceError(Exception error)
