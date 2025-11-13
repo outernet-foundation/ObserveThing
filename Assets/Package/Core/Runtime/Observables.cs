@@ -137,6 +137,9 @@ namespace ObserveThing
         public static ICollectionObservable<U> SelectDynamic<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> select)
             => new SelectCollectionObservableReactive<T, U>(source, select);
 
+        public static IListObservable<TDest> OrderedSelectDynamic<TSource, TOrderBy, TDest>(this ICollectionObservable<TSource> source, Func<TSource, TOrderBy> orderBy, Func<TSource, TDest> select)
+            => default;
+
         public static ICollectionObservable<U> CreateDynamic<T, U>(this ICollectionObservable<T> source, Func<T, U> select)
             where U : IDisposable => new CreateCollectionObservable<T, U>(source, select);
 
