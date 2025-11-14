@@ -31,6 +31,13 @@ namespace ObserveThing
                 public int count;
                 public IDisposable filter;
                 public bool included;
+                public bool disposed;
+
+                public void Dispose()
+                {
+                    disposed = true;
+                    filter.Dispose();
+                }
             }
 
             private Dictionary<T, FilterData> _filterData = new Dictionary<T, FilterData>();
@@ -67,7 +74,12 @@ namespace ObserveThing
                         {
                             added = new FilterData() { element = args.element };
                             _filterData.Add(args.element, added);
-                            added.filter = _select(args.element).Subscribe(x => HandleFilterChanged(x.currentValue, x.previousValue, added));
+
+                            added.filter = _select(args.element).Subscribe(
+                                x => HandleFilterChanged(x.currentValue, added),
+                                HandleSourceError,
+                                () => HandleFilterDisposed(added)
+                            );
                         }
 
                         added.count++;
@@ -103,9 +115,9 @@ namespace ObserveThing
                 }
             }
 
-            private void HandleFilterChanged(bool included, bool wasIncluded, FilterData filterData)
+            private void HandleFilterChanged(bool included, FilterData filterData)
             {
-                if (included == wasIncluded)
+                if (included == filterData.included)
                     return;
 
                 filterData.included = included;
@@ -116,6 +128,14 @@ namespace ObserveThing
                     _observer.OnNext(_args);
             }
 
+            private void HandleFilterDisposed(FilterData filter)
+            {
+                if (filter.disposed)
+                    return;
+
+                HandleSourceError(new Exception("Element source disposed unexpectedly."));
+            }
+
             public void Dispose()
             {
                 if (_disposed)
@@ -124,7 +144,7 @@ namespace ObserveThing
                 _disposed = true;
 
                 foreach (var data in _filterData.Values)
-                    data.filter.Dispose();
+                    data.Dispose();
 
                 _collectionStream.Dispose();
                 _observer.OnDispose();

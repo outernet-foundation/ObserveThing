@@ -232,10 +232,10 @@ namespace ObserveThing.Tests
 
             intObservable2.DisposeAll();
             Assert.IsFalse(disposed); //should not produce an OnDisposed call
+            Assert.AreEqual(0, result); //disposing should reset the result value
 
             rootObservable.OnNext(false);
             Assert.AreEqual(5, callCount);
-            Assert.AreEqual(1, result);
             Assert.AreEqual(8, prevResult);
         }
 

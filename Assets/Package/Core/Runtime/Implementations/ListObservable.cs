@@ -54,8 +54,15 @@ namespace ObserveThing
                 Add(added);
         }
 
-        public void Remove(T removed)
-            => RemoveAt(_list.IndexOf(removed));
+        public bool Remove(T removed)
+        {
+            var index = _list.IndexOf(removed);
+            if (index == -1)
+                return false;
+
+            RemoveAt(index);
+            return true;
+        }
 
         public void RemoveAt(int index)
         {

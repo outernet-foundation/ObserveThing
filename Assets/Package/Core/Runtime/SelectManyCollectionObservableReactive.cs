@@ -32,6 +32,13 @@ namespace ObserveThing
                 public int count = 1;
                 public List<U> addedElements = new List<U>();
                 public IDisposable selectMany;
+                public bool disposed;
+
+                public void Dispose()
+                {
+                    disposed = true;
+                    selectMany.Dispose();
+                }
             }
 
             public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, ICollectionObservable<U>> selectMany, IObserver<ICollectionEventArgs<U>> observer)
@@ -59,7 +66,13 @@ namespace ObserveThing
                             added = new SelectManyData();
                             _selectData.Add(args.element, added);
                             added.value = args.element;
-                            added.selectMany = _selectMany(args.element).Subscribe(x => HandleSelectManyUpdated(added, x));
+
+                            added.selectMany = _selectMany(args.element).Subscribe(
+                                x => HandleSelectManyUpdated(added, x),
+                                HandleSourceError,
+                                () => HandleElementSourceDisposed(added)
+                            );
+
                             return;
                         }
 
@@ -87,12 +100,20 @@ namespace ObserveThing
 
                         if (removed.count == 0)
                         {
-                            removed.selectMany.Dispose();
+                            removed.Dispose();
                             _selectData.Remove(args.element);
                         }
 
                         break;
                 }
+            }
+
+            private void HandleElementSourceDisposed(SelectManyData element)
+            {
+                if (element.disposed)
+                    return;
+
+                HandleSourceError(new Exception("Element source disposed unexpectedly."));
             }
 
             private void HandleSelectManyUpdated(SelectManyData selectManyData, ICollectionEventArgs<U> args)
@@ -141,7 +162,7 @@ namespace ObserveThing
                 _disposed = true;
 
                 foreach (var data in _selectData.Values)
-                    data.selectMany.Dispose();
+                    data.Dispose();
 
                 _collection.Dispose();
                 _observer.OnDispose();

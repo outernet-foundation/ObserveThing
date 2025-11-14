@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
 
 namespace ObserveThing
 {
@@ -29,28 +27,16 @@ namespace ObserveThing
 
             private class OrderByData : IDisposable
             {
-                public T element { get; private set; }
-                public U orderedBy { get; private set; }
+                public T element;
+                public U orderedBy;
                 public int count = 1;
-                private IDisposable _observer;
-                private Action<OrderByData> _requestResort;
-
-                public OrderByData(T element, IValueObservable<U> orderByObservable, Action<OrderByData> requestResort)
-                {
-                    this.element = element;
-                    _requestResort = requestResort;
-                    _observer = orderByObservable.Subscribe(HandleOrderbyChanged);
-                }
-
-                private void HandleOrderbyChanged(IValueEventArgs<U> args)
-                {
-                    orderedBy = args.currentValue;
-                    _requestResort(this);
-                }
+                public IDisposable orderByStream;
+                public bool disposed;
 
                 public void Dispose()
                 {
-                    _observer.Dispose();
+                    disposed = true;
+                    orderByStream.Dispose();
                 }
             }
 
@@ -77,8 +63,15 @@ namespace ObserveThing
                         {
                             if (!_dataByElement.TryGetValue(args.element, out var data))
                             {
-                                data = new OrderByData(args.element, _orderBy(args.element), HandleResortRequested);
+                                data = new OrderByData() { element = args.element };
                                 _dataByElement.Add(args.element, data);
+
+                                data.orderByStream = _orderBy(args.element).Subscribe(
+                                    args => HandleResortRequested(args.currentValue, data),
+                                    HandleSourceError,
+                                    () => HandleElementSourceDisposed(data)
+                                );
+
                                 return;
                             }
 
@@ -116,6 +109,14 @@ namespace ObserveThing
 
                         break;
                 }
+            }
+
+            private void HandleElementSourceDisposed(OrderByData data)
+            {
+                if (data.disposed)
+                    return;
+
+                HandleSourceError(new Exception("Element source disposed unexpectedly."));
             }
 
             private int GetSortedIndex(OrderByData element, List<OrderByData> elementsInOrder)
@@ -175,8 +176,10 @@ namespace ObserveThing
                 sortedIndex = sorted ?? elementsInOrder.Count;
             }
 
-            private void HandleResortRequested(OrderByData data)
+            private void HandleResortRequested(U orderBy, OrderByData data)
             {
+                data.orderedBy = orderBy;
+
                 GetOriginalAndSortedIndex(data, _elementsInOrder, out int? originalIndex, out int sortedIndex);
 
                 _args.element = data.element;

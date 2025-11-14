@@ -58,7 +58,6 @@ namespace ObserveThing
             if (!_collection.Remove(element))
                 return false;
 
-            _collection.Remove(element);
             _args.element = element;
             _args.operationType = OpType.Remove;
 
