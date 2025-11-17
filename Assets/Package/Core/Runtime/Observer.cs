@@ -36,7 +36,14 @@ namespace ObserveThing
             }
             catch (Exception exc)
             {
-                OnError(exc);
+                if (onError != null)
+                {
+                    onError(exc);
+                }
+                else
+                {
+                    throw;
+                }
             }
         }
 
