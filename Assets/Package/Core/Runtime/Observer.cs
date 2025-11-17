@@ -25,7 +25,7 @@ namespace ObserveThing
 
         private void ThrowError(Exception error)
         {
-            throw error;
+            throw new Exception($"Encountered exception while notifying observer. Exception: {error.Message}\n{error.StackTrace}");
         }
 
         public void OnNext(T args)
@@ -36,7 +36,7 @@ namespace ObserveThing
             }
             catch (Exception exc)
             {
-                OnError(new Exception($"Encountered exception while notifying observer. Exception: {exc.Message}\n{exc.StackTrace}"));
+                OnError(exc);
             }
         }
 
