@@ -29,7 +29,14 @@ namespace ObserveThing
             if (_disposed)
                 return;
 
-            onNext?.Invoke(args);
+            try
+            {
+                onNext?.Invoke(args);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
         }
 
         public void OnError(Exception exception)
@@ -37,7 +44,13 @@ namespace ObserveThing
             if (_disposed)
                 return;
 
-            onError?.Invoke(exception);
+            if (onError != null)
+            {
+                onError(exception);
+                return;
+            }
+
+            throw new Exception($"Observed an unhandled exception: {exception.Message}\n{exception.StackTrace}");
         }
 
         public void OnDispose()

@@ -79,13 +79,7 @@ namespace ObserveThing
                 if (_disposingForSwitch)
                     return;
 
-                if (Equals(_args.currentValue, default(T)))
-                    return;
-
-                _args.previousValue = _args.currentValue;
-                _args.currentValue = default;
-                _initializeCalled = true;
-                _observer.OnNext(_args);
+                HandleSourceError(new Exception("Source value disposed unexpectedly."));
             }
 
             public void Dispose()

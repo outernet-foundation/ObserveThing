@@ -30,6 +30,13 @@ namespace ObserveThing
                 public T value;
                 public IDisposable valueStream;
                 public bool initialized;
+                public bool disposed;
+
+                public void Dispose()
+                {
+                    disposed = true;
+                    valueStream.Dispose();
+                }
             }
 
             private Dictionary<IValueObservable<T>, ElementData> _elementData = new Dictionary<IValueObservable<T>, ElementData>();
@@ -81,7 +88,7 @@ namespace ObserveThing
 
                         if (!_currentList.Contains(removed.element))
                         {
-                            removed.valueStream.Dispose();
+                            removed.Dispose();
                             _elementData.Remove(args.element);
                         }
 
@@ -97,31 +104,10 @@ namespace ObserveThing
 
             private void HandleSelectedDisposed(ElementData elementData)
             {
-                elementData.valueStream.Dispose();
-
-                if (Equals(elementData.value, default(T)))
+                if (elementData.disposed)
                     return;
 
-                T previousValue = elementData.value;
-                elementData.value = default;
-
-                for (int i = 0; i < _currentList.Count; i++)
-                {
-                    if (_currentList[i] == elementData.element)
-                    {
-                        _args.element = previousValue;
-                        _args.operationType = OpType.Remove;
-                        _args.index = i;
-
-                        _observer.OnNext(_args);
-
-                        _args.element = default;
-                        _args.operationType = OpType.Add;
-                        _args.index = i;
-
-                        _observer.OnNext(_args);
-                    }
-                }
+                HandleSourceError(new Exception("Source element disposed unexpectedly."));
             }
 
             private void HandleSourceError(Exception error)
@@ -173,7 +159,7 @@ namespace ObserveThing
                 _disposed = true;
 
                 foreach (var data in _elementData.Values)
-                    data.valueStream.Dispose();
+                    data.Dispose();
 
                 _listStream.Dispose();
                 _observer.OnDispose();
