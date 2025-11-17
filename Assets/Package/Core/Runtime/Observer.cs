@@ -36,7 +36,7 @@ namespace ObserveThing
             }
             catch (Exception exc)
             {
-                OnError(exc);
+                OnError(new Exception($"Encountered exception while notifying observer. Exception: {exc.Message}\n{exc.StackTrace}"));
             }
         }
 
