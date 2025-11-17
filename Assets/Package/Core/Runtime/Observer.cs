@@ -24,23 +24,7 @@ namespace ObserveThing
         }
 
         public void OnNext(T args)
-        {
-            try
-            {
-                onNext?.Invoke(args);
-            }
-            catch (Exception exc)
-            {
-                if (onError != null)
-                {
-                    onError(exc);
-                }
-                else
-                {
-                    throw;
-                }
-            }
-        }
+            => onNext?.Invoke(args);
 
         public void OnError(Exception exception)
             => onError?.Invoke(exception);
