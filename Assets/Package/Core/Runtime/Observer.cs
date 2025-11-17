@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 
 namespace ObserveThing
 {
@@ -16,6 +15,8 @@ namespace ObserveThing
         public Action<Exception> onError { get; }
         public Action onDispose { get; }
 
+        private bool _disposed;
+
         public Observer(Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default)
         {
             this.onNext = onNext;
@@ -24,15 +25,36 @@ namespace ObserveThing
         }
 
         public void OnNext(T args)
-            => onNext?.Invoke(args);
+        {
+            if (_disposed)
+                return;
+
+            onNext?.Invoke(args);
+        }
 
         public void OnError(Exception exception)
-            => onError?.Invoke(exception);
+        {
+            if (_disposed)
+                return;
+
+            onError?.Invoke(exception);
+        }
 
         public void OnDispose()
-            => onDispose?.Invoke();
+        {
+            if (_disposed)
+                return;
+
+            Dispose();
+        }
 
         public void Dispose()
-            => OnDispose();
+        {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+            onDispose?.Invoke();
+        }
     }
 }
