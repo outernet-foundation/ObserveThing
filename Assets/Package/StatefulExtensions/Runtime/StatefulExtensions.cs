@@ -394,6 +394,109 @@ namespace ObserveThing.StatefulExtensions
             }
         }
 
+        public static IListObservable<object> AsObservable<T>(this IObservableList list)
+        {
+            return new StatefulListObservable(list);
+        }
+
+        private class StatefulListObservable : IListObservable<object>
+        {
+            private IObservableList _source;
+            private ListEventArgs<object> _args = new ListEventArgs<object>();
+            private List<IObserver<ListEventArgs<object>>> _observers = new List<IObserver<ListEventArgs<object>>>();
+
+            public StatefulListObservable(IObservableList source)
+            {
+                _source = source;
+            }
+
+            public IDisposable Subscribe(IObserver<IListEventArgs<object>> observer)
+            {
+                _observers.Add(observer);
+
+                if (_observers.Count == 1)
+                    _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
+
+                _args.operationType = OpType.Add;
+
+                for (int i = 0; i < _source.count; i++)
+                {
+                    _args.index = i;
+                    _args.element = _source[i];
+                    observer.OnNext(_args);
+                }
+
+                return new ObserverHandle() { observer = observer, source = this };
+            }
+
+            private void HandleSourceChanged(NodeChangeEventArgs args)
+            {
+                if (args.initialize)
+                    return;
+
+                foreach (var change in args.changes)
+                {
+                    switch (change.changeType)
+                    {
+                        case ChangeType.Add:
+                            _args.operationType = OpType.Add;
+                            _args.index = change.index.Value;
+                            _args.element = change.collectionElement;
+                            NotifyObservers(_args);
+                            break;
+
+                        case ChangeType.Remove:
+                            _args.operationType = OpType.Remove;
+                            _args.index = change.index.Value;
+                            _args.element = change.collectionElement;
+                            NotifyObservers(_args);
+                            break;
+
+                        case ChangeType.Dispose:
+                            DisposeObservers();
+                            return;
+                    }
+                }
+            }
+
+            private void NotifyObservers(ListEventArgs<object> args)
+            {
+                foreach (var observer in _observers)
+                    observer.OnNext(args);
+            }
+
+            private void DisposeObservers()
+            {
+                foreach (var observer in _observers)
+                    observer.OnDispose();
+
+                _observers.Clear();
+            }
+
+            private void Unsubscribe(IObserver<ListEventArgs<object>> observer)
+            {
+                if (_observers.Remove(observer) && _observers.Count == 0)
+                    _source.context.DeregisterObserver(HandleSourceChanged);
+            }
+
+            private class ObserverHandle : IDisposable
+            {
+                public IObserver<ListEventArgs<object>> observer;
+                public StatefulListObservable source;
+
+                private bool _disposed;
+
+                public void Dispose()
+                {
+                    if (_disposed)
+                        return;
+
+                    _disposed = true;
+                    source.Unsubscribe(observer);
+                }
+            }
+        }
+
         public static ICollectionObservable<T> AsObservable<T>(this ObservableSet<T> set)
         {
             return new StatefulSetObservable<T>(set);
@@ -494,6 +597,106 @@ namespace ObserveThing.StatefulExtensions
             }
         }
 
+        public static ICollectionObservable<object> AsObservable<T>(this IObservableCollection collection)
+        {
+            return new StatefulCollectionObservable(collection);
+        }
+
+        private class StatefulCollectionObservable : ICollectionObservable<object>
+        {
+            private IObservableCollection _source;
+            private CollectionEventArgs<object> _args = new CollectionEventArgs<object>();
+            private List<IObserver<ICollectionEventArgs<object>>> _observers = new List<IObserver<ICollectionEventArgs<object>>>();
+
+            public StatefulCollectionObservable(IObservableCollection source)
+            {
+                _source = source;
+            }
+
+            public IDisposable Subscribe(IObserver<ICollectionEventArgs<object>> observer)
+            {
+                _observers.Add(observer);
+
+                if (_observers.Count == 1)
+                    _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
+
+                _args.operationType = OpType.Add;
+
+                foreach (var element in _source)
+                {
+                    _args.element = element;
+                    observer.OnNext(_args);
+                }
+
+                return new ObserverHandle() { observer = observer, source = this };
+            }
+
+            private void HandleSourceChanged(NodeChangeEventArgs args)
+            {
+                if (args.initialize)
+                    return;
+
+                foreach (var change in args.changes)
+                {
+                    switch (change.changeType)
+                    {
+                        case ChangeType.Add:
+                            _args.operationType = OpType.Add;
+                            _args.element = change.collectionElement;
+                            NotifyObservers(_args);
+                            break;
+
+                        case ChangeType.Remove:
+                            _args.operationType = OpType.Remove;
+                            _args.element = change.collectionElement;
+                            NotifyObservers(_args);
+                            break;
+
+                        case ChangeType.Dispose:
+                            DisposeObservers();
+                            return;
+                    }
+                }
+            }
+
+            private void NotifyObservers(ICollectionEventArgs<object> args)
+            {
+                foreach (var observer in _observers)
+                    observer.OnNext(args);
+            }
+
+            private void DisposeObservers()
+            {
+                foreach (var observer in _observers)
+                    observer.OnDispose();
+
+                _observers.Clear();
+            }
+
+            private void Unsubscribe(IObserver<ICollectionEventArgs<object>> observer)
+            {
+                if (_observers.Remove(observer) && _observers.Count == 0)
+                    _source.context.DeregisterObserver(HandleSourceChanged);
+            }
+
+            private class ObserverHandle : IDisposable
+            {
+                public IObserver<ICollectionEventArgs<object>> observer;
+                public StatefulCollectionObservable source;
+
+                private bool _disposed;
+
+                public void Dispose()
+                {
+                    if (_disposed)
+                        return;
+
+                    _disposed = true;
+                    source.Unsubscribe(observer);
+                }
+            }
+        }
+
         public static IValueObservable<T> AsObservable<T>(this ObservablePrimitive<T> primitive)
         {
             return new StatefulPrimitiveObservable<T>(primitive);
@@ -560,6 +763,86 @@ namespace ObserveThing.StatefulExtensions
             {
                 public IObserver<IValueEventArgs<T>> observer;
                 public StatefulPrimitiveObservable<T> source;
+
+                private bool _disposed;
+
+                public void Dispose()
+                {
+                    if (_disposed)
+                        return;
+
+                    _disposed = true;
+                    source.Unsubscribe(observer);
+                }
+            }
+        }
+
+        public static IValueObservable<object> AsObservable(this IObservablePrimitive primitive)
+        {
+            return new StatefulPrimitiveObservable(primitive);
+        }
+
+        private class StatefulPrimitiveObservable : IValueObservable<object>
+        {
+            private IObservablePrimitive _source;
+            private object _previousValue;
+            private ValueEventArgs<object> _args = new ValueEventArgs<object>();
+            private List<IObserver<IValueEventArgs<object>>> _observers = new List<IObserver<IValueEventArgs<object>>>();
+
+            public StatefulPrimitiveObservable(IObservablePrimitive source)
+            {
+                _source = source;
+            }
+
+            public IDisposable Subscribe(IObserver<IValueEventArgs<object>> observer)
+            {
+                _observers.Add(observer);
+
+                if (_observers.Count == 1)
+                    _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
+
+                _args.currentValue = _source.GetValue();
+                _args.previousValue = default;
+
+                observer.OnNext(_args);
+
+                return new ObserverHandle() { observer = observer, source = this };
+            }
+
+            private void HandleSourceChanged(NodeChangeEventArgs args)
+            {
+                if (args.initialize)
+                    return;
+
+                if (_source.disposed)
+                {
+                    foreach (var observer in _observers)
+                        observer.OnDispose();
+
+                    _observers.Clear();
+
+                    return;
+                }
+
+                _args.previousValue = _previousValue;
+                _args.currentValue = _source.GetValue();
+
+                foreach (var observer in _observers)
+                    observer.OnNext(_args);
+
+                _previousValue = _source.GetValue();
+            }
+
+            private void Unsubscribe(IObserver<IValueEventArgs<object>> observer)
+            {
+                if (_observers.Remove(observer) && _observers.Count == 0)
+                    _source.context.DeregisterObserver(HandleSourceChanged);
+            }
+
+            private class ObserverHandle : IDisposable
+            {
+                public IObserver<IValueEventArgs<object>> observer;
+                public StatefulPrimitiveObservable source;
 
                 private bool _disposed;
 
