@@ -394,7 +394,7 @@ namespace ObserveThing.StatefulExtensions
             }
         }
 
-        public static IListObservable<object> AsObservable<T>(this IObservableList list)
+        public static IListObservable<object> AsObservable(this IObservableList list)
         {
             return new StatefulListObservable(list);
         }
