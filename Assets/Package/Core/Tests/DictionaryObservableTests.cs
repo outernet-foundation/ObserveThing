@@ -118,82 +118,6 @@ namespace ObserveThing.Tests
             bool disposed = false;
 
             ManualDictionaryObservable<int, string> rootObservable = new ManualDictionaryObservable<int, string>();
-
-            rootObservable.TrackDynamic(4).Subscribe(
-                x =>
-                {
-                    callCount++;
-                    value = x.currentValue;
-                    previousValue = x.previousValue;
-                },
-                exc => exception = exc,
-                () => disposed = true
-            );
-
-            Assert.AreEqual(0, callCount);
-            Assert.AreEqual(false, value.keyPresent);
-            Assert.AreEqual(default, value.value);
-            Assert.AreEqual(false, previousValue.keyPresent);
-            Assert.AreEqual(default, previousValue.value);
-
-            rootObservable.OnAdd(2, "cat");
-
-            Assert.AreEqual(0, callCount);
-            Assert.AreEqual(false, value.keyPresent);
-            Assert.AreEqual(default, value.value);
-            Assert.AreEqual(false, previousValue.keyPresent);
-            Assert.AreEqual(default, previousValue.value);
-
-            rootObservable.OnAdd(4, "dog");
-
-            Assert.AreEqual(1, callCount);
-            Assert.AreEqual(true, value.keyPresent);
-            Assert.AreEqual("dog", value.value);
-            Assert.AreEqual(false, previousValue.keyPresent);
-            Assert.AreEqual(default, previousValue.value);
-
-            rootObservable.OnRemove(2);
-
-            Assert.AreEqual(1, callCount);
-            Assert.AreEqual(true, value.keyPresent);
-            Assert.AreEqual("dog", value.value);
-            Assert.AreEqual(false, previousValue.keyPresent);
-            Assert.AreEqual(default, previousValue.value);
-
-            rootObservable.OnRemove(40);
-
-            Assert.AreEqual(1, callCount);
-            Assert.AreEqual(true, value.keyPresent);
-            Assert.AreEqual("dog", value.value);
-            Assert.AreEqual(false, previousValue.keyPresent);
-            Assert.AreEqual(default, previousValue.value);
-
-            rootObservable.OnRemove(4);
-
-            Assert.AreEqual(2, callCount);
-            Assert.AreEqual(false, value.keyPresent);
-            Assert.AreEqual(default, value.value);
-            Assert.AreEqual(true, previousValue.keyPresent);
-            Assert.AreEqual("dog", previousValue.value);
-
-            var exc = new Exception();
-            rootObservable.OnError(exc);
-            Assert.AreEqual(exc, exception);
-
-            rootObservable.DisposeAll();
-            Assert.IsTrue(disposed);
-        }
-
-        [Test]
-        public void TestTrackReactive()
-        {
-            int callCount = 0;
-            (bool keyPresent, string value) value = default;
-            (bool keyPresent, string value) previousValue = default;
-            Exception exception = default;
-            bool disposed = false;
-
-            ManualDictionaryObservable<int, string> rootObservable = new ManualDictionaryObservable<int, string>();
             ManualValueObservable<int> keyProvider = new ManualValueObservable<int>();
 
             rootObservable.TrackDynamic(keyProvider).Subscribe(
@@ -207,7 +131,7 @@ namespace ObserveThing.Tests
                 () => disposed = true
             );
 
-            Assert.AreEqual(0, callCount);
+            Assert.AreEqual(1, callCount);
             Assert.AreEqual(false, value.keyPresent);
             Assert.AreEqual(default, value.value);
             Assert.AreEqual(false, previousValue.keyPresent);
@@ -215,7 +139,7 @@ namespace ObserveThing.Tests
 
             rootObservable.OnAdd(2, "cat");
 
-            Assert.AreEqual(0, callCount);
+            Assert.AreEqual(1, callCount);
             Assert.AreEqual(false, value.keyPresent);
             Assert.AreEqual(default, value.value);
             Assert.AreEqual(false, previousValue.keyPresent);
@@ -223,7 +147,7 @@ namespace ObserveThing.Tests
 
             keyProvider.OnNext(2);
 
-            Assert.AreEqual(1, callCount);
+            Assert.AreEqual(2, callCount);
             Assert.AreEqual(true, value.keyPresent);
             Assert.AreEqual("cat", value.value);
             Assert.AreEqual(false, previousValue.keyPresent);
@@ -231,7 +155,7 @@ namespace ObserveThing.Tests
 
             rootObservable.OnRemove(2);
 
-            Assert.AreEqual(2, callCount);
+            Assert.AreEqual(3, callCount);
             Assert.AreEqual(false, value.keyPresent);
             Assert.AreEqual(default, value.value);
             Assert.AreEqual(true, previousValue.keyPresent);
@@ -239,7 +163,7 @@ namespace ObserveThing.Tests
 
             rootObservable.OnRemove(40);
 
-            Assert.AreEqual(2, callCount);
+            Assert.AreEqual(3, callCount);
             Assert.AreEqual(false, value.keyPresent);
             Assert.AreEqual(default, value.value);
             Assert.AreEqual(true, previousValue.keyPresent);
@@ -247,7 +171,7 @@ namespace ObserveThing.Tests
 
             rootObservable.OnAdd(2, "dog");
 
-            Assert.AreEqual(3, callCount);
+            Assert.AreEqual(4, callCount);
             Assert.AreEqual(true, value.keyPresent);
             Assert.AreEqual("dog", value.value);
             Assert.AreEqual(false, previousValue.keyPresent);

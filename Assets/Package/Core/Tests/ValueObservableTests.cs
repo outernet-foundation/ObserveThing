@@ -7,6 +7,8 @@ namespace ObserveThing.Tests
 {
     public class ManualValueObservable<T> : IValueObservable<T>
     {
+        public T value => _mostRecentValue;
+
         private T _mostRecentValue = default;
         private ValueEventArgs<T> _args = new ValueEventArgs<T>();
         private List<Instance> _instances = new List<Instance>();
@@ -98,80 +100,10 @@ namespace ObserveThing.Tests
         }
     }
 
-    public class ObserveThingTests
+    public class ValueObservableTests
     {
         [Test]
         public void TestSelect()
-        {
-            int callCount = 0;
-            int count = 0;
-            int prevCount = 0;
-
-            Exception exception = null;
-            bool disposed = false;
-
-            var rootObservable = new ManualValueObservable<string>();
-            var selectObservable = rootObservable
-                .SelectDynamic(x => x?.Count(x => x == 'a') ?? 0)
-                .Subscribe(
-                    x =>
-                    {
-                        callCount++;
-                        count = x.currentValue;
-                        prevCount = x.previousValue;
-                    },
-                    exc => exception = exc,
-                    () => disposed = true
-                );
-
-            Assert.AreEqual(1, callCount); //init call
-
-            rootObservable.OnNext("a");
-            Assert.AreEqual(2, callCount);
-            Assert.AreEqual(1, count);
-            Assert.AreEqual(0, prevCount);
-
-            rootObservable.OnNext("aa");
-            Assert.AreEqual(3, callCount);
-            Assert.AreEqual(2, count);
-            Assert.AreEqual(1, prevCount);
-
-            rootObservable.OnNext("aaa");
-            Assert.AreEqual(4, callCount);
-            Assert.AreEqual(3, count);
-            Assert.AreEqual(2, prevCount);
-
-            rootObservable.OnNext("aaaa");
-            Assert.AreEqual(5, callCount);
-            Assert.AreEqual(4, count);
-            Assert.AreEqual(3, prevCount);
-
-            rootObservable.OnNext("bbba");
-            Assert.AreEqual(6, callCount);
-            Assert.AreEqual(1, count);
-            Assert.AreEqual(4, prevCount);
-
-            rootObservable.OnNext("ccca");
-            Assert.AreEqual(6, callCount);
-            Assert.AreEqual(1, count);
-            Assert.AreEqual(4, prevCount);
-
-            var exc = new Exception("This is an exception");
-            rootObservable.OnError(exc);
-            Assert.AreEqual(exc, exception);
-            Assert.IsFalse(disposed);
-
-            rootObservable.OnNext("bcccb");
-            Assert.AreEqual(7, callCount);
-            Assert.AreEqual(0, count);
-            Assert.AreEqual(1, prevCount);
-
-            rootObservable.DisposeAll();
-            Assert.IsTrue(disposed);
-        }
-
-        [Test]
-        public void TestSelectReactive()
         {
             int callCount = 0;
             int result = 0;

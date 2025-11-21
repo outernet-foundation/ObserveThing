@@ -6,9 +6,9 @@ namespace ObserveThing
     public class WhereCollectionObservable<T> : ICollectionObservable<T>
     {
         public ICollectionObservable<T> collection;
-        public Func<T, bool> select;
+        public Func<T, IValueObservable<bool>> select;
 
-        public WhereCollectionObservable(ICollectionObservable<T> collection, Func<T, bool> select)
+        public WhereCollectionObservable(ICollectionObservable<T> collection, Func<T, IValueObservable<bool>> select)
         {
             this.collection = collection;
             this.select = select;
@@ -20,14 +20,29 @@ namespace ObserveThing
         private class Instance : IDisposable
         {
             private IDisposable _collectionStream;
-            private Func<T, bool> _select;
+            private Func<T, IValueObservable<bool>> _select;
             private IObserver<ICollectionEventArgs<T>> _observer;
             private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
             private bool _disposed = false;
 
-            private List<T> _elements = new List<T>();
+            private class FilterData
+            {
+                public T element;
+                public int count;
+                public IDisposable filter;
+                public bool included;
+                public bool disposed;
 
-            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, bool> select, IObserver<ICollectionEventArgs<T>> observer)
+                public void Dispose()
+                {
+                    disposed = true;
+                    filter.Dispose();
+                }
+            }
+
+            private Dictionary<T, FilterData> _filterData = new Dictionary<T, FilterData>();
+
+            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, IValueObservable<bool>> select, IObserver<ICollectionEventArgs<T>> observer)
             {
                 _select = select;
                 _observer = observer;
@@ -37,35 +52,6 @@ namespace ObserveThing
                     HandleSourceError,
                     HandleSourceDisposed
                 );
-            }
-
-            private void HandleSourceChanged(ICollectionEventArgs<T> args)
-            {
-                _args.operationType = args.operationType;
-
-                switch (args.operationType)
-                {
-                    case OpType.Add:
-
-                        if (!_select(args.element))
-                            return;
-
-                        _elements.Add(args.element);
-                        _args.element = args.element;
-                        _observer.OnNext(_args);
-
-                        break;
-
-                    case OpType.Remove:
-
-                        if (!_elements.Remove(args.element))
-                            return;
-
-                        _args.element = args.element;
-                        _observer.OnNext(_args);
-
-                        break;
-                }
             }
 
             private void HandleSourceError(Exception error)
@@ -78,12 +64,87 @@ namespace ObserveThing
                 Dispose();
             }
 
+            private void HandleSourceChanged(ICollectionEventArgs<T> args)
+            {
+                switch (args.operationType)
+                {
+                    case OpType.Add:
+
+                        if (!_filterData.TryGetValue(args.element, out var added))
+                        {
+                            added = new FilterData() { element = args.element };
+                            _filterData.Add(args.element, added);
+
+                            added.filter = _select(args.element).Subscribe(
+                                x => HandleFilterChanged(x.currentValue, added),
+                                HandleSourceError,
+                                () => HandleFilterDisposed(added)
+                            );
+                        }
+
+                        added.count++;
+
+                        if (added.included)
+                        {
+                            _args.operationType = args.operationType;
+                            _args.element = args.element;
+                            _observer.OnNext(_args);
+                        }
+
+                        break;
+
+                    case OpType.Remove:
+
+                        var removed = _filterData[args.element];
+                        removed.count--;
+
+                        if (removed.included)
+                        {
+                            _args.operationType = args.operationType;
+                            _args.element = args.element;
+                            _observer.OnNext(_args);
+                        }
+
+                        if (removed.count == 0)
+                        {
+                            removed.filter.Dispose();
+                            _filterData.Remove(args.element);
+                        }
+
+                        break;
+                }
+            }
+
+            private void HandleFilterChanged(bool included, FilterData filterData)
+            {
+                if (included == filterData.included)
+                    return;
+
+                filterData.included = included;
+                _args.element = filterData.element;
+                _args.operationType = included ? OpType.Add : OpType.Remove;
+
+                for (int i = 0; i < filterData.count; i++)
+                    _observer.OnNext(_args);
+            }
+
+            private void HandleFilterDisposed(FilterData filter)
+            {
+                if (filter.disposed)
+                    return;
+
+                HandleSourceError(new Exception("Element source disposed unexpectedly."));
+            }
+
             public void Dispose()
             {
                 if (_disposed)
                     return;
 
                 _disposed = true;
+
+                foreach (var data in _filterData.Values)
+                    data.Dispose();
 
                 _collectionStream.Dispose();
                 _observer.OnDispose();

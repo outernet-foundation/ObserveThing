@@ -19,6 +19,14 @@ namespace ObserveThing
         private bool _disposed;
         private IDisposable _fromSubscription;
 
+        public CollectionObservable(params T[] source) : this((IEnumerable<T>)source)
+        { }
+
+        public CollectionObservable(IEnumerable<T> source) : this()
+        {
+            From(source);
+        }
+
         public CollectionObservable()
         {
             _args.source = this;

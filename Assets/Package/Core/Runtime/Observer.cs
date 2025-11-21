@@ -9,6 +9,11 @@ namespace ObserveThing
         void OnDispose();
     }
 
+    public class InternalObserverException : Exception
+    {
+        public InternalObserverException(string message) : base(message) { }
+    }
+
     public sealed class Observer<T> : IObserver<T> where T : IObservableEventArgs
     {
         public Action<T> onNext { get; }
@@ -17,11 +22,14 @@ namespace ObserveThing
 
         private bool _disposed;
 
-        public Observer(Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default)
+        private string name;
+
+        public Observer(Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, string name = default)
         {
             this.onNext = onNext;
             this.onError = onError;
             this.onDispose = onDispose;
+            this.name = name;
         }
 
         public void OnNext(T args)
@@ -35,7 +43,16 @@ namespace ObserveThing
             }
             catch (Exception exc)
             {
-                OnError(exc);
+                if (exc is not InternalObserverException)
+                    exc = new InternalObserverException($"OnNext encountered an exception: {exc.Message}\n{exc.StackTrace}");
+
+                if (onError != null)
+                {
+                    onError(exc);
+                    return;
+                }
+
+                throw;
             }
         }
 
@@ -50,7 +67,7 @@ namespace ObserveThing
                 return;
             }
 
-            throw new Exception($"Observed an unhandled exception: {exception.Message}\n{exception.StackTrace}");
+            throw exception;
         }
 
         public void OnDispose()

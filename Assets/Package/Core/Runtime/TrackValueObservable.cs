@@ -1,13 +1,15 @@
 using System;
+using System.Collections.Generic;
+using UnityEngine;
 
 namespace ObserveThing
 {
     public class TrackValueObservable<TKey, TValue> : IValueObservable<(bool keyPresent, TValue value)>
     {
         public IDictionaryObservable<TKey, TValue> dictionary;
-        public TKey key;
+        public IValueObservable<TKey> key;
 
-        public TrackValueObservable(IDictionaryObservable<TKey, TValue> dictionary, TKey key)
+        public TrackValueObservable(IDictionaryObservable<TKey, TValue> dictionary, IValueObservable<TKey> key)
         {
             this.dictionary = dictionary;
             this.key = key;
@@ -19,20 +21,30 @@ namespace ObserveThing
         private class Instance : IDisposable
         {
             private IDisposable _dictionaryStream;
-            private TKey _key;
+            private IDisposable _keyStream;
             private IObserver<IValueEventArgs<(bool keyPresent, TValue value)>> _observer;
             private ValueEventArgs<(bool keyPresent, TValue value)> _args = new ValueEventArgs<(bool keyPresent, TValue value)>();
+            private bool _awaitingInit = true;
             private bool _disposed = false;
 
-            public Instance(IObservable source, IDictionaryObservable<TKey, TValue> dictionary, TKey key, IObserver<IValueEventArgs<(bool keyPresent, TValue value)>> observer)
+            private Dictionary<TKey, TValue> _currentDict = new Dictionary<TKey, TValue>();
+            private TKey _currentKey;
+
+            public Instance(IObservable source, IDictionaryObservable<TKey, TValue> dictionary, IValueObservable<TKey> key, IObserver<IValueEventArgs<(bool keyPresent, TValue value)>> observer)
             {
-                _key = key;
                 _observer = observer;
                 _args.source = source;
+
                 _dictionaryStream = dictionary.Subscribe(
                     HandleSourceChanged,
-                    HandleSourceError,
-                    HandleSourceDisposed
+                    HandleSourceOrKeyError,
+                    HandleSourceOrKeyDisposed
+                );
+
+                _keyStream = key.Subscribe(
+                    HandleKeyChanged,
+                    HandleSourceOrKeyError,
+                    HandleSourceOrKeyDisposed
                 );
             }
 
@@ -42,7 +54,9 @@ namespace ObserveThing
                 {
                     case OpType.Add:
 
-                        if (Equals(args.key, _key))
+                        _currentDict.Add(args.key, args.value);
+
+                        if (!_awaitingInit && Equals(args.key, _currentKey))
                         {
                             _args.previousValue = _args.currentValue;
                             _args.currentValue = new(true, args.value);
@@ -53,7 +67,9 @@ namespace ObserveThing
 
                     case OpType.Remove:
 
-                        if (Equals(args.key, _key))
+                        _currentDict.Remove(args.key);
+
+                        if (!_awaitingInit && Equals(args.key, _currentKey))
                         {
                             _args.previousValue = _args.currentValue;
                             _args.currentValue = new(false, default);
@@ -64,12 +80,33 @@ namespace ObserveThing
                 }
             }
 
-            private void HandleSourceError(Exception error)
+            private void HandleKeyChanged(IValueEventArgs<TKey> args)
+            {
+                bool isInit = _awaitingInit;
+
+                _currentKey = args.currentValue;
+                _awaitingInit = false;
+
+                if (_currentDict.TryGetValue(args.currentValue, out var value))
+                {
+                    _args.previousValue = _args.currentValue;
+                    _args.currentValue = new(true, value);
+                    _observer.OnNext(_args);
+                }
+                else if (_args.currentValue.keyPresent || isInit)
+                {
+                    _args.previousValue = _args.currentValue;
+                    _args.currentValue = new(false, default);
+                    _observer.OnNext(_args);
+                }
+            }
+
+            private void HandleSourceOrKeyError(Exception error)
             {
                 _observer.OnError(error);
             }
 
-            private void HandleSourceDisposed()
+            private void HandleSourceOrKeyDisposed()
             {
                 Dispose();
             }
@@ -82,6 +119,7 @@ namespace ObserveThing
                 _disposed = true;
 
                 _dictionaryStream.Dispose();
+                _keyStream.Dispose();
                 _observer.OnDispose();
             }
         }

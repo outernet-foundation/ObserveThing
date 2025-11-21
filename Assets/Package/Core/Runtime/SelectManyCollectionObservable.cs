@@ -1,15 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace ObserveThing
 {
     public class SelectManyCollectionObservable<T, U> : ICollectionObservable<U>
     {
         public ICollectionObservable<T> collection;
-        public Func<T, IEnumerable<U>> selectMany;
+        public Func<T, ICollectionObservable<U>> selectMany;
 
-        public SelectManyCollectionObservable(ICollectionObservable<T> collection, Func<T, IEnumerable<U>> selectMany)
+        public SelectManyCollectionObservable(ICollectionObservable<T> collection, Func<T, ICollectionObservable<U>> selectMany)
         {
             this.collection = collection;
             this.selectMany = selectMany;
@@ -20,8 +19,8 @@ namespace ObserveThing
 
         private class Instance : IDisposable
         {
-            private IDisposable _collectionStream;
-            private Func<T, IEnumerable<U>> _selectMany;
+            private IDisposable _collection;
+            private Func<T, ICollectionObservable<U>> _selectMany;
             private IObserver<ICollectionEventArgs<U>> _observer;
             private CollectionEventArgs<U> _args = new CollectionEventArgs<U>();
             private bool _disposed = false;
@@ -30,16 +29,24 @@ namespace ObserveThing
             private class SelectManyData
             {
                 public T value;
-                public int count;
-                public U[] addedElements;
+                public int count = 1;
+                public List<U> addedElements = new List<U>();
+                public IDisposable selectMany;
+                public bool disposed;
+
+                public void Dispose()
+                {
+                    disposed = true;
+                    selectMany.Dispose();
+                }
             }
 
-            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, IEnumerable<U>> selectMany, IObserver<ICollectionEventArgs<U>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, ICollectionObservable<U>> selectMany, IObserver<ICollectionEventArgs<U>> observer)
             {
                 _observer = observer;
                 _selectMany = selectMany;
                 _args.source = source;
-                _collectionStream = collection.Subscribe(
+                _collection = collection.Subscribe(
                     HandleSourceChanged,
                     HandleSourceError,
                     HandleSourceDisposed
@@ -57,9 +64,16 @@ namespace ObserveThing
                         if (!_selectData.TryGetValue(args.element, out var added))
                         {
                             added = new SelectManyData();
-                            added.value = args.element;
-                            added.addedElements = _selectMany(args.element).ToArray();
                             _selectData.Add(args.element, added);
+                            added.value = args.element;
+
+                            added.selectMany = _selectMany(args.element).Subscribe(
+                                x => HandleSelectManyUpdated(added, x),
+                                HandleSourceError,
+                                () => HandleElementSourceDisposed(added)
+                            );
+
+                            return;
                         }
 
                         added.count++;
@@ -85,7 +99,46 @@ namespace ObserveThing
                         removed.count--;
 
                         if (removed.count == 0)
+                        {
+                            removed.Dispose();
                             _selectData.Remove(args.element);
+                        }
+
+                        break;
+                }
+            }
+
+            private void HandleElementSourceDisposed(SelectManyData element)
+            {
+                if (element.disposed)
+                    return;
+
+                HandleSourceError(new Exception("Element source disposed unexpectedly."));
+            }
+
+            private void HandleSelectManyUpdated(SelectManyData selectManyData, ICollectionEventArgs<U> args)
+            {
+                switch (args.operationType)
+                {
+                    case OpType.Add:
+
+                        selectManyData.addedElements.Add(args.element);
+                        _args.operationType = OpType.Add;
+                        _args.element = args.element;
+
+                        for (int i = 0; i < selectManyData.count; i++)
+                            _observer.OnNext(_args);
+
+                        break;
+
+                    case OpType.Remove:
+
+                        selectManyData.addedElements.Remove(args.element);
+                        _args.operationType = OpType.Remove;
+                        _args.element = args.element;
+
+                        for (int i = 0; i < selectManyData.count; i++)
+                            _observer.OnNext(_args);
 
                         break;
                 }
@@ -108,7 +161,10 @@ namespace ObserveThing
 
                 _disposed = true;
 
-                _collectionStream.Dispose();
+                foreach (var data in _selectData.Values)
+                    data.Dispose();
+
+                _collection.Dispose();
                 _observer.OnDispose();
             }
         }

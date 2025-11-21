@@ -1,11 +1,13 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using NUnit.Framework;
 
 namespace ObserveThing.Tests
 {
-    public class ManualCollectionObservable<T> : ICollectionObservable<T>
+    public class ManualCollectionObservable<T> : ICollectionObservable<T>, IEnumerable<T>
     {
         private List<T> _mostRecentCollection = new List<T>();
         private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
@@ -74,6 +76,12 @@ namespace ObserveThing.Tests
             return instance;
         }
 
+        public IEnumerator<T> GetEnumerator()
+            => _mostRecentCollection.GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator()
+            => _mostRecentCollection.GetEnumerator();
+
         private class Instance : IDisposable
         {
             private IObserver<ICollectionEventArgs<T>> _observer;
@@ -137,64 +145,6 @@ namespace ObserveThing.Tests
 
         [Test]
         public void TestOrderBy()
-        {
-            int callCount = 0;
-            List<int> results = new List<int>();
-            Exception exception = default;
-            bool disposed = false;
-
-            var rootObservable = new ManualCollectionObservable<int>();
-            var orderByObservable = rootObservable.OrderByDynamic(x => x).Subscribe(
-                x =>
-                {
-                    callCount++;
-                    if (x.operationType == OpType.Add)
-                    {
-                        results.Insert(x.index, x.element);
-                    }
-                    else
-                    {
-                        results.RemoveAt(x.index);
-                    }
-                },
-                exc => exception = exc,
-                () => disposed = true
-            );
-
-            rootObservable.OnAdd(1);
-            rootObservable.OnAdd(2);
-            rootObservable.OnAdd(13);
-            rootObservable.OnAdd(2);
-            rootObservable.OnAdd(4);
-
-            Assert.AreEqual(5, callCount);
-            Assert.AreEqual(new int[] { 1, 2, 2, 4, 13 }, results);
-
-            rootObservable.OnRemove(2);
-
-            Assert.AreEqual(6, callCount);
-            Assert.AreEqual(new int[] { 1, 2, 4, 13 }, results);
-
-            rootObservable.OnRemove(22);
-
-            Assert.AreEqual(6, callCount);
-            Assert.AreEqual(new int[] { 1, 2, 4, 13 }, results);
-
-            var exc = new Exception();
-            rootObservable.OnError(exc);
-            Assert.AreEqual(exc, exception);
-
-            orderByObservable.Dispose();
-            Assert.IsTrue(disposed);
-
-            rootObservable.OnRemove(4);
-
-            Assert.AreEqual(6, callCount);
-            Assert.AreEqual(new int[] { 1, 2, 4, 13 }, results);
-        }
-
-        [Test]
-        public void TestOrderByReactive()
         {
             int callCount = 0;
             List<ManualValueObservable<int>> results = new List<ManualValueObservable<int>>();
@@ -310,79 +260,6 @@ namespace ObserveThing.Tests
 
         [Test]
         public void TestWhere()
-        {
-            int callCount = 0;
-            List<int> results = new List<int>();
-            Exception exception = default;
-            bool disposed = false;
-
-            var rootObservable = new ManualCollectionObservable<int>();
-            var whereObservable = rootObservable.WhereDynamic(x => x % 2 == 0).Subscribe(
-                x =>
-                {
-                    callCount++;
-                    if (x.operationType == OpType.Add)
-                    {
-                        results.Add(x.element);
-                    }
-                    else
-                    {
-                        results.Remove(x.element);
-                    }
-                },
-                exc => exception = exc,
-                () => disposed = true
-            );
-
-            rootObservable.OnAdd(1);
-            rootObservable.OnAdd(6);
-            rootObservable.OnAdd(13);
-            rootObservable.OnAdd(2);
-            rootObservable.OnAdd(4);
-
-            Assert.AreEqual(3, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 6, 2, 4 }));
-
-            rootObservable.OnRemove(2);
-
-            Assert.AreEqual(4, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 6, 4 }));
-
-            rootObservable.OnRemove(22);
-
-            Assert.AreEqual(4, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 6, 4 }));
-
-            rootObservable.OnRemove(13);
-
-            Assert.AreEqual(4, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 6, 4 }));
-
-            rootObservable.OnAdd(13);
-
-            Assert.AreEqual(4, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 6, 4 }));
-
-            rootObservable.OnAdd(8);
-
-            Assert.AreEqual(5, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 6, 4, 8 }));
-
-            var exc = new Exception();
-            rootObservable.OnError(exc);
-            Assert.AreEqual(exc, exception);
-
-            whereObservable.Dispose();
-            Assert.IsTrue(disposed);
-
-            rootObservable.OnRemove(4);
-
-            Assert.AreEqual(5, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 6, 4, 8 }));
-        }
-
-        [Test]
-        public void TestWhereReactive()
         {
             int callCount = 0;
             List<ManualValueObservable<int>> results = new List<ManualValueObservable<int>>();
@@ -554,70 +431,9 @@ namespace ObserveThing.Tests
             Exception exception = default;
             bool disposed = false;
 
-            var rootObservable = new ManualCollectionObservable<int>();
-            var concatObservable = rootObservable.ConcatDynamic(new int[] { 4, 5, 6 }).Subscribe(
-                x =>
-                {
-                    callCount++;
-                    if (x.operationType == OpType.Add)
-                    {
-                        results.Add(x.element);
-                    }
-                    else
-                    {
-                        results.Remove(x.element);
-                    }
-                },
-                exc => exception = exc,
-                () => disposed = true
-            );
-
-            rootObservable.OnAdd(1);
-            rootObservable.OnAdd(2);
-            rootObservable.OnAdd(3);
-
-            Assert.AreEqual(6, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 1, 2, 3, 4, 5, 6 }));
-
-            rootObservable.OnAdd(7);
-
-            Assert.AreEqual(7, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 1, 2, 3, 4, 5, 6, 7 }));
-
-            rootObservable.OnRemove(1);
-
-            Assert.AreEqual(8, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 2, 3, 4, 5, 6, 7 }));
-
-            rootObservable.OnAdd(4);
-
-            Assert.AreEqual(9, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 2, 3, 4, 4, 5, 6, 7 }));
-
-            var exc = new Exception();
-            rootObservable.OnError(exc);
-            Assert.AreEqual(exc, exception);
-
-            rootObservable.DisposeAll();
-            Assert.IsTrue(disposed);
-
-            rootObservable.OnAdd(100);
-
-            Assert.AreEqual(9, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 2, 3, 4, 4, 5, 6, 7 }));
-        }
-
-        [Test]
-        public void TestConcatReactive()
-        {
-            int callCount = 0;
-            List<int> results = new List<int>();
-            Exception exception = default;
-            bool disposed = false;
-
             var observable1 = new ManualCollectionObservable<int>();
             var observable2 = new ManualCollectionObservable<int>();
-            var concatObservable = observable1.ConcatDynamic(observable2).Subscribe(
+            var concatObservable = observable1.ConcatDynamic((ICollectionObservable<int>)observable2).Subscribe(
                 x =>
                 {
                     callCount++;
@@ -696,69 +512,8 @@ namespace ObserveThing.Tests
             Exception exception = default;
             bool disposed = false;
 
-            var observableRoot = new ManualCollectionObservable<int[]>();
-            var concatObservable = observableRoot.SelectManyDynamic(x => x).Subscribe(
-                x =>
-                {
-                    callCount++;
-                    if (x.operationType == OpType.Add)
-                    {
-                        results.Add(x.element);
-                    }
-                    else
-                    {
-                        results.Remove(x.element);
-                    }
-                },
-                exc => exception = exc,
-                () => disposed = true
-            );
-
-            var arr1 = new[] { 1, 2, 3 };
-            var arr2 = new[] { 4, 5, 6 };
-            var arr3 = new[] { 7, 8, 9 };
-
-            observableRoot.OnAdd(arr1);
-            observableRoot.OnAdd(arr2);
-            observableRoot.OnAdd(arr3);
-
-            Assert.AreEqual(9, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 }));
-
-            observableRoot.OnRemove(arr2);
-
-            Assert.AreEqual(12, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 1, 2, 3, 7, 8, 9 }));
-
-            observableRoot.OnAdd(arr2);
-            observableRoot.OnAdd(arr2);
-
-            Assert.AreEqual(18, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 1, 2, 3, 4, 5, 6, 4, 5, 6, 7, 8, 9 }));
-
-            var exc = new Exception();
-            observableRoot.OnError(exc);
-            Assert.AreEqual(exc, exception);
-
-            observableRoot.DisposeAll();
-            Assert.IsTrue(disposed);
-
-            observableRoot.OnAdd(arr1);
-
-            Assert.AreEqual(18, callCount);
-            Assert.That(results, Is.EquivalentTo(new int[] { 1, 2, 3, 4, 5, 6, 4, 5, 6, 7, 8, 9 }));
-        }
-
-        [Test]
-        public void TestSelectManyReactive()
-        {
-            int callCount = 0;
-            List<int> results = new List<int>();
-            Exception exception = default;
-            bool disposed = false;
-
             var observableRoot = new ManualCollectionObservable<ManualCollectionObservable<int>>();
-            var concatObservable = observableRoot.SelectManyDynamic(x => x).Subscribe(
+            var concatObservable = observableRoot.SelectManyDynamic(x => (ICollectionObservable<int>)x).Subscribe(
                 x =>
                 {
                     callCount++;
@@ -879,187 +634,140 @@ namespace ObserveThing.Tests
         }
 
         [Test]
-        public void TestSelectReactive()
+        public void TestShallowCopy()
         {
-            var collection = new CollectionObservable<ValueObservable<int>>();
-            var result = new List<string>();
-            var stream = collection.SelectDynamic(x => x.SelectDynamic(x => x.ToString())).Subscribe(args =>
-            {
-                if (args.operationType == OpType.Add)
-                {
-                    result.Add(args.element);
-                }
-                else if (args.operationType == OpType.Remove)
-                {
-                    result.Remove(args.element);
-                }
-            });
-
-            var element1 = new ValueObservable<int>(2);
-            var element2 = new ValueObservable<int>(3);
-            var element3 = new ValueObservable<int>(45);
-            var element4 = new ValueObservable<int>(11);
-
-            collection.Add(element1);
-            collection.Add(element2);
-            collection.Add(element3);
-            collection.Add(element4);
-
-            CollectionAssert.AreEquivalent(
-                collection.Select(x => x.value.ToString()),
-                result
-            );
-
-            element1.From(3);
-            element1.From(100);
-            element1.From(22);
-            element1.From(6);
-
-            CollectionAssert.AreEquivalent(
-                collection.Select(x => x.value.ToString()),
-                result
-            );
-
-            element2.From(3);
-            element3.From(3);
-            element4.From(3);
-
-            CollectionAssert.AreEquivalent(
-                collection.Select(x => x.value.ToString()),
-                result
-            );
-
-            UnityEngine.Debug.Log("EP: Starting test");
-
-            collection.Remove(element2);
-            collection.Add(element3);
-
-            element2.From(5);
-            element3.From(100);
-            element3.From(50);
-
-            CollectionAssert.AreEquivalent(
-                collection.Select(x => x.value.ToString()),
-                result
-            );
+            throw new NotImplementedException();
         }
 
-        private void Log<T>(IEnumerable<T> collection)
+        public class TestElement
         {
-            UnityEngine.Debug.Log(string.Join(", ", collection.Select(x => x.ToString())));
+            public ValueObservable<int> intValue = new ValueObservable<int>();
+            public ValueObservable<string> stringValue = new ValueObservable<string>();
         }
-
 
         [Test]
-        public void TestSelect_PreserveOrder()
+        public void TestErrorLog()
         {
-            var collection = new ListObservable<int>();
-            var result = new List<string>();
-            var stream = collection.SelectDynamic(x => x.ToString()).Subscribe(args =>
+            var dict = new DictionaryObservable<int, string>();
+            var stream = dict.SelectDynamic(x =>
             {
-                if (args.operationType == OpType.Add)
-                {
-                    result.Add(args.element);
-                }
-                else if (args.operationType == OpType.Remove)
-                {
-                    result.Remove(args.element);
-                }
-            });
+                if (x.Key != 0)
+                    throw new Exception("Oh no!");
 
-            collection.Add(1);
-            collection.Add(1);
-            collection.Add(2);
-            collection.Add(3);
-            collection.Add(4);
-            collection.Add(45);
+                return x.Key;
 
-            Assert.AreEqual(
-                collection.Select(x => x.ToString()),
+            }).SelectDynamic(x =>
+            {
+                if (x != 0)
+                    throw new Exception("Oh no!");
+
+                return x;
+
+            }).Subscribe(args => { }, null, () => { });
+            dict.Add(10, "cat");
+            dict.Add(11, "dog");
+        }
+
+        [Test]
+        public void TestToDictionary()
+        {
+            int callCount = 0;
+            Exception exception = default;
+            bool disposed = false;
+            var result = new Dictionary<int, string>();
+
+            var collection = new CollectionObservable<TestElement>();
+            var toDict = collection.ToDictionaryDynamic(x => x.intValue.AsObservable(), x => x.stringValue.AsObservable());
+            var observable = toDict.Subscribe(
+                args =>
+                {
+                    callCount++;
+                    if (args.operationType == OpType.Add)
+                    {
+                        result.Add(args.key, args.value);
+                    }
+                    else if (args.operationType == OpType.Remove)
+                    {
+                        result.Remove(args.key);
+                    }
+                },
+                onDispose: () => disposed = true,
+                name: "final observer"
+            );
+
+            collection.Add(new TestElement());
+
+            Assert.AreEqual(1, callCount);
+            Assert.IsNull(exception);
+            CollectionAssert.AreEquivalent(
+                collection.ToDictionary(x => x.intValue.value, x => x.stringValue.value),
                 result
             );
 
-            collection.Remove(3);
-            collection.Remove(3);
-            collection.Add(1);
-            collection.Add(45);
-            collection.Remove(45);
+            var element = new TestElement();
+            element.intValue.From(3);
+            element.stringValue.From("cat");
 
-            Assert.AreEqual(
-                collection.Select(x => x.ToString()),
+            //Test change key/value before adding
+            collection.Add(element);
+
+            Assert.AreEqual(2, callCount);
+            Assert.IsNull(exception);
+            CollectionAssert.AreEquivalent(
+                collection.ToDictionary(x => x.intValue.value, x => x.stringValue.value),
                 result
             );
 
+            //Test change key/value after adding
+            element.intValue.From(100);
+            element.stringValue.From("dog");
+            Assert.AreEqual(6, callCount);
+            Assert.IsNull(exception);
+            CollectionAssert.AreEquivalent(
+                collection.ToDictionary(x => x.intValue.value, x => x.stringValue.value),
+                result
+            );
+
+            //Test remove element
+            collection.Remove(element);
+            Assert.AreEqual(7, callCount);
+            Assert.IsNull(exception);
+            CollectionAssert.AreEquivalent(
+                collection.ToDictionary(x => x.intValue.value, x => x.stringValue.value),
+                result
+            );
+
+            // Reset observable and source collection
+            observable.Dispose(); // clear subscription to test errors
             collection.Clear();
+            observable = toDict.Subscribe(); // need a subscription for operations to function
 
-            Assert.AreEqual(
-                collection.Select(x => x.ToString()),
-                result
-            );
-        }
+            //Test double add element
+            collection.Add(element);
+            Assert.Throws<InternalObserverException>(() => collection.Add(element));
 
-        [Test]
-        public void TestSelectReactive_PreserveOrder()
-        {
-            var list = new ListObservable<ValueObservable<int>>();
-            var result = new List<string>();
-            var stream = list.SelectDynamic(x => x.SelectDynamic(x => x.ToString())).Subscribe(args =>
-            {
-                if (args.operationType == OpType.Add)
-                {
-                    result.Insert(args.index, args.element);
-                }
-                else if (args.operationType == OpType.Remove)
-                {
-                    result.RemoveAt(args.index);
-                }
-            });
+            // Reset observable and source collection
+            observable.Dispose();
+            collection.Clear();
+            observable = toDict.Subscribe(); // need a subscription for operations to function
 
-            var element1 = new ValueObservable<int>(2);
-            var element2 = new ValueObservable<int>(3);
-            var element3 = new ValueObservable<int>(45);
-            var element4 = new ValueObservable<int>(11);
+            //Test double add key
+            collection.Add(element);
+            var conflictingElement = new TestElement();
+            conflictingElement.intValue.From(100);
+            conflictingElement.stringValue.From("cat");
+            Assert.Throws<InternalObserverException>(() => collection.Add(conflictingElement));
 
-            list.Add(element1);
-            list.Add(element2);
-            list.Add(element3);
-            list.Add(element4);
+            // Reset observable and source collection
+            observable.Dispose();
+            collection.Clear();
+            observable = toDict.Subscribe(); // need a subscription for operations to function
 
-            Assert.AreEqual(
-                list.Select(x => x.value.ToString()),
-                result
-            );
-
-            element1.From(3);
-            element1.From(100);
-            element1.From(22);
-            element1.From(6);
-
-            Assert.AreEqual(
-                list.Select(x => x.value.ToString()),
-                result
-            );
-
-            element2.From(3);
-            element3.From(3);
-            element4.From(3);
-
-            Assert.AreEqual(
-                list.Select(x => x.value.ToString()),
-                result
-            );
-
-            list.Remove(element2);
-            list.Add(element3);
-
-            element2.From(5);
-            element3.From(100);
-            element3.From(50);
-
-            Assert.AreEqual(
-                list.Select(x => x.value.ToString()),
-                result
-            );
+            //Test converge keys
+            conflictingElement.intValue.From(30);
+            collection.Add(element);
+            collection.Add(conflictingElement);
+            Assert.Throws<InternalObserverException>(() => conflictingElement.intValue.From(100));
         }
     }
 }

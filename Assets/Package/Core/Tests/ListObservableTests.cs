@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
-using UnityEngine;
+using System.Linq;
+using NUnit.Framework;
 
 namespace ObserveThing.Tests
 {
@@ -113,6 +114,117 @@ namespace ObserveThing.Tests
 
     public class ListObservableTests
     {
+        [Test]
+        public void TestSelect()
+        {
+            var collection = new ListObservable<int>();
+            var result = new List<string>();
+            var stream = collection.SelectDynamic(x => x.ToString()).Subscribe(args =>
+            {
+                if (args.operationType == OpType.Add)
+                {
+                    result.Add(args.element);
+                }
+                else if (args.operationType == OpType.Remove)
+                {
+                    result.Remove(args.element);
+                }
+            });
 
+            collection.Add(1);
+            collection.Add(1);
+            collection.Add(2);
+            collection.Add(3);
+            collection.Add(4);
+            collection.Add(45);
+
+            Assert.AreEqual(
+                collection.Select(x => x.ToString()),
+                result
+            );
+
+            collection.Remove(3);
+            collection.Remove(3);
+            collection.Add(1);
+            collection.Add(45);
+            collection.Remove(45);
+
+            Assert.AreEqual(
+                collection.Select(x => x.ToString()),
+                result
+            );
+
+            collection.Clear();
+
+            Assert.AreEqual(
+                collection.Select(x => x.ToString()),
+                result
+            );
+        }
+
+        [Test]
+        public void TestShallowCopy()
+        {
+            throw new NotImplementedException();
+            var list = new ListObservable<ValueObservable<int>>();
+            var result = new List<string>();
+            var stream = list.SelectDynamic(x => x.SelectDynamic(x => x.ToString())).Subscribe(args =>
+            {
+                if (args.operationType == OpType.Add)
+                {
+                    result.Insert(args.index, args.element);
+                }
+                else if (args.operationType == OpType.Remove)
+                {
+                    result.RemoveAt(args.index);
+                }
+            });
+
+            var element1 = new ValueObservable<int>(2);
+            var element2 = new ValueObservable<int>(3);
+            var element3 = new ValueObservable<int>(45);
+            var element4 = new ValueObservable<int>(11);
+
+            list.Add(element1);
+            list.Add(element2);
+            list.Add(element3);
+            list.Add(element4);
+
+            Assert.AreEqual(
+                list.Select(x => x.value.ToString()),
+                result
+            );
+
+            element1.From(3);
+            element1.From(100);
+            element1.From(22);
+            element1.From(6);
+
+            Assert.AreEqual(
+                list.Select(x => x.value.ToString()),
+                result
+            );
+
+            element2.From(3);
+            element3.From(3);
+            element4.From(3);
+
+            Assert.AreEqual(
+                list.Select(x => x.value.ToString()),
+                result
+            );
+
+            list.Remove(element2);
+            list.Add(element3);
+
+            element2.From(5);
+            element3.From(100);
+            element3.From(50);
+
+            Assert.AreEqual(
+                list.Select(x => x.value.ToString()),
+                result
+            );
+        }
     }
 }

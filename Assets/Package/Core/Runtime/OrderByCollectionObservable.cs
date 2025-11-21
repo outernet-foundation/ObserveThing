@@ -6,9 +6,9 @@ namespace ObserveThing
     public class OrderByCollectionObservable<T, U> : IListObservable<T>
     {
         public ICollectionObservable<T> collection;
-        public Func<T, U> orderBy;
+        public Func<T, IValueObservable<U>> orderBy;
 
-        public OrderByCollectionObservable(ICollectionObservable<T> collection, Func<T, U> orderBy)
+        public OrderByCollectionObservable(ICollectionObservable<T> collection, Func<T, IValueObservable<U>> orderBy)
         {
             this.collection = collection;
             this.orderBy = orderBy;
@@ -19,20 +19,36 @@ namespace ObserveThing
 
         private class Instance : IDisposable
         {
-            private IDisposable _collectionStream;
-            private Func<T, U> _orderBy;
+            private IDisposable _collection;
+            private Func<T, IValueObservable<U>> _orderBy;
             private IObserver<ListEventArgs<T>> _observer;
             private ListEventArgs<T> _args = new ListEventArgs<T>();
             private bool _disposed = false;
 
-            private List<(T value, U orderedBy)> _elements = new List<(T value, U orderedBy)>();
+            private class OrderByData : IDisposable
+            {
+                public T element;
+                public U orderedBy;
+                public int count = 1;
+                public IDisposable orderByStream;
+                public bool disposed;
 
-            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, U> orderBy, IObserver<ListEventArgs<T>> observer)
+                public void Dispose()
+                {
+                    disposed = true;
+                    orderByStream.Dispose();
+                }
+            }
+
+            private Dictionary<T, OrderByData> _dataByElement = new Dictionary<T, OrderByData>();
+            private List<OrderByData> _elementsInOrder = new List<OrderByData>();
+
+            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, IValueObservable<U>> orderBy, IObserver<ListEventArgs<T>> observer)
             {
                 _orderBy = orderBy;
                 _observer = observer;
                 _args.source = source;
-                _collectionStream = collection.Subscribe(
+                _collection = collection.Subscribe(
                     HandleSourceChanged,
                     HandleSourceError,
                     HandleSourceDisposed
@@ -45,24 +61,26 @@ namespace ObserveThing
                 {
                     case OpType.Add:
                         {
-                            U orderByElement = _orderBy(args.element);
-                            int? sortIndex = default;
-
-                            for (int i = 0; i < _elements.Count; i++)
+                            if (!_dataByElement.TryGetValue(args.element, out var data))
                             {
-                                if (Comparer<U>.Default.Compare(orderByElement, _elements[i].orderedBy) <= 0)
-                                {
-                                    sortIndex = i;
-                                    break;
-                                }
+                                data = new OrderByData() { element = args.element };
+                                _dataByElement.Add(args.element, data);
+
+                                data.orderByStream = _orderBy(args.element).Subscribe(
+                                    args => HandleResortRequested(args.currentValue, data),
+                                    HandleSourceError,
+                                    () => HandleElementSourceDisposed(data)
+                                );
+
+                                return;
                             }
 
-                            var index = sortIndex ?? _elements.Count;
-                            _elements.Insert(index, new(args.element, orderByElement));
-
-                            _args.operationType = OpType.Add;
                             _args.element = args.element;
-                            _args.index = index;
+                            _args.index = GetSortedIndex(data, _elementsInOrder);
+                            _args.operationType = OpType.Add;
+
+                            data.count++; // be sure to do this after calling GetSortedIndex because the old value is used in that call
+                            _elementsInOrder.Insert(_args.index, data);
 
                             _observer.OnNext(_args);
                         }
@@ -71,24 +89,126 @@ namespace ObserveThing
 
                     case OpType.Remove:
                         {
-                            for (int i = 0; i < _elements.Count; i++)
+                            var data = _dataByElement[args.element];
+                            data.count--;
+
+                            _args.element = args.element;
+                            _args.index = _elementsInOrder.IndexOf(data);
+                            _args.operationType = OpType.Remove;
+
+                            _elementsInOrder.RemoveAt(_args.index);
+
+                            if (data.count == 0)
                             {
-                                if (Equals(_elements[i].value, args.element))
-                                {
-                                    _elements.RemoveAt(i);
-
-                                    _args.operationType = OpType.Remove;
-                                    _args.element = args.element;
-                                    _args.index = i;
-
-                                    _observer.OnNext(_args);
-
-                                    return;
-                                }
+                                _dataByElement.Remove(args.element);
+                                data.Dispose();
                             }
+
+                            _observer.OnNext(_args);
                         }
 
                         break;
+                }
+            }
+
+            private void HandleElementSourceDisposed(OrderByData data)
+            {
+                if (data.disposed)
+                    return;
+
+                HandleSourceError(new Exception("Element source disposed unexpectedly."));
+            }
+
+            private int GetSortedIndex(OrderByData element, List<OrderByData> elementsInOrder)
+            {
+                int? sorted = default;
+
+                for (int i = 0; i < _elementsInOrder.Count; i++)
+                {
+                    var compareTo = elementsInOrder[i];
+
+                    if (element == compareTo)
+                    {
+                        i += element.count - 1;
+                        continue;
+                    }
+
+                    if (Comparer<U>.Default.Compare(element.orderedBy, compareTo.orderedBy) <= 0)
+                    {
+                        sorted = i;
+                        break;
+                    }
+                }
+
+                return sorted ?? elementsInOrder.Count;
+            }
+
+            private void GetOriginalAndSortedIndex(OrderByData element, List<OrderByData> elementsInOrder, out int? originalIndex, out int sortedIndex)
+            {
+                int? original = default;
+                int? sorted = default;
+
+                for (int i = 0; i < _elementsInOrder.Count; i++)
+                {
+                    var compareTo = elementsInOrder[i];
+
+                    if (original == null && element == compareTo)
+                    {
+                        original = i;
+
+                        if (original != null && sorted != null)
+                            break;
+
+                        i += element.count - 1;
+                        continue;
+                    }
+
+                    if (sorted == null && Comparer<U>.Default.Compare(element.orderedBy, compareTo.orderedBy) <= 0)
+                    {
+                        sorted = i;
+
+                        if (original != null && sorted != null)
+                            break;
+                    }
+                }
+
+                originalIndex = original;
+                sortedIndex = sorted ?? elementsInOrder.Count;
+            }
+
+            private void HandleResortRequested(U orderBy, OrderByData data)
+            {
+                data.orderedBy = orderBy;
+
+                GetOriginalAndSortedIndex(data, _elementsInOrder, out int? originalIndex, out int sortedIndex);
+
+                _args.element = data.element;
+
+                if (originalIndex.HasValue)
+                {
+                    if (sortedIndex == originalIndex.Value)
+                        return;
+
+                    if (sortedIndex > originalIndex.Value)
+                        sortedIndex -= data.count;
+
+                    _args.operationType = OpType.Remove;
+                    _args.index = originalIndex.Value;
+
+                    for (int i = 0; i < data.count; i++)
+                    {
+                        _elementsInOrder.RemoveAt(originalIndex.Value);
+                        _observer.OnNext(_args);
+                    }
+                }
+
+                _args.operationType = OpType.Add;
+                _args.index = sortedIndex;
+
+                for (int i = 0; i < data.count; i++)
+                {
+                    _elementsInOrder.Insert(sortedIndex, data);
+                    _observer.OnNext(_args);
                 }
             }
 
@@ -109,7 +229,10 @@ namespace ObserveThing
 
                 _disposed = true;
 
-                _collectionStream.Dispose();
+                foreach (var data in _dataByElement.Values)
+                    data.Dispose();
+
+                _collection.Dispose();
                 _observer.OnDispose();
             }
         }

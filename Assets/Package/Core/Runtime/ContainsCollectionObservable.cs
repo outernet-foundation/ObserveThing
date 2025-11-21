@@ -1,13 +1,15 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ObserveThing
 {
     public class ContainsCollectionObservable<T> : IValueObservable<bool>
     {
         private ICollectionObservable<T> _collection;
-        private T _contains;
+        private IValueObservable<T> _contains;
 
-        public ContainsCollectionObservable(ICollectionObservable<T> collection, T contains)
+        public ContainsCollectionObservable(ICollectionObservable<T> collection, IValueObservable<T> contains)
         {
             _collection = collection;
             _contains = contains;
@@ -19,21 +21,41 @@ namespace ObserveThing
         private class Instance : IDisposable
         {
             private IDisposable _collectionStream;
-            private T _contains;
+            private IDisposable _containsStream;
             private IObserver<IValueEventArgs<bool>> _observer;
             private ValueEventArgs<bool> _args = new ValueEventArgs<bool>();
             private bool _disposed = false;
-            private int _count;
 
-            public Instance(IObservable source, ICollectionObservable<T> collection, T contains, IObserver<IValueEventArgs<bool>> observer)
+            private T _contains;
+            private int _count;
+            private List<T> _collection = new List<T>();
+
+            public Instance(IObservable source, ICollectionObservable<T> collection, IValueObservable<T> contains, IObserver<IValueEventArgs<bool>> observer)
             {
-                _contains = contains;
                 _observer = observer;
                 _args.source = source;
-                _collectionStream = collection.Subscribe(HandleSourceChanged, HandleSourceError, HandleSourceDisposed);
+                _containsStream = contains.Subscribe(HandleContainsSourceChanged, HandleSourceError, HandleSourceDisposed);
+                _collectionStream = collection.Subscribe(HandleCollectionSourceChanged, HandleSourceError, HandleSourceDisposed);
             }
 
-            private void HandleSourceChanged(ICollectionEventArgs<T> args)
+            private void HandleContainsSourceChanged(IValueEventArgs<T> args)
+            {
+                bool didContain = _count > 0;
+
+                _contains = args.currentValue;
+                _count = _collection.Count(x => Equals(x, _contains));
+
+                bool currentlyContains = _count > 0;
+
+                if (didContain == currentlyContains)
+                    return;
+
+                _args.previousValue = didContain;
+                _args.currentValue = currentlyContains;
+                _observer.OnNext(_args);
+            }
+
+            private void HandleCollectionSourceChanged(ICollectionEventArgs<T> args)
             {
                 switch (args.operationType)
                 {
@@ -83,6 +105,7 @@ namespace ObserveThing
 
                 _disposed = true;
 
+                _containsStream.Dispose();
                 _collectionStream.Dispose();
                 _observer.OnDispose();
             }

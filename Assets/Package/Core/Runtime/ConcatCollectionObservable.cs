@@ -5,42 +5,42 @@ namespace ObserveThing
 {
     public class ConcatCollectionObservable<T> : ICollectionObservable<T>
     {
-        public ICollectionObservable<T> collection;
-        public IEnumerable<T> concat;
+        public ICollectionObservable<T> collection1;
+        public ICollectionObservable<T> collection2;
 
-        public ConcatCollectionObservable(ICollectionObservable<T> collection, IEnumerable<T> concat)
+        public ConcatCollectionObservable(ICollectionObservable<T> collection1, ICollectionObservable<T> collection2)
         {
-            this.collection = collection;
-            this.concat = concat;
+            this.collection1 = collection1;
+            this.collection2 = collection2;
         }
 
         public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
-            => new Instance(this, collection, concat, observer);
+            => new Instance(this, collection1, collection2, observer);
 
         private class Instance : IDisposable
         {
-            private IDisposable _collectionStream;
+            private IDisposable _collection1Stream;
+            private IDisposable _collection2Stream;
             private IObserver<ICollectionEventArgs<T>> _observer;
             private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
             private bool _disposed = false;
 
-            public Instance(IObservable source, ICollectionObservable<T> collection, IEnumerable<T> concat, IObserver<ICollectionEventArgs<T>> observer)
+            public Instance(IObservable source, ICollectionObservable<T> collection1, ICollectionObservable<T> collection2, IObserver<ICollectionEventArgs<T>> observer)
             {
                 _observer = observer;
                 _args.source = source;
-                _collectionStream = collection.Subscribe(
+
+                _collection1Stream = collection1.Subscribe(
                     HandleSourceChanged,
                     HandleSourceError,
                     HandleSourceDisposed
                 );
 
-                _args.operationType = OpType.Add;
-
-                foreach (var element in concat)
-                {
-                    _args.element = element;
-                    _observer.OnNext(_args);
-                }
+                _collection2Stream = collection2.Subscribe(
+                    HandleSourceChanged,
+                    HandleSourceError,
+                    HandleSourceDisposed
+                );
             }
 
             private void HandleSourceChanged(ICollectionEventArgs<T> args)
@@ -82,7 +82,8 @@ namespace ObserveThing
 
                 _disposed = true;
 
-                _collectionStream.Dispose();
+                _collection1Stream.Dispose();
+                _collection2Stream.Dispose();
                 _observer.OnDispose();
             }
         }
