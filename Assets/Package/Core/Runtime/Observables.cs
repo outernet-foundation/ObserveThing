@@ -158,6 +158,10 @@ namespace ObserveThing
         public static ICollectionObservable<T> DistinctDynamic<T>(this ICollectionObservable<T> source)
             => new DistinctCollectionObservable<T>(source);
 
+        public static IDictionaryObservable<TKey, TValue> ToDictionaryDynamic<TSource, TKey, TValue>(this ICollectionObservable<TSource> source, Func<TSource, TKey> selectKey, Func<TSource, TValue> selectValue)
+            // => new ToDictionaryObservable<TSource, TKey, TValue>(source, selectKey, selectValue);
+            => default;
+
         public static IListObservable<T> OrderByDynamic<T, U>(this ICollectionObservable<T> source, Func<T, U> orderBy)
             => new OrderByCollectionObservable<T, U>(source, orderBy);
 
