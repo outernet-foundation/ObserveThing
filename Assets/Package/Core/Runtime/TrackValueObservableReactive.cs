@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace ObserveThing
 {
@@ -81,6 +82,8 @@ namespace ObserveThing
 
             private void HandleKeyChanged(IValueEventArgs<TKey> args)
             {
+                bool isInit = _awaitingInit;
+
                 _currentKey = args.currentValue;
                 _awaitingInit = false;
 
@@ -90,7 +93,7 @@ namespace ObserveThing
                     _args.currentValue = new(true, value);
                     _observer.OnNext(_args);
                 }
-                else if (_args.currentValue.keyPresent)
+                else if (_args.currentValue.keyPresent || isInit)
                 {
                     _args.previousValue = _args.currentValue;
                     _args.currentValue = new(false, default);
