@@ -597,7 +597,7 @@ namespace ObserveThing.StatefulExtensions
             }
         }
 
-        public static ICollectionObservable<object> AsObservable<T>(this IObservableCollection collection)
+        public static ICollectionObservable<object> AsObservable(this IObservableCollection collection)
         {
             return new StatefulCollectionObservable(collection);
         }
