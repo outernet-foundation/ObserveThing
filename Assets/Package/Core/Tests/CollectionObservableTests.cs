@@ -241,9 +241,22 @@ namespace ObserveThing.Tests
         public void TestOrderByExternalCollection()
         {
             ListObservable<string> source = new ListObservable<string>();
-            ListObservable<string> destination = new ListObservable<string>();
+            List<string> destination = new List<string>();
 
-            destination.From(source.SelectDynamic(x => x).OrderByDynamic(x => source.IndexOfDynamic(x)));
+            source
+                .SelectDynamic(x => x)
+                .OrderByDynamic(x => source.IndexOfDynamic(x))
+                .Subscribe(x =>
+                {
+                    if (x.operationType == OpType.Add)
+                    {
+                        destination.Insert(x.index, x.element);
+                    }
+                    else if (x.operationType == OpType.Remove)
+                    {
+                        destination.RemoveAt(x.index);
+                    }
+                });
 
             source.Add("cat");
             source.Add("dog");
@@ -705,8 +718,8 @@ namespace ObserveThing.Tests
             );
 
             var element = new TestElement();
-            element.intValue.From(3);
-            element.stringValue.From("cat");
+            element.intValue.value = 3;
+            element.stringValue.value = "cat";
 
             //Test change key/value before adding
             collection.Add(element);
@@ -719,8 +732,8 @@ namespace ObserveThing.Tests
             );
 
             //Test change key/value after adding
-            element.intValue.From(100);
-            element.stringValue.From("dog");
+            element.intValue.value = 100;
+            element.stringValue.value = "dog";
             Assert.AreEqual(6, callCount);
             Assert.IsNull(exception);
             CollectionAssert.AreEquivalent(
@@ -754,8 +767,8 @@ namespace ObserveThing.Tests
             //Test double add key
             collection.Add(element);
             var conflictingElement = new TestElement();
-            conflictingElement.intValue.From(100);
-            conflictingElement.stringValue.From("cat");
+            conflictingElement.intValue.value = 100;
+            conflictingElement.stringValue.value = "cat";
             Assert.Throws<InternalObserverException>(() => collection.Add(conflictingElement));
 
             // Reset observable and source collection
@@ -764,10 +777,10 @@ namespace ObserveThing.Tests
             observable = toDict.Subscribe(); // need a subscription for operations to function
 
             //Test converge keys
-            conflictingElement.intValue.From(30);
+            conflictingElement.intValue.value = 30;
             collection.Add(element);
             collection.Add(conflictingElement);
-            Assert.Throws<InternalObserverException>(() => conflictingElement.intValue.From(100));
+            Assert.Throws<InternalObserverException>(() => conflictingElement.intValue.value = 100);
         }
     }
 }

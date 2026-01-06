@@ -8,35 +8,31 @@ namespace ObserveThing
         public T value
         {
             get => _value;
-            private set
+            set
             {
                 if (Equals(_value, value))
                     return;
 
-                _args.previousValue = _value;
+                var previousValue = _value;
                 _value = value;
-                _args.currentValue = value;
 
-                SafeOnNext(_args);
+                SafeOnNext(this, previousValue, _value);
             }
         }
 
         private T _value = default;
-        private ValueEventArgs<T> _args = new ValueEventArgs<T>();
         private List<Instance> _instances = new List<Instance>();
         private List<Instance> _disposedInstances = new List<Instance>();
         private bool _executingOnNext;
         private bool _disposed;
-        private IDisposable _fromSubscription;
 
         public ValueObservable() : this(default) { }
         public ValueObservable(T startValue)
         {
             _value = startValue;
-            _args.source = this;
         }
 
-        private void SafeOnNext(IValueEventArgs<T> args)
+        private void SafeOnNext(IObservable source, T previousValue, T currentValue)
         {
             _executingOnNext = true;
 
@@ -47,25 +43,13 @@ namespace ObserveThing
                 if (instance.disposed)
                     continue;
 
-                instance.OnNext(args);
+                instance.OnNext(source, previousValue, currentValue);
             }
 
             foreach (var disposedInstance in _disposedInstances)
                 _instances.Remove(disposedInstance);
 
             _executingOnNext = false;
-        }
-
-        public void From(T source)
-        {
-            _fromSubscription?.Dispose();
-            value = source;
-        }
-
-        public void From(IValueObservable<T> source)
-        {
-            _fromSubscription?.Dispose();
-            _fromSubscription = source.Subscribe(x => value = x.currentValue);
         }
 
         public IDisposable Subscribe(IObserver<IValueEventArgs<T>> observer)
@@ -85,11 +69,7 @@ namespace ObserveThing
             });
 
             _instances.Add(instance);
-
-            _args.previousValue = default;
-            _args.currentValue = _value;
-
-            instance.OnNext(_args);
+            instance.OnNext(this, default, _value);
             return instance;
         }
 
@@ -97,8 +77,6 @@ namespace ObserveThing
         {
             if (_disposed)
                 return;
-
-            _fromSubscription?.Dispose();
 
             _disposed = true;
 
@@ -114,6 +92,7 @@ namespace ObserveThing
 
             private IObserver<IValueEventArgs<T>> _observer;
             private Action<Instance> _onDispose;
+            private ValueEventArgs<T> _args = new ValueEventArgs<T>();
 
             public Instance(IObserver<IValueEventArgs<T>> observer, Action<Instance> onDispose)
             {
@@ -121,9 +100,12 @@ namespace ObserveThing
                 _onDispose = onDispose;
             }
 
-            public void OnNext(IValueEventArgs<T> args)
+            public void OnNext(IObservable source, T previousValue, T currentValue)
             {
-                _observer?.OnNext(args);
+                _args.source = source;
+                _args.previousValue = previousValue;
+                _args.currentValue = currentValue;
+                _observer?.OnNext(_args);
             }
 
             public void OnError(Exception error)

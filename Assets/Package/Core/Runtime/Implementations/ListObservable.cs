@@ -13,7 +13,6 @@ namespace ObserveThing
         public T this[int index] => _list[index];
 
         private List<T> _list = new List<T>();
-        private ListEventArgs<T> _args = new ListEventArgs<T>();
         private List<Instance> _instances = new List<Instance>();
         private List<Instance> _disposedInstances = new List<Instance>();
         private bool _executingOnNext;
@@ -25,15 +24,12 @@ namespace ObserveThing
 
         public ListObservable(IEnumerable<T> source) : this()
         {
-            From(source);
+            _list.AddRange(source);
         }
 
-        public ListObservable()
-        {
-            _args.source = this;
-        }
+        public ListObservable() { }
 
-        private void SafeOnNext(ListEventArgs<T> args)
+        private void SafeOnNext(IObservable source, T element, int index, OpType opType)
         {
             _executingOnNext = true;
 
@@ -44,7 +40,7 @@ namespace ObserveThing
                 if (instance.disposed)
                     continue;
 
-                instance.OnNext(args);
+                instance.OnNext(source, element, index, opType);
             }
 
             foreach (var disposedInstance in _disposedInstances)
@@ -74,23 +70,15 @@ namespace ObserveThing
 
         public void RemoveAt(int index)
         {
-            T element = _list[index];
+            T removed = _list[index];
             _list.RemoveAt(index);
-            _args.index = index;
-            _args.element = element;
-            _args.operationType = OpType.Remove;
-
-            SafeOnNext(_args);
+            SafeOnNext(this, removed, index, OpType.Remove);
         }
 
         public void Insert(int index, T inserted)
         {
             _list.Insert(index, inserted);
-            _args.index = index;
-            _args.element = inserted;
-            _args.operationType = OpType.Add;
-
-            SafeOnNext(_args);
+            SafeOnNext(this, inserted, index, OpType.Add);
         }
 
         public void Clear()
@@ -106,32 +94,6 @@ namespace ObserveThing
 
         public bool Contains(T item)
             => _list.Contains(item);
-
-        public void From(params T[] source)
-            => From((IEnumerable<T>)source);
-
-        public void From(IEnumerable<T> source)
-        {
-            _fromSubscription?.Dispose();
-            Clear();
-
-            foreach (var element in source)
-                Add(element);
-        }
-
-        public void From(IListObservable<T> source)
-        {
-            _fromSubscription?.Dispose();
-            _fromSubscription = source.Subscribe(
-                x =>
-                {
-                    if (x.operationType == OpType.Add)
-                        Insert(x.index, x.element);
-                    else if (x.operationType == OpType.Remove)
-                        RemoveAt(x.index);
-                }
-            );
-        }
 
         public IDisposable Subscribe(IObserver<IListEventArgs<T>> observer)
         {
@@ -152,12 +114,7 @@ namespace ObserveThing
             _instances.Add(instance);
 
             for (int i = 0; i < _list.Count; i++)
-            {
-                _args.index = i;
-                _args.element = _list[i];
-                _args.operationType = OpType.Add;
-                instance.OnNext(_args);
-            }
+                instance.OnNext(this, _list[i], i, OpType.Add);
 
             return instance;
         }
@@ -182,6 +139,7 @@ namespace ObserveThing
 
             private IObserver<ListEventArgs<T>> _observer;
             private Action<Instance> _onDispose;
+            private ListEventArgs<T> _args = new ListEventArgs<T>();
 
             public Instance(IObserver<ListEventArgs<T>> observer, Action<Instance> onDispose)
             {
@@ -189,9 +147,13 @@ namespace ObserveThing
                 _onDispose = onDispose;
             }
 
-            public void OnNext(ListEventArgs<T> args)
+            public void OnNext(IObservable source, T element, int index, OpType opType)
             {
-                _observer?.OnNext(args);
+                _args.source = source;
+                _args.element = element;
+                _args.index = index;
+                _args.operationType = opType;
+                _observer?.OnNext(_args);
             }
 
             public void OnError(Exception error)

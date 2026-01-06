@@ -195,19 +195,19 @@ namespace ObserveThing.Tests
                 result
             );
 
-            element1.From(3);
-            element1.From(100);
-            element1.From(22);
-            element1.From(6);
+            element1.value = 3;
+            element1.value = 100;
+            element1.value = 22;
+            element1.value = 6;
 
             Assert.AreEqual(
                 list.Select(x => x.value.ToString()),
                 result
             );
 
-            element2.From(3);
-            element3.From(3);
-            element4.From(3);
+            element2.value = 3;
+            element3.value = 3;
+            element4.value = 3;
 
             Assert.AreEqual(
                 list.Select(x => x.value.ToString()),
@@ -217,9 +217,9 @@ namespace ObserveThing.Tests
             list.Remove(element2);
             list.Add(element3);
 
-            element2.From(5);
-            element3.From(100);
-            element3.From(50);
+            element2.value = 5;
+            element3.value = 100;
+            element3.value = 50;
 
             Assert.AreEqual(
                 list.Select(x => x.value.ToString()),

@@ -13,19 +13,14 @@ namespace ObserveThing
         public int count => _dictionary.Count;
 
         private Dictionary<TKey, TValue> _dictionary = new Dictionary<TKey, TValue>();
-        private DictionaryEventArgs<TKey, TValue> _args = new DictionaryEventArgs<TKey, TValue>();
         private List<Instance> _instances = new List<Instance>();
         private List<Instance> _disposedInstances = new List<Instance>();
         private bool _executingOnNext;
         private bool _disposed;
-        private IDisposable _fromSubscription;
 
-        public DictionaryObservable()
-        {
-            _args.source = this;
-        }
+        public DictionaryObservable() { }
 
-        private void SafeOnNext(DictionaryEventArgs<TKey, TValue> args)
+        private void SafeOnNext(IObservable source, TKey key, TValue value, OpType opType)
         {
             _executingOnNext = true;
 
@@ -36,7 +31,7 @@ namespace ObserveThing
                 if (instance.disposed)
                     continue;
 
-                instance.OnNext(args);
+                instance.OnNext(source, key, value, opType);
             }
 
             foreach (var disposedInstance in _disposedInstances)
@@ -48,10 +43,7 @@ namespace ObserveThing
         public void Add(TKey key, TValue value)
         {
             _dictionary.Add(key, value);
-            _args.element = new KeyValuePair<TKey, TValue>(key, value);
-            _args.operationType = OpType.Add;
-
-            SafeOnNext(_args);
+            SafeOnNext(this, key, value, OpType.Add);
         }
 
         public bool Remove(TKey key)
@@ -60,18 +52,18 @@ namespace ObserveThing
                 return false;
 
             _dictionary.Remove(key);
-            _args.element = new KeyValuePair<TKey, TValue>(key, value);
-            _args.operationType = OpType.Remove;
-
-            SafeOnNext(_args);
+            SafeOnNext(this, key, value, OpType.Remove);
 
             return true;
         }
 
         public void Clear()
         {
-            foreach (var key in _dictionary.Keys.ToArray())
-                Remove(key);
+            foreach (var kvp in _dictionary.ToArray())
+            {
+                _dictionary.Remove(kvp.Key);
+                SafeOnNext(this, kvp.Key, kvp.Value, OpType.Remove);
+            }
         }
 
         public bool ContainsKey(TKey key)
@@ -79,29 +71,6 @@ namespace ObserveThing
 
         public bool ContainsValue(TValue value)
             => _dictionary.ContainsValue(value);
-
-        public void From(IEnumerable<KeyValuePair<TKey, TValue>> source)
-        {
-            _fromSubscription?.Dispose();
-            Clear();
-
-            foreach (var element in source)
-                Add(element.Key, element.Value);
-        }
-
-        public void From(IDictionaryObservable<TKey, TValue> source)
-        {
-            _fromSubscription?.Dispose();
-            _fromSubscription = source.Subscribe(
-                x =>
-                {
-                    if (x.operationType == OpType.Add)
-                        Add(x.key, x.value);
-                    else if (x.operationType == OpType.Remove)
-                        Remove(x.key);
-                }
-            );
-        }
 
         public IDisposable Subscribe(IObserver<IDictionaryEventArgs<TKey, TValue>> observer)
         {
@@ -122,11 +91,7 @@ namespace ObserveThing
             _instances.Add(instance);
 
             foreach (var kvp in _dictionary)
-            {
-                _args.element = kvp;
-                _args.operationType = OpType.Add;
-                instance.OnNext(_args);
-            }
+                instance.OnNext(this, kvp.Key, kvp.Value, OpType.Add);
 
             return instance;
         }
@@ -142,7 +107,6 @@ namespace ObserveThing
                 instance.Dispose();
 
             _instances.Clear();
-            _fromSubscription?.Dispose();
         }
 
         private class Instance : IDisposable
@@ -150,6 +114,7 @@ namespace ObserveThing
             public bool disposed { get; private set; }
 
             private IObserver<DictionaryEventArgs<TKey, TValue>> _observer;
+            private DictionaryEventArgs<TKey, TValue> _args = new DictionaryEventArgs<TKey, TValue>();
             private Action<Instance> _onDispose;
 
             public Instance(IObserver<DictionaryEventArgs<TKey, TValue>> observer, Action<Instance> onDispose)
@@ -158,9 +123,12 @@ namespace ObserveThing
                 _onDispose = onDispose;
             }
 
-            public void OnNext(DictionaryEventArgs<TKey, TValue> args)
+            public void OnNext(IObservable source, TKey key, TValue value, OpType opType)
             {
-                _observer?.OnNext(args);
+                _args.source = source;
+                _args.element = new KeyValuePair<TKey, TValue>(key, value);
+                _args.operationType = opType;
+                _observer?.OnNext(_args);
             }
 
             public void OnError(Exception error)

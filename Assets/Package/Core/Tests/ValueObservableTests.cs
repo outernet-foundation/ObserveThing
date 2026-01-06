@@ -242,12 +242,12 @@ namespace ObserveThing.Tests
                     throw new Exception("THIS IS AN EXCEPTION");
             });
 
-            Assert.Throws<Exception>(() => toObserve.From(true));
-            toObserve.From(false);
+            Assert.Throws<Exception>(() => toObserve.value = true);
+            toObserve.value = false;
             stream.Dispose();
 
-            Assert.DoesNotThrow(() => toObserve.From(true));
-            Assert.DoesNotThrow(() => toObserve.From(false));
+            Assert.DoesNotThrow(() => toObserve.value = true);
+            Assert.DoesNotThrow(() => toObserve.value = false);
 
             Exception exception = default;
 
@@ -260,7 +260,7 @@ namespace ObserveThing.Tests
                 exc => exception = exc
             );
 
-            Assert.DoesNotThrow(() => toObserve.From(true));
+            Assert.DoesNotThrow(() => toObserve.value = true);
             Assert.IsNotNull(exception);
         }
     }

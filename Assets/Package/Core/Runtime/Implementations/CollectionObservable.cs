@@ -12,27 +12,21 @@ namespace ObserveThing
         public int count => _collection.Count;
 
         private List<T> _collection = new List<T>();
-        private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
         private List<Instance> _instances = new List<Instance>();
         private List<Instance> _disposedInstances = new List<Instance>();
         private bool _executingOnNext = false;
         private bool _disposed;
-        private IDisposable _fromSubscription;
 
-        public CollectionObservable(params T[] source) : this((IEnumerable<T>)source)
-        { }
+        public CollectionObservable(params T[] source) : this((IEnumerable<T>)source) { }
 
         public CollectionObservable(IEnumerable<T> source) : this()
         {
-            From(source);
+            _collection.AddRange(source);
         }
 
-        public CollectionObservable()
-        {
-            _args.source = this;
-        }
+        public CollectionObservable() { }
 
-        private void SafeOnNext(ICollectionEventArgs<T> args)
+        private void SafeOnNext(IObservable source, T element, OpType opType)
         {
             _executingOnNext = true;
 
@@ -43,7 +37,7 @@ namespace ObserveThing
                 if (instance.disposed)
                     continue;
 
-                instance.OnNext(args);
+                instance.OnNext(source, element, opType);
             }
 
             foreach (var disposedInstance in _disposedInstances)
@@ -55,10 +49,7 @@ namespace ObserveThing
         public void Add(T element)
         {
             _collection.Add(element);
-            _args.element = element;
-            _args.operationType = OpType.Add;
-
-            SafeOnNext(_args);
+            SafeOnNext(this, element, OpType.Add);
         }
 
         public bool Remove(T element)
@@ -66,10 +57,7 @@ namespace ObserveThing
             if (!_collection.Remove(element))
                 return false;
 
-            _args.element = element;
-            _args.operationType = OpType.Remove;
-
-            SafeOnNext(_args);
+            SafeOnNext(this, element, OpType.Remove);
 
             return true;
         }
@@ -77,37 +65,14 @@ namespace ObserveThing
         public void Clear()
         {
             foreach (var element in _collection.ToArray())
-                Remove(element);
+            {
+                _collection.Remove(element);
+                SafeOnNext(this, element, OpType.Remove);
+            }
         }
 
         public bool Contains(T element)
             => _collection.Contains(element);
-
-        public void From(params T[] source)
-            => From((IEnumerable<T>)source);
-
-        public void From(IEnumerable<T> source)
-        {
-            _fromSubscription?.Dispose();
-            Clear();
-
-            foreach (var element in source)
-                Add(element);
-        }
-
-        public void From(ICollectionObservable<T> source)
-        {
-            _fromSubscription?.Dispose();
-            _fromSubscription = source.Subscribe(
-                x =>
-                {
-                    if (x.operationType == OpType.Add)
-                        Add(x.element);
-                    else if (x.operationType == OpType.Remove)
-                        Remove(x.element);
-                }
-            );
-        }
 
         public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
         {
@@ -127,12 +92,8 @@ namespace ObserveThing
 
             _instances.Add(instance);
 
-            foreach (var kvp in _collection)
-            {
-                _args.element = kvp;
-                _args.operationType = OpType.Add;
-                instance.OnNext(_args);
-            }
+            foreach (var element in _collection)
+                instance.OnNext(this, element, OpType.Add);
 
             return instance;
         }
@@ -148,7 +109,6 @@ namespace ObserveThing
                 instance.Dispose();
 
             _instances.Clear();
-            _fromSubscription?.Dispose();
         }
 
         private class Instance : IDisposable
@@ -157,6 +117,7 @@ namespace ObserveThing
 
             private IObserver<ICollectionEventArgs<T>> _observer;
             private Action<Instance> _onDispose;
+            private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
 
             public Instance(IObserver<ICollectionEventArgs<T>> observer, Action<Instance> onDispose)
             {
@@ -164,9 +125,12 @@ namespace ObserveThing
                 _onDispose = onDispose;
             }
 
-            public void OnNext(ICollectionEventArgs<T> args)
+            public void OnNext(IObservable source, T element, OpType opType)
             {
-                _observer?.OnNext(args);
+                _args.source = source;
+                _args.element = element;
+                _args.operationType = opType;
+                _observer?.OnNext(_args);
             }
 
             public void OnError(Exception error)
