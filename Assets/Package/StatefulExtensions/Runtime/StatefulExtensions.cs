@@ -71,13 +71,13 @@ namespace ObserveThing.StatefulExtensions
 
             private void NotifyObservers(CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>> args)
             {
-                foreach (var observer in _observers)
+                foreach (var observer in _observers.ToArray())
                     observer.OnNext(args);
             }
 
             private void DisposeObservers()
             {
-                foreach (var observer in _observers)
+                foreach (var observer in _observers.ToArray())
                     observer.OnDispose();
 
                 _observers.Clear();
@@ -146,7 +146,7 @@ namespace ObserveThing.StatefulExtensions
 
                 if (_source.disposed)
                 {
-                    foreach (var observer in _observers)
+                    foreach (var observer in _observers.ToArray())
                         observer.OnDispose();
 
                     _observers.Clear();
@@ -157,7 +157,7 @@ namespace ObserveThing.StatefulExtensions
                 _args.previousValue = _previousValue;
                 _args.currentValue = _source.ToArray();
 
-                foreach (var observer in _observers)
+                foreach (var observer in _observers.ToArray())
                     observer.OnNext(_args);
 
                 _previousValue = _args.currentValue;
@@ -254,13 +254,13 @@ namespace ObserveThing.StatefulExtensions
 
             private void NotifyObservers(DictionaryEventArgs<TKey, TValue> args)
             {
-                foreach (var observer in _observers)
+                foreach (var observer in _observers.ToArray())
                     observer.OnNext(args);
             }
 
             private void DisposeObservers()
             {
-                foreach (var observer in _observers)
+                foreach (var observer in _observers.ToArray())
                     observer.OnDispose();
 
                 _observers.Clear();
@@ -358,13 +358,13 @@ namespace ObserveThing.StatefulExtensions
 
             private void NotifyObservers(ListEventArgs<T> args)
             {
-                foreach (var observer in _observers)
+                foreach (var observer in _observers.ToArray())
                     observer.OnNext(args);
             }
 
             private void DisposeObservers()
             {
-                foreach (var observer in _observers)
+                foreach (var observer in _observers.ToArray())
                     observer.OnDispose();
 
                 _observers.Clear();
@@ -461,13 +461,13 @@ namespace ObserveThing.StatefulExtensions
 
             private void NotifyObservers(ListEventArgs<object> args)
             {
-                foreach (var observer in _observers)
+                foreach (var observer in _observers.ToArray())
                     observer.OnNext(args);
             }
 
             private void DisposeObservers()
             {
-                foreach (var observer in _observers)
+                foreach (var observer in _observers.ToArray())
                     observer.OnDispose();
 
                 _observers.Clear();
@@ -561,13 +561,13 @@ namespace ObserveThing.StatefulExtensions
 
             private void NotifyObservers(ICollectionEventArgs<T> args)
             {
-                foreach (var observer in _observers)
+                foreach (var observer in _observers.ToArray())
                     observer.OnNext(args);
             }
 
             private void DisposeObservers()
             {
-                foreach (var observer in _observers)
+                foreach (var observer in _observers.ToArray())
                     observer.OnDispose();
 
                 _observers.Clear();
@@ -661,13 +661,13 @@ namespace ObserveThing.StatefulExtensions
 
             private void NotifyObservers(ICollectionEventArgs<object> args)
             {
-                foreach (var observer in _observers)
+                foreach (var observer in _observers.ToArray())
                     observer.OnNext(args);
             }
 
             private void DisposeObservers()
             {
-                foreach (var observer in _observers)
+                foreach (var observer in _observers.ToArray())
                     observer.OnDispose();
 
                 _observers.Clear();
@@ -736,7 +736,7 @@ namespace ObserveThing.StatefulExtensions
 
                 if (_source.disposed)
                 {
-                    foreach (var observer in _observers)
+                    foreach (var observer in _observers.ToArray())
                         observer.OnDispose();
 
                     _observers.Clear();
@@ -747,7 +747,7 @@ namespace ObserveThing.StatefulExtensions
                 _args.previousValue = _previousValue;
                 _args.currentValue = _source.value;
 
-                foreach (var observer in _observers)
+                foreach (var observer in _observers.ToArray())
                     observer.OnNext(_args);
 
                 _previousValue = _source.value;
@@ -816,7 +816,7 @@ namespace ObserveThing.StatefulExtensions
 
                 if (_source.disposed)
                 {
-                    foreach (var observer in _observers)
+                    foreach (var observer in _observers.ToArray())
                         observer.OnDispose();
 
                     _observers.Clear();
@@ -827,7 +827,7 @@ namespace ObserveThing.StatefulExtensions
                 _args.previousValue = _previousValue;
                 _args.currentValue = _source.GetValue();
 
-                foreach (var observer in _observers)
+                foreach (var observer in _observers.ToArray())
                     observer.OnNext(_args);
 
                 _previousValue = _source.GetValue();
