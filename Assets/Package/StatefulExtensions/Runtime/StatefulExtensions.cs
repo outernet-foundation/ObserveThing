@@ -30,12 +30,12 @@ namespace ObserveThing.StatefulExtensions
                 if (_observers.Count == 1)
                     _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
 
-                _args.operationType = OpType.Add;
+                var initArgs = new CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>() { operationType = OpType.Add };
 
                 foreach (var element in _source)
                 {
-                    _args.element = element;
-                    observer.OnNext(_args);
+                    initArgs.element = element;
+                    observer.OnNext(initArgs);
                 }
 
                 return new ObserverHandle() { observer = observer, source = this };
@@ -131,10 +131,7 @@ namespace ObserveThing.StatefulExtensions
                 if (_observers.Count == 1)
                     _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
 
-                _args.previousValue = null;
-                _args.currentValue = _source.ToArray();
-
-                observer.OnNext(_args);
+                observer.OnNext(new ValueEventArgs<T[]>() { previousValue = null, currentValue = _source.ToArray() });
 
                 return new ObserverHandle() { observer = observer, source = this };
             }
@@ -211,12 +208,12 @@ namespace ObserveThing.StatefulExtensions
                 if (_observers.Count == 1)
                     _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
 
-                _args.operationType = OpType.Add;
+                var initArgs = new DictionaryEventArgs<TKey, TValue>() { operationType = OpType.Add };
 
                 foreach (var kvp in _source)
                 {
-                    _args.element = new KeyValuePair<TKey, TValue>(kvp.key, kvp.value);
-                    observer.OnNext(_args);
+                    initArgs.element = new KeyValuePair<TKey, TValue>(kvp.key, kvp.value);
+                    observer.OnNext(initArgs);
                 }
 
                 return new ObserverHandle() { observer = observer, source = this };
@@ -314,13 +311,13 @@ namespace ObserveThing.StatefulExtensions
                 if (_observers.Count == 1)
                     _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
 
-                _args.operationType = OpType.Add;
+                var initArgs = new ListEventArgs<T>() { operationType = OpType.Add };
 
                 for (int i = 0; i < _source.count; i++)
                 {
-                    _args.index = i;
-                    _args.element = _source[i];
-                    observer.OnNext(_args);
+                    initArgs.index = i;
+                    initArgs.element = _source[i];
+                    observer.OnNext(initArgs);
                 }
 
                 return new ObserverHandle() { observer = observer, source = this };
@@ -417,13 +414,13 @@ namespace ObserveThing.StatefulExtensions
                 if (_observers.Count == 1)
                     _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
 
-                _args.operationType = OpType.Add;
+                var initArgs = new ListEventArgs<object>() { operationType = OpType.Add };
 
                 for (int i = 0; i < _source.count; i++)
                 {
-                    _args.index = i;
-                    _args.element = _source[i];
-                    observer.OnNext(_args);
+                    initArgs.index = i;
+                    initArgs.element = _source[i];
+                    observer.OnNext(initArgs);
                 }
 
                 return new ObserverHandle() { observer = observer, source = this };
@@ -520,12 +517,12 @@ namespace ObserveThing.StatefulExtensions
                 if (_observers.Count == 1)
                     _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
 
-                _args.operationType = OpType.Add;
+                var initArgs = new CollectionEventArgs<T>() { operationType = OpType.Add };
 
                 foreach (var element in _source)
                 {
-                    _args.element = element;
-                    observer.OnNext(_args);
+                    initArgs.element = element;
+                    observer.OnNext(initArgs);
                 }
 
                 return new ObserverHandle() { observer = observer, source = this };
@@ -620,12 +617,12 @@ namespace ObserveThing.StatefulExtensions
                 if (_observers.Count == 1)
                     _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
 
-                _args.operationType = OpType.Add;
+                var initArgs = new CollectionEventArgs<object>() { operationType = OpType.Add };
 
                 foreach (var element in _source)
                 {
-                    _args.element = element;
-                    observer.OnNext(_args);
+                    initArgs.element = element;
+                    observer.OnNext(initArgs);
                 }
 
                 return new ObserverHandle() { observer = observer, source = this };
@@ -721,10 +718,7 @@ namespace ObserveThing.StatefulExtensions
                 if (_observers.Count == 1)
                     _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
 
-                _args.currentValue = _source.value;
-                _args.previousValue = default;
-
-                observer.OnNext(_args);
+                observer.OnNext(new ValueEventArgs<T>() { previousValue = default, currentValue = _source.value });
 
                 return new ObserverHandle() { observer = observer, source = this };
             }
@@ -801,10 +795,7 @@ namespace ObserveThing.StatefulExtensions
                 if (_observers.Count == 1)
                     _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
 
-                _args.currentValue = _source.GetValue();
-                _args.previousValue = default;
-
-                observer.OnNext(_args);
+                observer.OnNext(new ValueEventArgs<object>() { previousValue = default, currentValue = _source.GetValue() });
 
                 return new ObserverHandle() { observer = observer, source = this };
             }
