@@ -21,7 +21,7 @@ namespace ObserveThing
         {
             private IDisposable _collection;
             private Func<T, IValueObservable<U>> _orderBy;
-            private IObserver<ListEventArgs<T>> _observer;
+            private IObserver<IListEventArgs<T>> _observer;
             private ListEventArgs<T> _args = new ListEventArgs<T>();
             private bool _disposed = false;
 
@@ -43,7 +43,7 @@ namespace ObserveThing
             private Dictionary<T, OrderByData> _dataByElement = new Dictionary<T, OrderByData>();
             private List<OrderByData> _elementsInOrder = new List<OrderByData>();
 
-            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, IValueObservable<U>> orderBy, IObserver<ListEventArgs<T>> observer)
+            public Instance(IListObservable<T> source, ICollectionObservable<T> collection, Func<T, IValueObservable<U>> orderBy, IObserver<IListEventArgs<T>> observer)
             {
                 _orderBy = orderBy;
                 _observer = observer;

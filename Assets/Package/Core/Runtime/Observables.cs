@@ -5,102 +5,121 @@ namespace ObserveThing
 {
     public enum OpType
     {
+        Set,
         Add,
-        Remove
+        Remove,
+        Dispose,
+        Error
     }
 
     public interface IObservableEventArgs
     {
         IObservable source { get; }
+        OpType operationType { get; }
+        Exception error { get; }
     }
 
     public interface IValueEventArgs<out T> : IObservableEventArgs
     {
-        T previousValue { get; }
-        T currentValue { get; }
+        new IValueObservable<T> source { get; }
+        T value { get; }
+
+        IObservable IObservableEventArgs.source => source;
     }
 
     public interface ICollectionEventArgs<out T> : IObservableEventArgs
     {
+        new ICollectionObservable<T> source { get; }
         T element { get; }
-        OpType operationType { get; }
+
+        IObservable IObservableEventArgs.source => source;
     }
 
     public interface IDictionaryEventArgs<TKey, TValue> : ICollectionEventArgs<KeyValuePair<TKey, TValue>>
     {
-        TKey key { get; }
-        TValue value { get; }
+        new IDictionaryObservable<TKey, TValue> source { get; }
+        ICollectionObservable<KeyValuePair<TKey, TValue>> ICollectionEventArgs<KeyValuePair<TKey, TValue>>.source => source;
     }
 
     public interface IListEventArgs<out T> : ICollectionEventArgs<T>
     {
+        new IListObservable<T> source { get; }
         int index { get; }
+
+        ICollectionObservable<T> ICollectionEventArgs<T>.source => source;
     }
 
-    public class ObservableEventArgs : IObservableEventArgs
+    public struct ValueEventArgs<T> : IValueEventArgs<T>
     {
-        public IObservable source { get; set; }
-    }
-
-    public class ValueEventArgs<T> : ObservableEventArgs, IValueEventArgs<T>
-    {
-        public T currentValue { get; set; }
-        public T previousValue { get; set; }
-    }
-
-    public class CollectionEventArgs<T> : ObservableEventArgs, ICollectionEventArgs<T>
-    {
-        public T element { get; set; }
+        public IValueObservable<T> source { get; set; }
         public OpType operationType { get; set; }
+        public Exception error { get; set; }
+        public T value { get; set; }
     }
 
-    public class DictionaryEventArgs<TKey, TValue> : CollectionEventArgs<KeyValuePair<TKey, TValue>>, IDictionaryEventArgs<TKey, TValue>
+    public struct CollectionEventArgs<T> : ICollectionEventArgs<T>
     {
-        public TKey key => element.Key;
-        public TValue value => element.Value;
+        public ICollectionObservable<T> source { get; set; }
+        public OpType operationType { get; set; }
+        public Exception error { get; set; }
+        public T element { get; set; }
     }
 
-    public class ListEventArgs<T> : CollectionEventArgs<T>, IListEventArgs<T>
+    public struct DictionaryEventArgs<TKey, TValue> : IDictionaryEventArgs<TKey, TValue>
     {
+        public IDictionaryObservable<TKey, TValue> source { get; set; }
+        public OpType operationType { get; set; }
+        public Exception error { get; set; }
+        public KeyValuePair<TKey, TValue> element { get; set; }
+    }
+
+    public struct ListEventArgs<T> : IListEventArgs<T>
+    {
+        public IListObservable<T> source { get; set; }
+        public OpType operationType { get; set; }
+        public Exception error { get; set; }
+        public T element { get; set; }
         public int index { get; set; }
     }
 
     public interface IObservable
     {
-        IDisposable Subscribe(IObserver<IObservableEventArgs> observer);
+        IDisposable Subscribe(ObserverDelegate<IObservableEventArgs> observer);
     }
 
-    public interface IValueObservable<T> : IObservable
+    public interface IValueObservable<out T> : IObservable
     {
-        IDisposable Subscribe(IObserver<IValueEventArgs<T>> observer);
+        IDisposable Subscribe(ObserverDelegate<IValueEventArgs<T>> observer);
 
-        IDisposable IObservable.Subscribe(IObserver<IObservableEventArgs> observer)
+        IDisposable IObservable.Subscribe(ObserverDelegate<IObservableEventArgs> observer)
             => Subscribe(observer);
     }
 
     public interface ICollectionObservable<out T> : IObservable
     {
-        IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer);
+        IDisposable Subscribe(ObserverDelegate<ICollectionEventArgs<T>> observer);
 
-        IDisposable IObservable.Subscribe(IObserver<IObservableEventArgs> observer)
+        IDisposable IObservable.Subscribe(ObserverDelegate<IObservableEventArgs> observer)
             => Subscribe(observer);
     }
 
     public interface IDictionaryObservable<TKey, TValue> : ICollectionObservable<KeyValuePair<TKey, TValue>>
     {
-        IDisposable Subscribe(IObserver<IDictionaryEventArgs<TKey, TValue>> observer);
+        IDisposable Subscribe(ObserverDelegate<IDictionaryEventArgs<TKey, TValue>> observer);
 
-        IDisposable ICollectionObservable<KeyValuePair<TKey, TValue>>.Subscribe(IObserver<ICollectionEventArgs<KeyValuePair<TKey, TValue>>> observer)
+        IDisposable ICollectionObservable<KeyValuePair<TKey, TValue>>.Subscribe(ObserverDelegate<ICollectionEventArgs<KeyValuePair<TKey, TValue>>> observer)
             => Subscribe(observer);
     }
 
     public interface IListObservable<out T> : ICollectionObservable<T>
     {
-        IDisposable Subscribe(IObserver<IListEventArgs<T>> observer);
+        IDisposable Subscribe(ObserverDelegate<IListEventArgs<T>> observer);
 
-        IDisposable ICollectionObservable<T>.Subscribe(IObserver<ICollectionEventArgs<T>> observer)
+        IDisposable ICollectionObservable<T>.Subscribe(ObserverDelegate<ICollectionEventArgs<T>> observer)
             => Subscribe(observer);
     }
+
+    public delegate void ObserverDelegate<in T>(T args);
 
     public static class Observables
     {
@@ -132,13 +151,200 @@ namespace ObserveThing
             => new ListObservable<T>(values);
     }
 
+    public class ValueOperator<T> : IValueObservable<T>
+    {
+        public event Action onFirstObserverSubscribed;
+        public event Action onLastObserverDisposed;
+
+        private T _mostRecentValue = default;
+        private bool _notifyingObservers = false;
+        private List<ObserverData> _observers = new List<ObserverData>();
+        private List<ObserverData> _disposedObservers = new List<ObserverData>();
+
+        private class ObserverData : IDisposable
+        {
+            public bool disposed;
+            public ObserverDelegate<IValueEventArgs<T>> method;
+            public event Action<ObserverData> onDisposed;
+
+            public void Dispose()
+            {
+                if (disposed)
+                    return;
+
+                disposed = true;
+                onDisposed?.Invoke(this);
+            }
+        }
+
+        public IDisposable Subscribe(ObserverDelegate<IValueEventArgs<T>> observer)
+        {
+            var observerData = new ObserverData() { method = observer };
+            observerData.onDisposed += HandleObserverDisposed;
+            _observers.Add(observerData);
+
+            if (_observers.Count == 1)
+                onFirstObserverSubscribed?.Invoke();
+
+            observerData.method.Invoke(new ValueEventArgs<T>()
+            {
+                source = this,
+                operationType = OpType.Set,
+                value = _mostRecentValue
+            });
+
+            return observerData;
+        }
+
+        private void HandleObserverDisposed(ObserverData observer)
+        {
+            bool observerRemoved = false;
+
+            if (_notifyingObservers)
+            {
+                _disposedObservers.Add(observer);
+            }
+            else
+            {
+                observerRemoved = _observers.Remove(observer);
+            }
+
+            observer.method(new ValueEventArgs<T>()
+            {
+                source = this,
+                operationType = OpType.Dispose
+            });
+
+            if (observerRemoved && _observers.Count == 0)
+                onLastObserverDisposed?.Invoke();
+        }
+
+        public void Emit(IValueEventArgs<T> args)
+        {
+            if (_observers.Count == 0 || args.operationType == OpType.Set && Equals(args.value, _mostRecentValue))
+                return;
+
+            bool wasNotifyingObservers = _notifyingObservers;
+            _notifyingObservers = true;
+
+            int observerCount = _observers.Count;
+
+            for (int i = 0; i < observerCount; i++)
+            {
+                var observer = _observers[i];
+
+                if (observer.disposed)
+                    continue;
+
+                try
+                {
+                    observer.method(args);
+                }
+                catch (Exception exc)
+                {
+                    observer.method(new ValueEventArgs<T>()
+                    {
+                        source = this,
+                        operationType = OpType.Error,
+                        error = exc
+                    });
+                }
+            }
+
+            foreach (var disposed in _disposedObservers)
+                _observers.Remove(disposed);
+
+            _disposedObservers.Clear();
+
+            _notifyingObservers = wasNotifyingObservers;
+
+            if (_observers.Count == 0)
+                onLastObserverDisposed?.Invoke();
+        }
+    }
+
     public static class ObservableExtensions
     {
-        public static IValueObservable<T> ShallowCopyDynamic<T>(this IValueObservable<IValueObservable<T>> source)
-            => new ShallowCopyValueObservable<T>(source);
+        // public static IValueObservable<T> ShallowCopyDynamic<T>(this IValueObservable<IValueObservable<T>> source)
+        //     => new ShallowCopyValueObservable<T>(source);
+
+        // public static IValueObservable<U> SelectDynamic<T, U>(this IValueObservable<T> source, Func<T, U> select)
+        //     => new SelectValueObservable<T, U>(source, select);
 
         public static IValueObservable<U> SelectDynamic<T, U>(this IValueObservable<T> source, Func<T, U> select)
-            => new SelectValueObservable<T, U>(source, select);
+        {
+            var opt = new ValueOperator<U>();
+            IDisposable subscription = default;
+
+            ObserverDelegate<IValueEventArgs<T>> observer = args =>
+            {
+                opt.Emit(new ValueEventArgs<U>()
+                {
+                    source = opt,
+                    operationType = args.operationType,
+                    error = args.error,
+                    value = args.operationType == OpType.Set ? select(args.value) : default,
+                });
+
+                if (args.operationType == OpType.Dispose)
+                    subscription.Dispose();
+            };
+
+            opt.onFirstObserverSubscribed += () => subscription = source.Subscribe(observer);
+            opt.onLastObserverDisposed += () => subscription?.Dispose();
+
+            return opt;
+        }
+
+        public static IValueObservable<T> ShallowCopyDynamic<T>(this IValueObservable<IValueObservable<T>> source)
+        {
+            var opt = new ValueOperator<T>();
+
+            IDisposable nestedSubscription = default;
+            IDisposable subscription = default;
+
+            ObserverDelegate<IValueEventArgs<T>> nestedObserver = args => opt.Emit(new ValueEventArgs<T>()
+            {
+                source = opt,
+                operationType = args.operationType,
+                error = args.error,
+                value = args.value
+            });
+
+            ObserverDelegate<IValueEventArgs<IValueObservable<T>>> observer = args =>
+            {
+                if (args.operationType == OpType.Set)
+                {
+                    nestedSubscription?.Dispose();
+                    nestedSubscription = args.value?.Subscribe(nestedObserver);
+                }
+                else if (args.operationType == OpType.Dispose)
+                {
+                    nestedSubscription?.Dispose();
+                    subscription?.Dispose();
+
+                    opt.Emit(new ValueEventArgs<T>()
+                    {
+                        source = opt,
+                        operationType = OpType.Dispose
+                    });
+                }
+                else if (args.operationType == OpType.Error)
+                {
+                    opt.Emit(new ValueEventArgs<T>()
+                    {
+                        source = opt,
+                        operationType = OpType.Error,
+                        error = args.error
+                    });
+                }
+            };
+
+            opt.onFirstObserverSubscribed += () => subscription = source.Subscribe(observer);
+            opt.onLastObserverDisposed += () => subscription?.Dispose();
+
+            return opt;
+        }
 
         public static IValueObservable<U> SelectDynamic<T, U>(this IValueObservable<T> source, Func<T, IValueObservable<U>> select)
             => source.SelectDynamic<T, IValueObservable<U>>(select).ShallowCopyDynamic();
