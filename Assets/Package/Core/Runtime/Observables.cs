@@ -16,61 +16,16 @@ namespace ObserveThing
     public interface ICollectionObservable<out T> : IObservable
     {
         IDisposable Subscribe(ICollectionObserver<T> observer);
-
-        new IDisposable Subscribe(IObserver observer)
-            => Subscribe(new CollectionObserver<T>()
-            {
-                onAdd = observer.onChange == null ? null : _ => observer.onChange(),
-                onRemove = observer.onChange == null ? null : _ => observer.onChange(),
-                onError = observer.onError,
-                onDispose = observer.onDispose
-            });
     }
 
     public interface IDictionaryObservable<TKey, TValue> : ICollectionObservable<KeyValuePair<TKey, TValue>>
     {
         IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer);
-
-        new IDisposable Subscribe(ICollectionObserver<KeyValuePair<TKey, TValue>> observer)
-            => Subscribe(new DictionaryObserver<TKey, TValue>()
-            {
-                onAdd = observer.onAdd,
-                onRemove = observer.onRemove,
-                onError = observer.onError,
-                onDispose = observer.onDispose
-            });
-
-        new IDisposable Subscribe(IObserver observer)
-            => Subscribe(new DictionaryObserver<TKey, TValue>()
-            {
-                onAdd = observer.onChange == null ? null : _ => observer.onChange(),
-                onRemove = observer.onChange == null ? null : _ => observer.onChange(),
-                onError = observer.onError,
-                onDispose = observer.onDispose
-            });
     }
 
     public interface IListObservable<out T> : ICollectionObservable<T>
     {
         IDisposable Subscribe(IListObserver<T> observer);
-
-        new IDisposable Subscribe(ICollectionObserver<T> observer)
-            => Subscribe(new ListObserver<T>()
-            {
-                onAdd = observer.onAdd == null ? null : (_, value) => observer.onAdd(value),
-                onRemove = observer.onRemove == null ? null : (_, value) => observer.onRemove(value),
-                onError = observer.onError,
-                onDispose = observer.onDispose
-            });
-
-        new IDisposable Subscribe(IObserver observer)
-            => Subscribe(new ListObserver<T>()
-            {
-                onAdd = observer.onChange == null ? null : (_, _) => observer.onChange(),
-                onRemove = observer.onChange == null ? null : (_, _) => observer.onChange(),
-                onError = observer.onError,
-                onDispose = observer.onDispose
-            });
     }
 
     public class Observer : IObserver
@@ -149,6 +104,111 @@ namespace ObserveThing
         Action onDispose { get; }
     }
 
+    public class FactoryValueObservable<T> : IValueObservable<T>
+    {
+        private Func<IValueObserver<T>, IDisposable> _subscribe;
+
+        public FactoryValueObservable(Func<IValueObserver<T>, IDisposable> subscribe)
+        {
+            _subscribe = subscribe;
+        }
+
+        public IDisposable Subscribe(IValueObserver<T> observer)
+            => _subscribe(observer);
+
+        public IDisposable Subscribe(IObserver observer)
+            => Subscribe(new ValueObserver<T>()
+            {
+                onNext = _ => observer.onChange?.Invoke(),
+                onError = observer.onError,
+                onDispose = observer.onDispose
+            });
+    }
+
+    public class FactoryCollectionObservable<T> : ICollectionObservable<T>
+    {
+        private Func<ICollectionObserver<T>, IDisposable> _subscribe;
+
+        public FactoryCollectionObservable(Func<ICollectionObserver<T>, IDisposable> subscribe)
+        {
+            _subscribe = subscribe;
+        }
+
+        public IDisposable Subscribe(ICollectionObserver<T> observer)
+            => _subscribe(observer);
+
+        public IDisposable Subscribe(IObserver observer)
+            => Subscribe(new CollectionObserver<T>()
+            {
+                onAdd = _ => observer.onChange?.Invoke(),
+                onRemove = _ => observer.onChange?.Invoke(),
+                onError = observer.onError,
+                onDispose = observer.onDispose
+            });
+    }
+
+    public class FactoryListObservable<T> : IListObservable<T>
+    {
+        private Func<IListObserver<T>, IDisposable> _subscribe;
+
+        public FactoryListObservable(Func<IListObserver<T>, IDisposable> subscribe)
+        {
+            _subscribe = subscribe;
+        }
+
+        public IDisposable Subscribe(IListObserver<T> observer)
+            => _subscribe(observer);
+
+        public IDisposable Subscribe(IObserver observer)
+            => Subscribe(new ListObserver<T>()
+            {
+                onAdd = (_, _) => observer.onChange?.Invoke(),
+                onRemove = (_, _) => observer.onChange?.Invoke(),
+                onError = observer.onError,
+                onDispose = observer.onDispose
+            });
+
+        public IDisposable Subscribe(ICollectionObserver<T> observer)
+            => Subscribe(new ListObserver<T>()
+            {
+                onAdd = (_, x) => observer.onAdd?.Invoke(x),
+                onRemove = (_, x) => observer.onRemove?.Invoke(x),
+                onError = observer.onError,
+                onDispose = observer.onDispose
+            });
+    }
+
+    public class FactoryDictionaryObservable<TKey, TValue> : IDictionaryObservable<TKey, TValue>
+    {
+        private Func<IDictionaryObserver<TKey, TValue>, IDisposable> _subscribe;
+
+        public FactoryDictionaryObservable(Func<IDictionaryObserver<TKey, TValue>, IDisposable> subscribe)
+        {
+            _subscribe = subscribe;
+        }
+
+        public IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer)
+            => _subscribe(observer);
+
+        public IDisposable Subscribe(ICollectionObserver<KeyValuePair<TKey, TValue>> observer)
+            => _subscribe(new DictionaryObserver<TKey, TValue>()
+            {
+                onAdd = observer.onAdd,
+                onRemove = observer.onRemove,
+                onError = observer.onError,
+                onDispose = observer.onDispose
+            });
+
+        public IDisposable Subscribe(IObserver observer)
+            => _subscribe(new DictionaryObserver<TKey, TValue>()
+            {
+                onAdd = _ => observer.onChange?.Invoke(),
+                onRemove = _ => observer.onChange?.Invoke(),
+                onError = observer.onError,
+                onDispose = observer.onDispose
+            });
+    }
+
     public static class Observables
     {
         public static IValueObservable<TResult> Combine<T1, T2, TResult>(IValueObservable<T1> v1, IValueObservable<T2> v2, Func<T1, T2, TResult> combine)
@@ -162,370 +222,590 @@ namespace ObserveThing
 
         public static IObservable Any(params IObservable[] observables)
             => new AnyObservable(observables);
-
-        public static IValueObservable<T> AsValueObservable<T>(T value)
-            => new ValueObservable<T>(value);
-
-        public static ICollectionObservable<T> AsCollectionObservable<T>(params T[] values)
-            => new CollectionObservable<T>(values);
-
-        public static ICollectionObservable<T> AsCollectionObservable<T>(IEnumerable<T> values)
-            => new CollectionObservable<T>(values);
-
-        public static IListObservable<T> AsListObservable<T>(params T[] values)
-            => new ListObservable<T>(values);
-
-        public static IListObservable<T> AsListObservable<T>(IEnumerable<T> values)
-            => new ListObservable<T>(values);
-    }
-
-    public class ValueOperator<T> : IValueObservable<T>
-    {
-        public event Action onFirstObserverSubscribed;
-        public event Action onLastObserverDisposed;
-
-        private T _mostRecentValue = default;
-        private bool _notifyingObservers = false;
-        private List<ObserverData> _observers = new List<ObserverData>();
-        private List<ObserverData> _disposedObservers = new List<ObserverData>();
-
-        private class ObserverData : IDisposable
-        {
-            public bool disposed;
-            public IValueObserver<T> observer;
-            public event Action<ObserverData> onDisposed;
-
-            public void Dispose()
-            {
-                if (disposed)
-                    return;
-
-                disposed = true;
-                onDisposed?.Invoke(this);
-            }
-        }
-
-        public IDisposable Subscribe(IObserver observer)
-            => Subscribe(new ValueObserver<T>()
-            {
-                onNext = _ => observer.onChange?.Invoke(),
-                onError = observer.onError,
-                onDispose = observer.onDispose
-            });
-
-        public IDisposable Subscribe(IValueObserver<T> observer)
-        {
-            var observerData = new ObserverData() { observer = observer };
-            observerData.onDisposed += HandleObserverDisposed;
-            _observers.Add(observerData);
-
-            if (_observers.Count == 1)
-                onFirstObserverSubscribed?.Invoke();
-
-            observerData.observer.onNext(_mostRecentValue);
-
-            return observerData;
-        }
-
-        private void HandleObserverDisposed(ObserverData observerData)
-        {
-            bool observerRemoved = false;
-
-            if (_notifyingObservers)
-            {
-                _disposedObservers.Add(observerData);
-            }
-            else
-            {
-                observerRemoved = _observers.Remove(observerData);
-            }
-
-            observerData.observer.onDispose();
-
-            if (observerRemoved && _observers.Count == 0)
-                onLastObserverDisposed?.Invoke();
-        }
-
-        private void CleanupDisposedObservers()
-        {
-            foreach (var disposed in _disposedObservers)
-                _observers.Remove(disposed);
-
-            _disposedObservers.Clear();
-
-            if (_observers.Count == 0)
-                onLastObserverDisposed?.Invoke();
-        }
-
-        public void HandleSet(T newValue)
-        {
-            if (_observers.Count == 0 || Equals(newValue, _mostRecentValue))
-                return;
-
-            _mostRecentValue = newValue;
-
-            bool wasNotifyingObservers = _notifyingObservers;
-            _notifyingObservers = true;
-
-            int observerCount = _observers.Count;
-
-            for (int i = 0; i < observerCount; i++)
-            {
-                var observerData = _observers[i];
-
-                if (observerData.disposed)
-                    continue;
-
-                try
-                {
-                    observerData.observer.onNext?.Invoke(newValue);
-                }
-                catch (Exception exc)
-                {
-                    observerData.observer.onError?.Invoke(exc);
-                }
-            }
-
-            _notifyingObservers = wasNotifyingObservers;
-
-            CleanupDisposedObservers();
-        }
-
-        public void HandleError(Exception error)
-        {
-            bool wasNotifyingObservers = _notifyingObservers;
-            _notifyingObservers = true;
-
-            int observerCount = _observers.Count;
-
-            for (int i = 0; i < observerCount; i++)
-            {
-                var observerData = _observers[i];
-
-                if (observerData.disposed)
-                    continue;
-
-                try
-                {
-                    observerData.observer.onError?.Invoke(error);
-                }
-                catch (Exception exc)
-                {
-                    observerData.observer.onError?.Invoke(exc);
-                }
-            }
-
-            _notifyingObservers = wasNotifyingObservers;
-
-            CleanupDisposedObservers();
-        }
-
-        public void HandleDispose()
-        {
-            bool wasNotifyingObservers = _notifyingObservers;
-            _notifyingObservers = true;
-
-            int observerCount = _observers.Count;
-
-            for (int i = 0; i < observerCount; i++)
-            {
-                var observerData = _observers[i];
-
-                if (observerData.disposed)
-                    continue;
-
-                try
-                {
-                    observerData.observer.onDispose?.Invoke();
-                }
-                catch (Exception exc)
-                {
-                    observerData.observer.onError?.Invoke(exc);
-                }
-            }
-
-            _notifyingObservers = wasNotifyingObservers;
-
-            CleanupDisposedObservers();
-        }
     }
 
     public static class ObservableExtensions
     {
-        // public static IValueObservable<T> ShallowCopyDynamic<T>(this IValueObservable<IValueObservable<T>> source)
-        //     => new ShallowCopyValueObservable<T>(source);
+        public static IValueObservable<T> ShallowCopyDynamic<T>(this IValueObservable<IValueObservable<T>> source)
+        {
+            return new FactoryValueObservable<T>(receiver =>
+            {
+                IDisposable nestedSubscription = default;
+                bool changingNestedSource = false;
 
-        // public static IValueObservable<U> SelectDynamic<T, U>(this IValueObservable<T> source, Func<T, U> select)
-        //     => new SelectValueObservable<T, U>(source, select);
+                var nestedObserver = new ValueObserver<T>()
+                {
+                    onNext = receiver.onNext,
+                    onError = receiver.onError,
+                    onDispose = () =>
+                    {
+                        if (!changingNestedSource)
+                            receiver.onNext(default);
+                    }
+                };
+
+                return source.Subscribe(new ValueObserver<IValueObservable<T>>()
+                {
+                    onNext = nestedObservable =>
+                    {
+                        changingNestedSource = true;
+                        nestedSubscription?.Dispose();
+                        changingNestedSource = false;
+
+                        if (nestedObserver == null)
+                        {
+                            nestedSubscription = null;
+                            receiver.onNext(default);
+                            return;
+                        }
+
+                        nestedSubscription = nestedObservable?.Subscribe(nestedObserver);
+                    },
+                    onError = receiver.onError,
+                    onDispose = () =>
+                    {
+                        receiver.onDispose();
+                        nestedSubscription?.Dispose();
+                    }
+                });
+            });
+        }
 
         public static IValueObservable<U> SelectDynamic<T, U>(this IValueObservable<T> source, Func<T, U> select)
         {
-            var opt = new ValueOperator<U>();
-            IDisposable subscription = default;
-            var observer = new ValueObserver<T>()
+            return new FactoryValueObservable<U>(receiver => source.Subscribe(new ValueObserver<T>()
             {
-                onNext = x => opt.HandleSet(select(x)),
-                onError = opt.HandleError,
-                onDispose = opt.HandleDispose
-            };
-
-            opt.onFirstObserverSubscribed += () => subscription = source.Subscribe(observer);
-            opt.onLastObserverDisposed += () => subscription?.Dispose();
-
-            return opt;
-        }
-
-        public static IValueObservable<T> ShallowCopyDynamic<T>(this IValueObservable<IValueObservable<T>> source)
-        {
-            var opt = new ValueOperator<T>();
-
-            IDisposable nestedSubscription = default;
-            IDisposable subscription = default;
-
-            bool changingNestedSource = false;
-
-            var nestedObserver = new ValueObserver<T>()
-            {
-                onNext = opt.HandleSet,
-                onError = opt.HandleError,
-                onDispose = () =>
-                {
-                    if (!changingNestedSource)
-                        opt.HandleSet(default);
-                }
-            };
-
-            var observer = new ValueObserver<IValueObservable<T>>()
-            {
-                onNext = nestedObservable =>
-                {
-                    changingNestedSource = true;
-                    nestedSubscription?.Dispose();
-                    changingNestedSource = false;
-
-                    if (nestedObserver == null)
-                    {
-                        nestedSubscription = null;
-                        opt.HandleSet(default);
-                        return;
-                    }
-
-                    nestedSubscription = nestedObservable?.Subscribe(nestedObserver);
-                },
-                onError = opt.HandleError,
-                onDispose = () =>
-                {
-                    opt.HandleDispose();
-                    nestedSubscription?.Dispose();
-                }
-            };
-
-            opt.onFirstObserverSubscribed += () => subscription = source.Subscribe(observer);
-            opt.onLastObserverDisposed += () => subscription?.Dispose();
-
-            return opt;
+                onNext = receiver.onNext == null ? null : x => receiver.onNext(select(x)),
+                onError = receiver.onError,
+                onDispose = receiver.onDispose
+            }));
         }
 
         public static IValueObservable<U> SelectDynamic<T, U>(this IValueObservable<T> source, Func<T, IValueObservable<U>> select)
             => source.SelectDynamic<T, IValueObservable<U>>(select).ShallowCopyDynamic();
 
-        public static ICollectionObservable<T> ShallowCopyDynamic<T>(this ICollectionObservable<IValueObservable<T>> source)
-            => new ShallowCopyCollectionObservable<T>(source);
-
-        public static ICollectionObservable<U> SelectDynamic<T, U>(this ICollectionObservable<T> source, Func<T, U> select)
+        public class ShallowCopyData<T>
         {
-            
+            public IDisposable subscription;
+            public int count;
+            public T latest;
+        }
+
+        public static ICollectionObservable<T> ShallowCopyDynamic<T>(this ICollectionObservable<IValueObservable<T>> source)
+        {
+            return new FactoryCollectionObservable<T>(receiver => source.ElementwiseSubscribe(
+                onFirstAdd: element =>
+                {
+                    var data = new ShallowCopyData<T>();
+                    data.subscription = element.Subscribe(x =>
+                    {
+                        for (int i = 0; i < data.count; i++)
+                            receiver.onRemove?.Invoke(data.latest);
+
+                        data.latest = x;
+
+                        for (int i = 0; i < data.count; i++)
+                            receiver.onAdd?.Invoke(data.latest);
+                    });
+
+                    return data;
+                },
+                onLastRemove: (element, data) => data.subscription.Dispose(),
+                onIncrement: (element, data, count) =>
+                {
+                    data.count = count;
+                    receiver.onAdd?.Invoke(data.latest);
+                    return data;
+                },
+                onDecrement: (element, data, count) =>
+                {
+                    data.count = count;
+                    receiver.onRemove?.Invoke(data.latest);
+                    return data;
+                },
+                onError: receiver.onError,
+                onDispose: x =>
+                {
+                    foreach (var element in x)
+                        element.Value.state.subscription.Dispose();
+
+                    receiver.onDispose?.Invoke();
+                }
+            ));
         }
 
         public static ICollectionObservable<U> SelectDynamic<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> select)
             => source.SelectDynamic<T, IValueObservable<U>>(select).ShallowCopyDynamic();
 
-        public static ICollectionObservable<T> WhereDynamic<T>(this ICollectionObservable<T> source, Func<T, bool> where)
-            => source.WhereDynamic(x => Observables.AsValueObservable(where(x)));
-
-        public static ICollectionObservable<T> WhereDynamic<T>(this ICollectionObservable<T> source, Func<T, IValueObservable<bool>> where)
-            => new WhereCollectionObservable<T>(source, where);
-
-        public static ICollectionObservable<T> ConcatDynamic<T>(this ICollectionObservable<T> source1, IEnumerable<T> source2)
-            => source1.ConcatDynamic(Observables.AsCollectionObservable(source2));
-
-        public static ICollectionObservable<T> ConcatDynamic<T>(this ICollectionObservable<T> source1, ICollectionObservable<T> source2)
-            => new ConcatCollectionObservable<T>(source1, source2);
-
-        public static ICollectionObservable<U> SelectManyDynamic<T, U>(this ICollectionObservable<T> source, Func<T, IEnumerable<U>> selectMany)
-            => source.SelectManyDynamic(x => Observables.AsCollectionObservable(selectMany(x)));
-
-        public static ICollectionObservable<U> SelectManyDynamic<T, U>(this ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> selectMany)
-            => new SelectManyCollectionObservable<T, U>(source, selectMany);
+        public static ICollectionObservable<U> SelectDynamic<T, U>(this ICollectionObservable<T> source, Func<T, U> select)
+        {
+            return new FactoryCollectionObservable<U>(receiver => source.ElementwiseSubscribe(
+                onFirstAdd: select,
+                onIncrement: (_, selected, _) =>
+                {
+                    receiver.onAdd?.Invoke(selected);
+                    return selected;
+                },
+                onDecrement: (_, selected, _) =>
+                {
+                    receiver.onRemove?.Invoke(selected);
+                    return selected;
+                },
+                onError: receiver.onError,
+                onDispose: receiver.onDispose == null ? null : _ => receiver.onDispose.Invoke()
+            ));
+        }
 
         public static ICollectionObservable<T> DistinctDynamic<T>(this ICollectionObservable<T> source)
-            => new DistinctCollectionObservable<T>(source);
+        {
+            return new FactoryCollectionObservable<T>(receiver =>
+            {
+                return source.ElementwiseSubscribe(
+                    onFirstAdd: x => receiver.onAdd?.Invoke(x),
+                    onLastRemove: x => receiver.onRemove?.Invoke(x),
+                    onError: receiver.onError,
+                    onDispose: receiver.onDispose
+                );
+            });
+        }
+
+        public class WhereDynamicData<T>
+        {
+            public IDisposable subscription;
+            public bool included;
+            public int count;
+        }
+
+        public static ICollectionObservable<T> WhereDynamic<T>(this ICollectionObservable<T> source, Func<T, bool> where)
+            => source.WhereDynamic(x => new ValueObservable<bool>(where(x)));
+
+        public static ICollectionObservable<T> WhereDynamic<T>(this ICollectionObservable<T> source, Func<T, IValueObservable<bool>> where)
+        {
+            return new FactoryCollectionObservable<T>(receiver => source.ElementwiseSubscribe(
+                onFirstAdd: x =>
+                {
+                    var data = new WhereDynamicData<T>();
+                    data.subscription = where(x).Subscribe(included =>
+                    {
+                        if (included == data.included)
+                            return;
+
+                        data.included = included;
+
+                        if (included)
+                        {
+                            for (int i = 0; i < data.count; i++)
+                                receiver.onAdd?.Invoke(x);
+                        }
+                        else
+                        {
+                            for (int i = 0; i < data.count; i++)
+                                receiver.onRemove?.Invoke(x);
+                        }
+                    });
+
+                    return data;
+                },
+                onLastRemove: (x, data) => data.subscription.Dispose(),
+                onIncrement: (x, data, count) =>
+                {
+                    data.count = count;
+
+                    if (data.included)
+                        receiver.onAdd?.Invoke(x);
+
+                    return data;
+                },
+                onDecrement: (x, data, count) =>
+                {
+                    data.count = count;
+
+                    if (data.included)
+                        receiver.onRemove?.Invoke(x);
+
+                    return data;
+                },
+                onError: receiver.onError,
+                onDispose: x =>
+                {
+                    foreach (var element in x)
+                        element.Value.state.subscription.Dispose();
+
+                    receiver?.onDispose();
+                }
+            ));
+        }
+
+        public static ICollectionObservable<T> ConcatDynamic<T>(this ICollectionObservable<T> source1, IEnumerable<T> source2)
+            => source1.ConcatDynamic((ICollectionObservable<T>)new CollectionObservable<T>(source2));
+
+        public static ICollectionObservable<T> ConcatDynamic<T>(this ICollectionObservable<T> source1, ICollectionObservable<T> source2)
+        {
+            return new FactoryCollectionObservable<T>(receiver => new ComposedDisposable(
+                source1.Subscribe(
+                    onAdd: receiver.onAdd,
+                    onRemove: receiver.onRemove,
+                    onError: receiver.onError,
+                    onDispose: receiver.onDispose
+                ),
+                source2.Subscribe(
+                    onAdd: receiver.onAdd,
+                    onRemove: receiver.onRemove,
+                    onError: receiver.onError,
+                    onDispose: receiver.onDispose
+                )
+            ));
+        }
+
+        public static ICollectionObservable<U> SelectManyDynamic<T, U>(this ICollectionObservable<T> source, Func<T, IEnumerable<U>> selectMany)
+            => source.SelectManyDynamic(x => (ICollectionObservable<U>)new CollectionObservable<U>(selectMany(x)));
+
+        public class SelectManyDynamicData<T>
+        {
+            public List<T> selected = new List<T>();
+            public IDisposable subscription;
+            public int count;
+        }
+
+        public static ICollectionObservable<U> SelectManyDynamic<T, U>(this ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> selectMany)
+        {
+            return new FactoryCollectionObservable<U>(receiver => source.ElementwiseSubscribe(
+                onFirstAdd: x =>
+                {
+                    var data = new SelectManyDynamicData<U>();
+                    data.subscription = selectMany(x).Subscribe(
+                        onAdd: x =>
+                        {
+                            data.selected.Add(x);
+                            for (int i = 0; i < data.count; i++)
+                                receiver.onAdd?.Invoke(x);
+                        },
+                        onRemove: x =>
+                        {
+                            data.selected.Remove(x);
+                            for (int i = 0; i < data.count; i++)
+                                receiver.onRemove?.Invoke(x);
+                        }
+                    );
+
+                    return data;
+                },
+                onLastRemove: (x, data) => data.subscription.Dispose(),
+                onIncrement: (x, data, count) =>
+                {
+                    data.count = count;
+                    foreach (var element in data.selected)
+                        receiver.onAdd?.Invoke(element);
+
+                    return data;
+                },
+                onDecrement: (x, data, count) =>
+                {
+                    data.count = count;
+                    foreach (var element in data.selected)
+                        receiver.onRemove?.Invoke(element);
+
+                    return data;
+                },
+                onError: receiver.onError,
+                onDispose: x =>
+                {
+                    foreach (var element in x)
+                        element.Value.state.subscription.Dispose();
+
+                    receiver?.onDispose();
+                }
+            ));
+        }
 
         public static IDictionaryObservable<TKey, TValue> ToDictionaryDynamic<TSource, TKey, TValue>(this ICollectionObservable<TSource> source, Func<TSource, TKey> selectKey, Func<TSource, TValue> selectValue)
-            => source.ToDictionaryDynamic(x => Observables.AsValueObservable(selectKey(x)), x => Observables.AsValueObservable(selectValue(x)));
+            => source.ToDictionaryDynamic<TSource, TKey, TValue>(x => new ValueObservable<TKey>(selectKey(x)), x => new ValueObservable<TValue>(selectValue(x)));
 
         public static IDictionaryObservable<TKey, TValue> ToDictionaryDynamic<TSource, TKey, TValue>(this ICollectionObservable<TSource> source, Func<TSource, TKey> selectKey, Func<TSource, IValueObservable<TValue>> selectValue)
-            => source.ToDictionaryDynamic(x => Observables.AsValueObservable(selectKey(x)), selectValue);
+            => source.ToDictionaryDynamic<TSource, TKey, TValue>(x => new ValueObservable<TKey>(selectKey(x)), selectValue);
 
         public static IDictionaryObservable<TKey, TValue> ToDictionaryDynamic<TSource, TKey, TValue>(this ICollectionObservable<TSource> source, Func<TSource, IValueObservable<TKey>> selectKey, Func<TSource, TValue> selectValue)
-            => source.ToDictionaryDynamic(selectKey, x => Observables.AsValueObservable(selectValue(x)));
+            => source.ToDictionaryDynamic<TSource, TKey, TValue>(selectKey, x => new ValueObservable<TValue>(selectValue(x)));
 
         public static IDictionaryObservable<TKey, TValue> ToDictionaryDynamic<TSource, TKey, TValue>(this ICollectionObservable<TSource> source, Func<TSource, IValueObservable<TKey>> selectKey, Func<TSource, IValueObservable<TValue>> selectValue)
-            => new ToDictionaryObservable<TSource, TKey, TValue>(source, selectKey, selectValue);
+        {
+
+        }
 
         public static IListObservable<T> OrderByDynamic<T, U>(this ICollectionObservable<T> source, Func<T, U> orderBy)
-            => source.OrderByDynamic(x => Observables.AsValueObservable(orderBy(x)));
+            => source.OrderByDynamic(x => new ValueObservable<U>(orderBy(x)));
+
+        public class OrderByDynamicData<T>
+        {
+            public int count;
+            public IDisposable subscription;
+        }
 
         public static IListObservable<T> OrderByDynamic<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> orderBy)
-            => new OrderByCollectionObservable<T, U>(source, orderBy);
+        {
+            return new FactoryListObservable<T>(receiver =>
+            {
+                Comparer<U> comparer = Comparer<U>.Default;
+                Dictionary<T, U> orderByElements = new Dictionary<T, U>();
+                List<T> elementsInOrder = new List<T>();
+                Comparison<T> comparison = (x, y) => comparer.Compare(orderByElements[x], orderByElements[y]);
+
+                source.ElementwiseSubscribe(
+                    onFirstAdd: x =>
+                    {
+                        var data = new OrderByDynamicData<U>();
+                        data.subscription = orderBy(x).Subscribe(x =>
+                        {
+                            elementsInOrder.Sort(comparison);
+                            for (int i = 0; i < data.count; i++)
+                            {
+
+                            }
+                        });
+                    },
+                    onLastRemove: x =>
+                    {
+
+                    }
+                );
+            });
+        }
 
         public static IValueObservable<int> CountDynamic<T>(this ICollectionObservable<T> source)
-            => new CountCollectionObservable<T>(source);
+        {
+            return new FactoryValueObservable<int>(receiver =>
+            {
+                int count = 0;
+                return source.Subscribe(
+                    onAdd: _ =>
+                    {
+                        count++;
+                        receiver.onNext(count);
+                    },
+                    onRemove: _ =>
+                    {
+                        count--;
+                        receiver.onNext(count);
+                    },
+                    receiver.onError,
+                    receiver.onDispose
+                );
+            });
+        }
 
         public static IValueObservable<bool> ContainsDynamic<T>(this ICollectionObservable<T> source, T contains)
-            => source.ContainsDynamic(Observables.AsValueObservable(contains));
+            => source.ContainsDynamic(new ValueObservable<T>(contains));
 
         public static IValueObservable<bool> ContainsDynamic<T>(this ICollectionObservable<T> source, IValueObservable<T> contains)
-            => new ContainsCollectionObservable<T>(source, contains);
+        {
+            return new FactoryValueObservable<bool>(receiver =>
+            {
+                var latest = default(T);
+                var present = false;
+                var collection = new List<T>();
+
+                return new ComposedDisposable(
+                    contains.Subscribe(
+                        onNext: x =>
+                        {
+                            bool wasPresent = present;
+                            latest = x;
+                            present = collection.Contains(x);
+
+                            if (wasPresent == present)
+                                return;
+
+                            receiver.onNext(present);
+                        },
+                        onError: receiver.onError,
+                        onDispose: receiver.onDispose
+                    ),
+                    source.Subscribe(
+                        onAdd: x =>
+                        {
+                            collection.Add(x);
+
+                            if (present)
+                                return;
+
+                            if (Equals(latest, x))
+                            {
+                                present = true;
+                                receiver.onNext(true);
+                            }
+
+                        },
+                        onRemove: x =>
+                        {
+                            collection.Remove(x);
+
+                            if (!present)
+                                return;
+
+                            if (!collection.Contains(x))
+                            {
+                                present = false;
+                                receiver.onNext(false);
+                            }
+                        },
+                        onError: receiver.onError,
+                        onDispose: receiver.onDispose
+                    )
+                );
+            });
+        }
 
         public static IValueObservable<(T1 value1, T2 value2)> WithDynamic<T1, T2>(this IValueObservable<T1> source1, IValueObservable<T2> source2)
             => new WithValueObservable<T1, T2>(source1, source2);
 
         public static IValueObservable<(bool keyPresent, TValue value)> TrackDynamic<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, TKey key)
-            => source.TrackDynamic(Observables.AsValueObservable(key));
+            => source.TrackDynamic(new ValueObservable<TKey>(key));
 
         public static IValueObservable<(bool keyPresent, TValue value)> TrackDynamic<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, IValueObservable<TKey> key)
-            => new TrackValueObservable<TKey, TValue>(source, key);
+        {
+
+        }
 
         public static ICollectionObservable<TValue> TrackDynamic<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, ICollectionObservable<TKey> keys)
             => keys.SelectDynamic(x => source.TrackDynamic(x)).WhereDynamic(x => x.keyPresent).SelectDynamic(x => x.value);
 
+
+        public static IValueObservable<(T current, T previous)> WithPrevious<T>(this IValueObservable<T> source)
+        {
+            T previous = default;
+
+            return new FactoryValueObservable<(T current, T previous)>(receiver => source.Subscribe(
+                onNext: x =>
+                {
+                    receiver.onNext(new(x, previous));
+                    previous = x;
+                },
+                onError: receiver.onError,
+                onDispose: receiver.onDispose
+            ));
+        }
+
+
         public static IListObservable<T> ShallowCopyDynamic<T>(this IListObservable<IValueObservable<T>> source)
-            => new ShallowCopyListObservable<T>(source);
+        {
+            var data = new List<(IDisposable subscription, T latest)>();
+
+            return new FactoryListObservable<T>(receiver => source.Subscribe(
+                onAdd: (index, x) =>
+                {
+                    var subscription = default(IDisposable);
+                    subscription = x.Subscribe(
+                        onNext: x =>
+                        {
+                            var index = data.FindIndex(x => x.subscription == subscription);
+                            var element = data[index];
+
+                            data.RemoveAt(index);
+                            receiver.onRemove?.Invoke(index, element.latest);
+
+                            element = new(element.subscription, x);
+                            data.Insert(index, element);
+
+                            receiver.onAdd?.Invoke(index, x);
+                        },
+                        onError: receiver.onError,
+                        onDispose: receiver.onDispose
+                    );
+                },
+                onRemove: (index, x) =>
+                {
+                    var element = data[index];
+                    data.RemoveAt(index);
+                    receiver.onRemove?.Invoke(index, data[index].latest);
+                },
+                onError: receiver.onError,
+                onDispose: receiver.onDispose
+            ));
+        }
 
         public static IListObservable<U> SelectDynamic<T, U>(this IListObservable<T> source, Func<T, U> select)
-            => new SelectListObservable<T, U>(source, select);
+        {
+            return new FactoryListObservable<U>(receiver =>
+            {
+                var selectedElements = new List<U>();
+                return source.Subscribe(new ListObserver<T>()
+                {
+                    onAdd = (index, value) =>
+                    {
+                        var selected = select(value);
+                        selectedElements.Insert(index, selected);
+                        receiver.onAdd?.Invoke(index, selected);
+                    },
+                    onRemove = (index, _) =>
+                    {
+                        var selected = selectedElements[index];
+                        selectedElements.RemoveAt(index);
+                        receiver.onRemove?.Invoke(index, selected);
+                    },
+                    onError = receiver.onError,
+                    onDispose = receiver.onDispose
+                });
+            });
+        }
 
         public static IListObservable<U> SelectDynamic<T, U>(this IListObservable<T> source, Func<T, IValueObservable<U>> select)
             => source.SelectDynamic<T, IValueObservable<U>>(select).ShallowCopyDynamic();
 
         public static IValueObservable<int> IndexOfDynamic<T>(this IListObservable<T> source, T value)
-            => new IndexOfObservable<T>(source, value);
+            => source.IndexOfDynamic(new ValueObservable<T>(value));
 
-        public static IDisposable Subscribe(this IObservable source, Action<IObservableEventArgs> observer = default, Action<Exception> onError = default, Action onDispose = default, string name = default)
-            => source.Subscribe(new Observer<IObservableEventArgs>(observer, onError, onDispose, name));
+        public static IValueObservable<int> IndexOfDynamic<T>(this IListObservable<T> source, IValueObservable<T> value)
+        {
+            return new FactoryValueObservable<int>(receiver =>
+            {
+                var latest = default(T);
+                var list = new List<T>();
+                var index = -1;
 
-        public static IDisposable Subscribe<T>(this IValueObservable<T> source, Action<IValueEventArgs<T>> observer = default, Action<Exception> onError = default, Action onDispose = default, string name = default)
-            => source.Subscribe(new Observer<IValueEventArgs<T>>(observer, onError, onDispose, name));
+                receiver.onNext?.Invoke(-1);
 
-        public static IDisposable Subscribe<T>(this ICollectionObservable<T> source, Action<ICollectionEventArgs<T>> observer = default, Action<Exception> onError = default, Action onDispose = default, string name = default)
-            => source.Subscribe(new Observer<ICollectionEventArgs<T>>(observer, onError, onDispose, name));
+                return new ComposedDisposable(
+                    value.Subscribe(
+                        onNext: x =>
+                        {
+                            latest = x;
+                            var newIndex = list.IndexOf(latest);
 
-        public static IDisposable Subscribe<T>(this IListObservable<T> source, Action<IListEventArgs<T>> observer = default, Action<Exception> onError = default, Action onDispose = default, string name = default)
-            => source.Subscribe(new Observer<IListEventArgs<T>>(observer, onError, onDispose, name));
+                            if (index == newIndex)
+                                return;
 
-        public static IDisposable Subscribe<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<IDictionaryEventArgs<TKey, TValue>> observer = default, Action<Exception> onError = default, Action onDispose = default, string name = default)
-            => source.Subscribe(new Observer<IDictionaryEventArgs<TKey, TValue>>(observer, onError, onDispose, name));
+                            receiver.onNext?.Invoke(index);
+                        },
+                        onError: receiver.onError,
+                        onDispose: receiver.onDispose
+                    ),
+                    source.Subscribe(
+                        onAdd: x =>
+                        {
+                            list.Add(x);
+                            var newIndex = list.IndexOf(latest);
+
+                            if (index == newIndex)
+                                return;
+
+                            receiver.onNext?.Invoke(index);
+                        },
+                        onRemove: x =>
+                        {
+                            list.Remove(x);
+                            var newIndex = list.IndexOf(latest);
+
+                            if (index == newIndex)
+                                return;
+
+                            receiver.onNext?.Invoke(index);
+                        },
+                        onError: receiver.onError,
+                        onDispose: receiver.onDispose
+                    )
+                );
+            });
+        }
 
         public static IValueObservable<T> AsObservable<T>(this IValueObservable<T> observable)
             => observable;
@@ -542,8 +822,119 @@ namespace ObserveThing
         public static T Peek<T>(this IValueObservable<T> source)
         {
             T result = default;
-            source.Subscribe(x => result = x.currentValue).Dispose();
+            source.Subscribe(x => result = x).Dispose();
             return result;
+        }
+
+        public static IDisposable Subscribe<T>(this IObservable source, Action onChange = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.Subscribe(new Observer() { onChange = onChange, onError = onError, onDispose = onDispose });
+
+        public static IDisposable Subscribe<T>(this IValueObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.Subscribe(new ValueObserver<T>() { onNext = onNext, onError = onError, onDispose = onDispose });
+
+        public static IDisposable Subscribe<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<KeyValuePair<TKey, TValue>> onAdd = default, Action<KeyValuePair<TKey, TValue>> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.Subscribe(new DictionaryObserver<TKey, TValue>() { onAdd = onAdd, onRemove = onRemove, onError = onError, onDispose = onDispose });
+
+        public static IDisposable Subscribe<T>(this IListObservable<T> source, Action<int, T> onAdd = default, Action<int, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.Subscribe(new ListObserver<T>() { onAdd = onAdd, onRemove = onRemove, onError = onError, onDispose = onDispose });
+
+        public static IDisposable Subscribe<T>(this ICollectionObservable<T> source, Action<T> onAdd = default, Action<T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.Subscribe(new CollectionObserver<T>() { onAdd = onAdd, onRemove = onRemove, onError = onError, onDispose = onDispose });
+
+        public static IDisposable ElementwiseSubscribe<T>(this ICollectionObservable<T> source,
+            Action<T> onFirstAdd = default,
+            Action<T> onLastRemove = default,
+            Action<T, int> onIncrement = default,
+            Action<T, int> onDecrement = default,
+            Action<Exception> onError = default,
+            Action onDispose = default
+        )
+        {
+            return source.ElementwiseSubscribe(
+                onFirstAdd: x =>
+                {
+                    onFirstAdd?.Invoke(x);
+                    return false;
+                },
+                onLastRemove: (x, _) => onLastRemove?.Invoke(x),
+                onIncrement: (x, _, count) =>
+                {
+                    onIncrement?.Invoke(x, count);
+                    return false;
+                },
+                onDecrement: (x, _, count) =>
+                {
+                    onDecrement?.Invoke(x, count);
+                    return false;
+                },
+                onError: onError,
+                onDispose: onDispose == null ? null : _ => onDispose?.Invoke()
+            );
+        }
+
+        public static IDisposable ElementwiseSubscribe<T, U>(this ICollectionObservable<T> source,
+            Func<T, U> onFirstAdd = default,
+            Action<T, U> onLastRemove = default,
+            Func<T, U, int, U> onIncrement = default,
+            Func<T, U, int, U> onDecrement = default,
+            Action<Exception> onError = default,
+            Action<Dictionary<T, (U state, int count)>> onDispose = default
+        )
+        {
+            Dictionary<T, (U state, int count)> elements = new Dictionary<T, (U state, int count)>();
+
+            return source.Subscribe(
+                onAdd: x =>
+                {
+                    if (!elements.TryGetValue(x, out var data))
+                    {
+                        U state = default;
+                        elements.Add(x, (state, 1));
+
+                        if (onFirstAdd != null)
+                        {
+                            state = onFirstAdd(x);
+                            elements[x] = (state, 1);
+                        }
+
+                        if (onIncrement != null)
+                        {
+                            state = onIncrement(x, state, 1);
+                            elements[x] = (state, 1);
+                        }
+
+                        return;
+                    }
+
+                    elements[x] = (data.state, data.count + 1);
+
+                    if (onIncrement != null)
+                    {
+                        var state = onIncrement(x, data.state, data.count + 1);
+                        elements[x] = (state, data.count + 1);
+                    }
+                },
+                onRemove: x =>
+                {
+                    var data = elements[x];
+
+                    if (data.count == 1)
+                    {
+                        elements.Remove(x);
+                        onDecrement?.Invoke(x, data.state, 0);
+                        onLastRemove?.Invoke(x, data.state);
+                        return;
+                    }
+
+                    if (onDecrement != null)
+                    {
+                        var state = onDecrement(x, data.state, data.count - 1);
+                        elements[x] = (state, data.count - 1);
+                    }
+                },
+                onError: onError,
+                onDispose: onDispose == null ? null : () => onDispose?.Invoke(elements)
+            );
         }
     }
 
