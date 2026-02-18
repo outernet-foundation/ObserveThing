@@ -13,18 +13,35 @@ namespace ObserveThing
                 if (Equals(_value, value))
                     return;
 
-                var previousValue = _value;
                 _value = value;
 
-                SafeOnNext(this, previousValue, _value);
+                foreach (var observer in SafeObserverEnumeration())
+                    observer.OnNext(value);
             }
         }
 
         private T _value = default;
-        private List<Instance> _instances = new List<Instance>();
-        private List<Instance> _disposedInstances = new List<Instance>();
-        private bool _executingOnNext;
+        private List<ObserverData> _observers = new List<ObserverData>();
+        private List<ObserverData> _disposedObservers = new List<ObserverData>();
+        private bool _executingSafeEnumerate;
         private bool _disposed;
+
+        private class ObserverData : IDisposable
+        {
+            public IValueObserver<T> observer;
+            public Action<ObserverData> onDispose;
+            public bool disposed { get; private set; }
+
+            public void Dispose()
+            {
+                if (disposed)
+                    return;
+
+                disposed = true;
+                onDispose?.Invoke(this);
+                observer.OnDispose();
+            }
+        }
 
         public ValueObservable() : this(default) { }
         public ValueObservable(T startValue)
@@ -32,46 +49,57 @@ namespace ObserveThing
             _value = startValue;
         }
 
-        private void SafeOnNext(IObservable source, T previousValue, T currentValue)
+        private IEnumerable<IValueObserver<T>> SafeObserverEnumeration()
         {
-            _executingOnNext = true;
+            if (_executingSafeEnumerate)
+                throw new Exception("Cannot apply changes while already applying changes");
 
-            int count = _instances.Count;
+            _executingSafeEnumerate = true;
+
+            int count = _observers.Count;
             for (int i = 0; i < count; i++)
             {
-                var instance = _instances[i];
+                var instance = _observers[i];
                 if (instance.disposed)
                     continue;
 
-                instance.OnNext(source, previousValue, currentValue);
+                yield return instance.observer;
             }
 
-            foreach (var disposedInstance in _disposedInstances)
-                _instances.Remove(disposedInstance);
+            _executingSafeEnumerate = true;
 
-            _executingOnNext = false;
+            foreach (var disposed in _disposedObservers)
+                _observers.Remove(disposed);
         }
 
-        public IDisposable Subscribe(IObserver<IValueEventArgs<T>> observer)
+        private void HandleObserverDisposed(ObserverData observer)
         {
-            var instance = new Instance(observer, x =>
+            if (_disposed)
+                return;
+
+            if (_executingSafeEnumerate)
             {
-                if (_disposed)
-                    return;
+                _disposedObservers.Add(observer);
+                return;
+            }
 
-                if (_executingOnNext)
-                {
-                    _disposedInstances.Add(x);
-                    return;
-                }
-
-                _instances.Remove(x);
-            });
-
-            _instances.Add(instance);
-            instance.OnNext(this, default, _value);
-            return instance;
+            _observers.Remove(observer);
         }
+
+        public IDisposable Subscribe(IValueObserver<T> observer)
+        {
+            var data = new ObserverData() { observer = observer, onDispose = HandleObserverDisposed };
+            _observers.Add(data);
+            data.observer.OnNext(value);
+            return data;
+        }
+
+        public IDisposable Subscribe(IObserver observer)
+            => Subscribe(new ValueObserver<T>(
+                onNext: _ => observer.OnChange(),
+                onError: observer.OnError,
+                onDispose: observer.OnDispose
+            ));
 
         public void Dispose()
         {
@@ -80,51 +108,10 @@ namespace ObserveThing
 
             _disposed = true;
 
-            foreach (var instance in _instances)
+            foreach (var instance in _observers)
                 instance.Dispose();
 
-            _instances.Clear();
-        }
-
-        private class Instance : IDisposable
-        {
-            public bool disposed { get; private set; }
-
-            private IObserver<IValueEventArgs<T>> _observer;
-            private Action<Instance> _onDispose;
-            private ValueEventArgs<T> _args = new ValueEventArgs<T>();
-
-            public Instance(IObserver<IValueEventArgs<T>> observer, Action<Instance> onDispose)
-            {
-                _observer = observer;
-                _onDispose = onDispose;
-            }
-
-            public void OnNext(IObservable source, T previousValue, T currentValue)
-            {
-                _args.source = source;
-                _args.previousValue = previousValue;
-                _args.currentValue = currentValue;
-                _observer?.OnNext(_args);
-            }
-
-            public void OnError(Exception error)
-            {
-                _observer?.OnError(error);
-            }
-
-            public void Dispose()
-            {
-                if (disposed)
-                    return;
-
-                disposed = true;
-
-                _observer.OnDispose();
-                _observer = null;
-
-                _onDispose(this);
-            }
+            _observers.Clear();
         }
     }
 }
