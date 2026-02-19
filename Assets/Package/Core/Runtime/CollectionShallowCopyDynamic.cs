@@ -1,163 +1,72 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 
 namespace ObserveThing
 {
-    public class ShallowCopyCollectionObservable<T> : ICollectionObservable<T>
+    public class CollectionShallowCopyDynamic<T> : IDisposable
     {
-        public ICollectionObservable<IValueObservable<T>> collection;
+        private IDisposable _sourceStream;
+        private ICollectionObserver<T> _receiver;
+        private Dictionary<uint, EntryData> _dataById = new Dictionary<uint, EntryData>();
+        private bool _disposed;
 
-        public ShallowCopyCollectionObservable(ICollectionObservable<IValueObservable<T>> collection)
+        private class EntryData
         {
-            this.collection = collection;
+            public IDisposable subscription;
+            public T latest;
+            public bool initialized;
         }
 
-        public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
-            => new Instance(this, collection, observer);
-
-        private class Instance : IDisposable
+        public CollectionShallowCopyDynamic(ICollectionObservable<IValueObservable<T>> source, ICollectionObserver<T> receiver)
         {
-            private IDisposable _collectionStream;
-            private IObserver<ICollectionEventArgs<T>> _observer;
-            private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
-            private bool _disposed = false;
+            _receiver = receiver;
+            _sourceStream = source.Subscribe(
+                onAdd: HandleAdd,
+                onRemove: HandleRemove,
+                onError: _receiver.OnError,
+                onDispose: Dispose
+            );
+        }
 
-            private class ElementData
-            {
-                public IValueObservable<T> element;
-                public bool initialized;
-                public bool disposed;
-                public T value;
-                public int count;
-                public IDisposable valueStream;
-
-                public void Dispose()
+        private void HandleAdd(uint id, IValueObservable<T> observable)
+        {
+            var data = new EntryData();
+            _dataById.Add(id, data);
+            data.subscription = observable.WithPrevious().Subscribe(
+                onNext: x =>
                 {
-                    disposed = true;
-                    valueStream.Dispose();
-                }
-            }
+                    if (data.initialized)
+                        _receiver.OnRemove(id, x.previous);
 
-            private Dictionary<IValueObservable<T>, ElementData> _elementData = new Dictionary<IValueObservable<T>, ElementData>();
+                    data.initialized = true;
+                    data.latest = x.current;
+                    _receiver.OnAdd(id, x.current);
+                },
+                onError: _receiver.OnError
+            );
+        }
 
-            public Instance(IObservable source, ICollectionObservable<IValueObservable<T>> collection, IObserver<ICollectionEventArgs<T>> observer)
-            {
-                _observer = observer;
-                _args.source = source;
-                _collectionStream = collection.Subscribe(
-                    HandleSourceChanged,
-                    HandleSourceError,
-                    HandleSourceDisposed
-                );
-            }
+        private void HandleRemove(uint id, IValueObservable<T> observable)
+        {
+            var data = _dataById[id];
+            _dataById.Remove(id);
+            data.subscription.Dispose();
+            _receiver.OnRemove(id, data.latest);
+        }
 
-            private void HandleSourceChanged(ICollectionEventArgs<IValueObservable<T>> args)
-            {
-                switch (args.operationType)
-                {
-                    case OpType.Add:
-                        if (!_elementData.TryGetValue(args.element, out var added))
-                        {
-                            added = new ElementData() { element = args.element };
-                            _elementData.Add(args.element, added);
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
 
-                            added.valueStream = args.element.Subscribe(
-                                x => HandleSelectedChanged(x.currentValue, added),
-                                HandleSourceError,
-                                () => HandleSelectedDisposed(added)
-                            );
+            _disposed = true;
 
-                            added.initialized = true;
-                        }
+            _sourceStream.Dispose();
 
-                        added.count++;
+            foreach (var data in _dataById.Values)
+                data.subscription.Dispose();
 
-                        _args.operationType = OpType.Add;
-                        _args.element = added.value;
-                        _observer.OnNext(_args);
-
-                        break;
-
-                    case OpType.Remove:
-                        var removed = _elementData[args.element];
-                        var removedCount = removed.count;
-
-                        removed.count--;
-
-                        if (removed.count == 0)
-                        {
-                            removed.Dispose();
-                            _elementData.Remove(args.element);
-                        }
-
-                        _args.operationType = OpType.Remove;
-                        _args.element = removed.value;
-
-                        for (int i = 0; i < removedCount; i++)
-                            _observer.OnNext(_args);
-
-                        break;
-                }
-            }
-
-            private void HandleSelectedDisposed(ElementData elementData)
-            {
-                if (elementData.disposed)
-                    return;
-
-                HandleSourceError(new Exception("Source element disposed unexpectedly."));
-            }
-
-            private void HandleSourceError(Exception error)
-            {
-                _observer.OnError(error);
-            }
-
-            private void HandleSourceDisposed()
-            {
-                Dispose();
-            }
-
-            private void HandleSelectedChanged(T value, ElementData elementData)
-            {
-                if (!elementData.initialized)
-                {
-                    elementData.value = value;
-                    elementData.initialized = true;
-                    return;
-                }
-
-                T previousValue = elementData.value;
-                elementData.value = value;
-
-                for (int i = 0; i < elementData.count; i++)
-                {
-                    _args.element = previousValue;
-                    _args.operationType = OpType.Remove;
-
-                    _observer.OnNext(_args);
-
-                    _args.element = value;
-                    _args.operationType = OpType.Add;
-
-                    _observer.OnNext(_args);
-                }
-            }
-
-            public void Dispose()
-            {
-                if (_disposed)
-                    return;
-
-                _disposed = true;
-
-                foreach (var data in _elementData.Values)
-                    data.Dispose();
-
-                _collectionStream.Dispose();
-                _observer.OnDispose();
-            }
+            _receiver.OnDispose();
         }
     }
 }

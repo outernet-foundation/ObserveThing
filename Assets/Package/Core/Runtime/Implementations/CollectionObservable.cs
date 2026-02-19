@@ -12,8 +12,12 @@ namespace ObserveThing
         public int count => _collection.Count;
 
         private List<T> _collection = new List<T>();
+        private List<uint> _ids = new List<uint>();
+        private uint _nextId = 0;
+
         private List<ObserverData> _observers = new List<ObserverData>();
         private List<ObserverData> _disposedObservers = new List<ObserverData>();
+
         private bool _executingSafeEnumerate = false;
         private bool _disposed;
 
@@ -82,31 +86,49 @@ namespace ObserveThing
 
         public void Add(T element)
         {
+            uint id = _nextId;
+            _nextId++;
+
             _collection.Add(element);
+            _ids.Add(id);
 
             foreach (var observer in SafeObserverEnumeration())
-                observer.OnAdd(element);
+                observer.OnAdd(id, element);
         }
 
         public bool Remove(T element)
         {
-            if (!_collection.Remove(element))
+            var index = _collection.IndexOf(element);
+
+            if (index == -1)
                 return false;
 
+            var id = _ids[index];
+
+            _collection.RemoveAt(index);
+            _ids.RemoveAt(index);
+
             foreach (var observer in SafeObserverEnumeration())
-                observer.OnRemove(element);
+                observer.OnRemove(id, element);
 
             return true;
         }
 
         public void Clear()
         {
-            foreach (var element in _collection.ToArray())
+            var collection = _collection.ToArray();
+            var ids = _ids.ToArray();
+
+            _collection.Clear();
+            _ids.Clear();
+
+            for (int i = 0; i < collection.Length; i++)
             {
-                _collection.Remove(element);
+                var id = ids[i];
+                var element = collection[i];
 
                 foreach (var observer in SafeObserverEnumeration())
-                    observer.OnRemove(element);
+                    observer.OnRemove(id, element);
             }
         }
 
@@ -118,16 +140,16 @@ namespace ObserveThing
             var data = new ObserverData() { observer = observer, onDispose = HandleObserverDisposed };
             _observers.Add(data);
 
-            foreach (var element in this)
-                data.observer.OnAdd(element);
+            for (int i = 0; i < _collection.Count; i++)
+                data.observer.OnAdd(_ids[i], _collection[i]);
 
             return data;
         }
 
         public IDisposable Subscribe(IObserver observer)
             => Subscribe(new CollectionObserver<T>(
-                onAdd: _ => observer.OnChange(),
-                onRemove: _ => observer.OnChange(),
+                onAdd: (_, _) => observer.OnChange(),
+                onRemove: (_, _) => observer.OnChange(),
                 onError: observer.OnError,
                 onDispose: observer.OnDispose
             ));

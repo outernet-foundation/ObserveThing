@@ -8,16 +8,16 @@ namespace ObserveThing
         private IDisposable _collectionStream;
         private Func<T, IValueObservable<U>> _orderBy;
         private IListObserver<T> _receiver;
-        private Dictionary<T, EntryData> _dataByElement = new Dictionary<T, EntryData>();
+        private Dictionary<uint, EntryData> _dataById = new Dictionary<uint, EntryData>();
         private List<EntryData> _order = new List<EntryData>();
         private bool _disposed = false;
 
         private class EntryData
         {
+            public uint id;
             public T element;
             public U orderBy;
-            public IDisposable orderByStream;
-            public int count;
+            public IDisposable subscription;
         }
 
         public OrderByDynamic(ICollectionObservable<T> collection, Func<T, IValueObservable<U>> orderBy, IListObserver<T> receiver)
@@ -33,65 +33,41 @@ namespace ObserveThing
             );
         }
 
-        private void HandleAdd(T element)
+        private void HandleAdd(uint id, T element)
         {
-            if (!_dataByElement.TryGetValue(element, out var data))
+            var data = new EntryData()
             {
-                data = new EntryData() { element = element };
-                _dataByElement.Add(element, data);
-                data.orderByStream = _orderBy(element).Subscribe(
-                    onNext: x =>
-                    {
-                        data.orderBy = x;
-                        Resort(data);
-                    },
-                    onError: _receiver.OnError
-                );
-            }
+                id = id,
+                element = element
+            };
 
-            data.count++;
-            _receiver.OnAdd(GetCurrentIndex(data), data.element);
+            _dataById.Add(id, data);
+            data.subscription = _orderBy(element).Subscribe(
+                onNext: x =>
+                {
+                    data.orderBy = x;
+                    Resort(data);
+                },
+                onError: _receiver.OnError
+            );
         }
 
-        private void HandlRemove(T element)
+        private void HandlRemove(uint id, T element)
         {
-            var data = _dataByElement[element];
-            int index = GetCurrentIndex(data);
-
-            data.count--;
-
-            if (data.count == 0)
-            {
-                _dataByElement.Remove(element);
-                _order.Remove(data);
-            }
-
-            _receiver.OnRemove(index, data.element);
-        }
-
-        private int GetCurrentIndex(EntryData data)
-        {
-            int index = 0;
-
-            foreach (var entry in _order)
-            {
-                if (entry == data)
-                    return index;
-
-                index += entry.count;
-            }
-
-            throw new Exception($"Data for element {data.element} not found.");
+            var data = _dataById[id];
+            int index = _order.IndexOf(data);
+            _dataById.Remove(id);
+            _order.RemoveAt(index);
+            data.subscription.Dispose();
+            _receiver.OnRemove(id, index, data.element);
         }
 
         private void Resort(EntryData data)
         {
-            var originalIndex = GetCurrentIndex(data);
+            var originalIndex = _order.IndexOf(data);
 
-            for (int i = 0; i < data.count; i++)
-                _receiver.OnRemove(originalIndex, data.element);
-
-            _order.Remove(data);
+            _order.RemoveAt(originalIndex);
+            _receiver.OnRemove(data.id, originalIndex, data.element);
 
             int newIndex = 0;
 
@@ -100,7 +76,7 @@ namespace ObserveThing
                 var compareTo = _order[i];
                 if (Comparer<U>.Default.Compare(data.orderBy, compareTo.orderBy) > 0)
                 {
-                    newIndex += compareTo.count;
+                    newIndex++;
                 }
                 else
                 {
@@ -109,8 +85,7 @@ namespace ObserveThing
                 }
             }
 
-            for (int i = 0; i < data.count; i++)
-                _receiver.OnAdd(i, data.element);
+            _receiver.OnAdd(data.id, newIndex, data.element);
         }
 
         public void Dispose()
@@ -123,7 +98,7 @@ namespace ObserveThing
             _collectionStream.Dispose();
 
             foreach (var entry in _order)
-                entry.orderByStream.Dispose();
+                entry.subscription.Dispose();
 
             _receiver.OnDispose();
         }

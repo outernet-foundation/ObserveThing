@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace ObserveThing
 {
@@ -7,21 +8,22 @@ namespace ObserveThing
     {
         private class ElementData
         {
-            public List<U> selected = new List<U>();
             public IDisposable subscription;
-            public int count;
+            public Dictionary<uint, (uint id, U element)> elements = new Dictionary<uint, (uint id, U element)>();
         }
 
         private IDisposable _sourceStream;
         private Func<T, ICollectionObservable<U>> _select;
         private ICollectionObserver<U> _receiver;
-        private Dictionary<T, ElementData> _dataByElement = new Dictionary<T, ElementData>();
+        private Dictionary<uint, ElementData> _dataById = new Dictionary<uint, ElementData>();
+        private CollectionIdProvider _idProvider;
         private bool _disposed;
 
         public SelectManyDynamic(ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> select, ICollectionObserver<U> receiver)
         {
             _receiver = receiver;
             _select = select;
+            _idProvider = new CollectionIdProvider(x => _dataById.Values.Any(y => y.elements.ContainsKey(x)));
             source.Subscribe(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
@@ -30,51 +32,34 @@ namespace ObserveThing
             );
         }
 
-        private void HandleAdd(T element)
+        private void HandleAdd(uint id, T element)
         {
-            if (!_dataByElement.TryGetValue(element, out var data))
-            {
-                data = new ElementData();
-                data.subscription = _select(element).Subscribe(
-                    onAdd: x =>
-                    {
-                        data.selected.Add(x);
-
-                        for (int i = 0; i < data.count; i++)
-                            _receiver.OnAdd(x);
-                    },
-                    onRemove: x =>
-                    {
-                        data.selected.Remove(x);
-
-                        for (int i = 0; i < data.count; i++)
-                            _receiver.OnRemove(x);
-                    },
-                    onError: _receiver.OnError
-                );
-
-                _dataByElement.Add(element, data);
-            }
-
-            data.count++;
-
-            foreach (var selected in data.selected)
-                _receiver.OnAdd(selected);
+            var data = new ElementData();
+            _dataById.Add(id, data);
+            data.subscription = _select(element).Subscribe(
+                onAdd: (subId, subElement) =>
+                {
+                    var newId = _idProvider.GetUnusedId();
+                    data.elements.Add(subId, (newId, subElement));
+                    _receiver.OnAdd(newId, subElement);
+                },
+                onRemove: (subId, subElement) =>
+                {
+                    var subData = data.elements[subId];
+                    data.elements.Remove(subId);
+                    _receiver.OnRemove(subData.id, subData.element);
+                },
+                onError: _receiver.OnError
+            );
         }
 
-        private void HandleRemove(T element)
+        private void HandleRemove(uint id, T element)
         {
-            var data = _dataByElement[element];
-            data.count--;
-
-            if (data.count == 0)
-            {
-                _dataByElement.Remove(element);
-                data.subscription.Dispose();
-            }
-
-            foreach (var selected in data.selected)
-                _receiver.OnRemove(selected);
+            var data = _dataById[id];
+            _dataById.Remove(id);
+            data.subscription.Dispose();
+            foreach (var subElement in data.elements.Values)
+                _receiver.OnRemove(subElement.id, subElement.element);
         }
 
         public void Dispose()
@@ -86,7 +71,7 @@ namespace ObserveThing
 
             _sourceStream.Dispose();
 
-            foreach (var data in _dataByElement.Values)
+            foreach (var data in _dataById.Values)
                 data.subscription.Dispose();
 
             _receiver.OnDispose();

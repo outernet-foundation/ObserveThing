@@ -23,18 +23,18 @@ namespace ObserveThing
             ));
         }
 
-        private void HandleAdd(int index, T value)
+        private void HandleAdd(uint id, int index, T value)
         {
             var selected = _select(value);
             _selectedElements.Insert(index, selected);
-            _receiver.OnAdd(index, selected);
+            _receiver.OnAdd(id, index, selected);
         }
 
-        private void HandleRemove(int index, T _)
+        private void HandleRemove(uint id, int index, T _)
         {
             var selected = _selectedElements[index];
             _selectedElements.RemoveAt(index);
-            _receiver.OnRemove(index, selected);
+            _receiver.OnRemove(id, index, selected);
         }
 
         public void Dispose()

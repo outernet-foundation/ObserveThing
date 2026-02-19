@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace ObserveThing
 {
@@ -7,12 +8,14 @@ namespace ObserveThing
     {
         private IDisposable _sourceStream;
         private ICollectionObserver<T> _receiver;
-        private Dictionary<T, int> _countByElement = new Dictionary<T, int>();
+        private Dictionary<T, (uint id, int count)> _dataByElement = new Dictionary<T, (uint id, int count)>();
+        private CollectionIdProvider _idProvider;
         private bool _disposed;
 
         public DistinctDynamic(ICollectionObservable<T> source, ICollectionObserver<T> receiver)
         {
             _receiver = receiver;
+            _idProvider = new CollectionIdProvider(x => _dataByElement.Values.Any(y => y.id == x));
             _sourceStream = source.Subscribe(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
@@ -21,32 +24,32 @@ namespace ObserveThing
             );
         }
 
-        private void HandleAdd(T value)
+        private void HandleAdd(uint id, T value)
         {
-            if (!_countByElement.TryGetValue(value, out var count))
-                count = 0;
+            if (!_dataByElement.TryGetValue(value, out var data))
+                data = new(_idProvider.GetUnusedId(), 0);
 
-            _countByElement[value] = count + 1;
+            _dataByElement[value] = new(data.id, data.count + 1);
 
-            if (count == 0)
-                _receiver.OnAdd(value);
+            if (data.count == 0) // data here is the old version before incrementing
+                _receiver.OnAdd(data.id, value);
         }
 
-        private void HandleRemove(T value)
+        private void HandleRemove(uint id, T value)
         {
-            var count = _countByElement[value];
+            var data = _dataByElement[value];
 
-            if (count == 1)
+            if (data.count == 1)
             {
-                _countByElement.Remove(value);
+                _dataByElement.Remove(value);
             }
             else
             {
-                _countByElement[value] = count - 1;
+                _dataByElement[value] = new(data.id, data.count - 1);
             }
 
-            if (count == 1)
-                _receiver.OnRemove(value);
+            if (data.count == 1)
+                _receiver.OnRemove(data.id, value);
         }
 
         public void Dispose()

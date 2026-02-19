@@ -5,16 +5,10 @@ namespace ObserveThing
 {
     public class CollectionSelectDynamic<T, U> : IDisposable
     {
-        private class ElementData
-        {
-            public int count;
-            public U latest;
-        }
-
         private IDisposable _sourceStream;
         private Func<T, U> _select;
         private ICollectionObserver<U> _receiver;
-        private Dictionary<T, ElementData> _dataByElement = new Dictionary<T, ElementData>();
+        private Dictionary<uint, U> _selected = new Dictionary<uint, U>();
         private bool _disposed;
 
         public CollectionSelectDynamic(ICollectionObservable<T> source, Func<T, U> select, ICollectionObserver<U> receiver)
@@ -29,27 +23,18 @@ namespace ObserveThing
             );
         }
 
-        private void HandleAdd(T value)
+        private void HandleAdd(uint id, T value)
         {
-            if (!_dataByElement.TryGetValue(value, out var data))
-            {
-                data = new ElementData() { latest = _select(value) };
-                _dataByElement.Add(value, data);
-            }
-
-            data.count++;
-            _receiver.OnAdd(data.latest);
+            var selected = _select(value);
+            _selected[id] = selected;
+            _receiver.OnAdd(id, selected);
         }
 
-        private void HandleRemove(T value)
+        private void HandleRemove(uint id, T value)
         {
-            var data = _dataByElement[value];
-            data.count--;
-
-            if (data.count == 0)
-                _dataByElement.Remove(value);
-
-            _receiver.OnRemove(data.latest);
+            var selected = _selected[id];
+            _selected.Remove(id);
+            _receiver.OnRemove(id, selected);
         }
 
         public void Dispose()
