@@ -24,7 +24,7 @@ namespace ObserveThing
             _receiver = receiver;
             _select = select;
             _idProvider = new CollectionIdProvider(x => _dataById.Values.Any(y => y.elements.ContainsKey(x)));
-            source.Subscribe(
+            _sourceStream = source.SubscribeWithId(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
                 onError: receiver.OnError,
@@ -36,7 +36,7 @@ namespace ObserveThing
         {
             var data = new ElementData();
             _dataById.Add(id, data);
-            data.subscription = _select(element).Subscribe(
+            data.subscription = _select(element).SubscribeWithId(
                 onAdd: (subId, subElement) =>
                 {
                     var newId = _idProvider.GetUnusedId();

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace ObserveThing
 {
@@ -23,7 +22,7 @@ namespace ObserveThing
                 onAdd: kvp =>
                 {
                     _dict.Add(kvp.Key, kvp.Value);
-                    if (Equals(kvp.Key, key))
+                    if (Equals(kvp.Key, _key))
                     {
                         _present = true;
                         _receiver.OnNext(new(_present, kvp.Value));
@@ -37,7 +36,8 @@ namespace ObserveThing
                         _receiver.OnNext(new(_present, default));
                     }
                 },
-                onError: _receiver.OnError
+                onError: _receiver.OnError,
+                onDispose: Dispose
             );
 
             _keyStream = key.Subscribe(
@@ -56,8 +56,13 @@ namespace ObserveThing
                         _receiver.OnNext(new(_present, default));
                     }
                 },
-                onError: _receiver.OnError
+                onError: _receiver.OnError,
+                onDispose: Dispose
             );
+
+            // always send an init call
+            if (!_present)
+                _receiver.OnNext(new(_present, default));
         }
 
         public void Dispose()

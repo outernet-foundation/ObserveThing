@@ -7,6 +7,7 @@ namespace ObserveThing
         private IDisposable _sourceStream;
         private Func<T, U> _select;
         private IValueObserver<U> _receiver;
+        private U _selected;
         private bool _disposed;
 
         public ValueSelectDynamic(IValueObservable<T> source, Func<T, U> select, IValueObserver<U> receiver)
@@ -22,7 +23,13 @@ namespace ObserveThing
 
         private void HandleNext(T value)
         {
-            _receiver.OnNext(_select(value));
+            var nextSelect = _select(value);
+
+            if (Equals(nextSelect, _selected))
+                return;
+
+            _selected = nextSelect;
+            _receiver.OnNext(_selected);
         }
 
         public void Dispose()

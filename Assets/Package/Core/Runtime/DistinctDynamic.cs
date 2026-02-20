@@ -16,7 +16,7 @@ namespace ObserveThing
         {
             _receiver = receiver;
             _idProvider = new CollectionIdProvider(x => _dataByElement.Values.Any(y => y.id == x));
-            _sourceStream = source.Subscribe(
+            _sourceStream = source.SubscribeWithId(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
                 onError: _receiver.OnError,

@@ -20,7 +20,7 @@ namespace ObserveThing
         public CollectionShallowCopyDynamic(ICollectionObservable<IValueObservable<T>> source, ICollectionObserver<T> receiver)
         {
             _receiver = receiver;
-            _sourceStream = source.Subscribe(
+            _sourceStream = source.SubscribeWithId(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
                 onError: _receiver.OnError,
@@ -32,7 +32,7 @@ namespace ObserveThing
         {
             var data = new EntryData();
             _dataById.Add(id, data);
-            data.subscription = observable.WithPrevious().Subscribe(
+            data.subscription = observable.ObservableWithPrevious().Subscribe(
                 onNext: x =>
                 {
                     if (data.initialized)

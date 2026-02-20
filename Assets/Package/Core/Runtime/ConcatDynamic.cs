@@ -19,14 +19,14 @@ namespace ObserveThing
             _receiver = receiver;
             _idProvider = new CollectionIdProvider(x => !_source1IdMap.ContainsValue(x) && !_source2IdMap.ContainsValue(x));
 
-            _source1Stream = source1.Subscribe(
+            _source1Stream = source1.SubscribeWithId(
                 onAdd: Source1HandleAdd,
                 onRemove: Source1HandleRemove,
                 onError: _receiver.OnError,
                 onDispose: Dispose
             );
 
-            _source2Stream = source2.Subscribe(
+            _source2Stream = source2.SubscribeWithId(
                 onAdd: Source2HandleAdd,
                 onRemove: Source2HandleRemove,
                 onError: _receiver.OnError,

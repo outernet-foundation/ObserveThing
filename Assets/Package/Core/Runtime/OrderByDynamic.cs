@@ -25,9 +25,9 @@ namespace ObserveThing
             _orderBy = orderBy;
             _receiver = receiver;
 
-            _collectionStream = collection.Subscribe(
+            _collectionStream = collection.SubscribeWithId(
                 HandleAdd,
-                HandlRemove,
+                HandleRemove,
                 _receiver.OnError,
                 Dispose
             );
@@ -52,7 +52,7 @@ namespace ObserveThing
             );
         }
 
-        private void HandlRemove(uint id, T element)
+        private void HandleRemove(uint id, T element)
         {
             var data = _dataById[id];
             int index = _order.IndexOf(data);
@@ -66,24 +66,29 @@ namespace ObserveThing
         {
             var originalIndex = _order.IndexOf(data);
 
-            _order.RemoveAt(originalIndex);
-            _receiver.OnRemove(data.id, originalIndex, data.element);
+            if (originalIndex != -1)
+            {
+                _order.RemoveAt(originalIndex);
+                _receiver.OnRemove(data.id, originalIndex, data.element);
+            }
 
-            int newIndex = 0;
+            int newIndex = -1;
 
             for (int i = 0; i < _order.Count; i++)
             {
                 var compareTo = _order[i];
+
                 if (Comparer<U>.Default.Compare(data.orderBy, compareTo.orderBy) > 0)
-                {
-                    newIndex++;
-                }
-                else
-                {
-                    _order.Insert(i, data);
-                    break;
-                }
+                    continue;
+
+                newIndex = i;
+                break;
             }
+
+            if (newIndex == -1)
+                newIndex = _order.Count;
+
+            _order.Insert(newIndex, data);
 
             _receiver.OnAdd(data.id, newIndex, data.element);
         }

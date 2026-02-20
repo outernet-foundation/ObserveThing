@@ -16,21 +16,19 @@ namespace ObserveThing.Tests
             bool disposed = false;
             var result = new Dictionary<int, ObservablePrimitive<string>>();
 
-            var rootObservable = new ObservableDictionary<int, ObservablePrimitive<string>>();
-            rootObservable.Initialize("root", new ObservableNodeContext());
+            var dict = new ObservableDictionary<int, ObservablePrimitive<string>>();
+            dict.Initialize("root", new ObservableNodeContext());
 
-            var observable = rootObservable.AsObservable().Subscribe(
-                args =>
+            var observable = dict.AsObservable().Subscribe(
+                onAdd: x =>
                 {
                     callCount++;
-                    if (args.operationType == OpType.Add)
-                    {
-                        result.Add(args.key, args.value);
-                    }
-                    else if (args.operationType == OpType.Remove)
-                    {
-                        result.Remove(args.key);
-                    }
+                    result.Add(x.Key, x.Value);
+                },
+                onRemove: x =>
+                {
+                    callCount++;
+                    result.Remove(x.Key);
                 },
                 exc => exception = exc,
                 () => disposed = true
@@ -40,11 +38,11 @@ namespace ObserveThing.Tests
             Assert.IsNull(exception);
             Assert.AreEqual(false, disposed);
             CollectionAssert.AreEquivalent(
-                rootObservable,
+                dict,
                 result
             );
 
-            rootObservable.ExecuteAction(
+            dict.ExecuteAction(
                 dict => dict.Add(2).value = "cat"
             );
 
@@ -52,55 +50,55 @@ namespace ObserveThing.Tests
             Assert.IsNull(exception);
             Assert.AreEqual(false, disposed);
             CollectionAssert.AreEquivalent(
-                rootObservable,
+                dict,
                 result
             );
 
-            rootObservable.ExecuteAction(
-                dict => rootObservable.Add(4).value = "dog"
+            dict.ExecuteAction(
+                dict => dict.Add(4).value = "dog"
             );
 
             Assert.AreEqual(2, callCount);
             Assert.IsNull(exception);
             Assert.AreEqual(false, disposed);
             CollectionAssert.AreEquivalent(
-                rootObservable,
+                dict,
                 result
             );
 
-            rootObservable.ExecuteAction(
-                dict => rootObservable.Remove(4)
+            dict.ExecuteAction(
+                dict => dict.Remove(4)
             );
 
             Assert.AreEqual(3, callCount);
             Assert.IsNull(exception);
             Assert.AreEqual(false, disposed);
             CollectionAssert.AreEquivalent(
-                rootObservable,
+                dict,
                 result
             );
 
-            rootObservable.ExecuteAction(
-                dict => rootObservable.Remove(40)
+            dict.ExecuteAction(
+                dict => dict.Remove(40)
             );
 
             Assert.AreEqual(3, callCount);
             Assert.IsNull(exception);
             Assert.AreEqual(false, disposed);
             CollectionAssert.AreEquivalent(
-                rootObservable,
+                dict,
                 result
             );
 
-            rootObservable.ExecuteAction(
-                dict => rootObservable.Dispose()
+            dict.ExecuteAction(
+                dict => dict.Dispose()
             );
 
             Assert.AreEqual(3, callCount);
             Assert.IsNull(exception);
             Assert.AreEqual(true, disposed);
             CollectionAssert.AreEquivalent(
-                rootObservable,
+                dict,
                 result
             );
         }

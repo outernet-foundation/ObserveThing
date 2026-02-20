@@ -15,7 +15,7 @@ namespace ObserveThing
         {
             _receiver = receiver;
             _select = select;
-            _sourceStream = source.Subscribe(
+            _sourceStream = source.SubscribeWithId(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
                 onError: _receiver.OnError,

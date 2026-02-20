@@ -14,16 +14,14 @@ namespace ObserveThing
                     return;
 
                 _value = value;
-
-                foreach (var observer in SafeObserverEnumeration())
-                    observer.OnNext(value);
+                NotifyObservers(x => x.OnNext(value));
             }
         }
 
         private T _value = default;
         private List<ObserverData> _observers = new List<ObserverData>();
         private List<ObserverData> _disposedObservers = new List<ObserverData>();
-        private bool _executingSafeEnumerate;
+        private bool _notifyingObservers;
         private bool _disposed;
 
         private class ObserverData : IDisposable
@@ -49,24 +47,34 @@ namespace ObserveThing
             _value = startValue;
         }
 
-        private IEnumerable<IValueObserver<T>> SafeObserverEnumeration()
+        private void NotifyObservers(Action<IValueObserver<T>> notify)
         {
-            if (_executingSafeEnumerate)
-                throw new Exception("Cannot apply changes while already applying changes");
+            if (_notifyingObservers)
+                throw new Exception("Cannot notify observers while already notifying observers.");
 
-            _executingSafeEnumerate = true;
+            _notifyingObservers = true;
 
             int count = _observers.Count;
             for (int i = 0; i < count; i++)
             {
                 var instance = _observers[i];
+
                 if (instance.disposed)
                     continue;
 
-                yield return instance.observer;
+                try
+                {
+                    notify(instance.observer);
+                }
+                catch (Exception exc)
+                {
+                    // TODO: Decide
+                    // Should errors thrown by observers be looped back into the observer's onError callback?
+                    instance.observer.OnError(exc);
+                }
             }
 
-            _executingSafeEnumerate = true;
+            _notifyingObservers = false;
 
             foreach (var disposed in _disposedObservers)
                 _observers.Remove(disposed);
@@ -77,7 +85,7 @@ namespace ObserveThing
             if (_disposed)
                 return;
 
-            if (_executingSafeEnumerate)
+            if (_notifyingObservers)
             {
                 _disposedObservers.Add(observer);
                 return;

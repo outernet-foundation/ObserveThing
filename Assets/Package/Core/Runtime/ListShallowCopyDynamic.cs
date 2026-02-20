@@ -20,7 +20,7 @@ namespace ObserveThing
         public ListShallowCopyDynamic(IListObservable<IValueObservable<T>> source, IListObserver<T> receiver)
         {
             _receiver = receiver;
-            _sourceStream = source.Subscribe(
+            _sourceStream = source.SubscribeWithId(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
                 onError: _receiver.OnError,

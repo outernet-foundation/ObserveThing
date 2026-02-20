@@ -33,32 +33,29 @@ namespace ObserveThing
         private void HandleAdd(T element)
         {
             _list.Add(element);
-            var newIndex = _list.IndexOf(_latest);
-
-            if (_index == newIndex)
-                return;
-
-            _receiver.OnNext(_index);
+            UpdateIndexIfNecessary();
         }
 
         private void HandleRemove(T element)
         {
             _list.Remove(element);
-            var newIndex = _list.IndexOf(_latest);
-
-            if (_index == newIndex)
-                return;
-
-            _receiver.OnNext(_index);
+            UpdateIndexIfNecessary();
         }
 
         private void HandleNext(T value)
         {
             _latest = value;
+            UpdateIndexIfNecessary();
+        }
+
+        private void UpdateIndexIfNecessary()
+        {
             var newIndex = _list.IndexOf(_latest);
 
             if (_index == newIndex)
                 return;
+
+            _index = newIndex;
 
             _receiver.OnNext(_index);
         }

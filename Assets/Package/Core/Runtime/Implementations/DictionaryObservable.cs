@@ -9,10 +9,10 @@ namespace ObserveThing
     {
         public TValue this[TKey key]
         {
-            get => _dictionary[key];
+            get => _dictionary[key].value;
             set
             {
-                if (!_dictionary.TryGetValue(key, out var prevValue) || Equals(value, prevValue))
+                if (!_dictionary.TryGetValue(key, out var prevValue) || Equals(value, prevValue.value))
                     return;
 
                 Remove(key);
@@ -20,16 +20,21 @@ namespace ObserveThing
             }
         }
 
-        IEnumerator<KeyValuePair<TKey, TValue>> IEnumerable<KeyValuePair<TKey, TValue>>.GetEnumerator() => _dictionary.GetEnumerator();
-        IEnumerator IEnumerable.GetEnumerator() => _dictionary.GetEnumerator();
+        IEnumerator<KeyValuePair<TKey, TValue>> IEnumerable<KeyValuePair<TKey, TValue>>.GetEnumerator()
+            => _dictionary.Select(x => new KeyValuePair<TKey, TValue>(x.Key, x.Value.value)).GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator()
+            => _dictionary.Select(x => new KeyValuePair<TKey, TValue>(x.Key, x.Value.value)).GetEnumerator();
 
         public int count => _dictionary.Count;
 
-        private Dictionary<TKey, TValue> _dictionary = new Dictionary<TKey, TValue>();
+        private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
         private List<ObserverData> _observers = new List<ObserverData>();
         private List<ObserverData> _disposedObservers = new List<ObserverData>();
-        private bool _executingSafeEnumerate;
+        private bool _notifyingObservers;
         private bool _disposed;
+
+        private CollectionIdProvider _idProvider;
 
         private class ObserverData : IDisposable
         {
@@ -48,26 +53,39 @@ namespace ObserveThing
             }
         }
 
-        public DictionaryObservable() { }
-
-        private IEnumerable<IDictionaryObserver<TKey, TValue>> SafeObserverEnumeration()
+        public DictionaryObservable()
         {
-            if (_executingSafeEnumerate)
-                throw new Exception("Cannot apply changes while already applying changes");
+            _idProvider = new CollectionIdProvider(x => _dictionary.Values.Any(y => y.id == x));
+        }
 
-            _executingSafeEnumerate = true;
+        private void NotifyObservers(Action<IDictionaryObserver<TKey, TValue>> notify)
+        {
+            if (_notifyingObservers)
+                throw new Exception("Cannot notify observers while already notifying observers.");
+
+            _notifyingObservers = true;
 
             int count = _observers.Count;
             for (int i = 0; i < count; i++)
             {
                 var instance = _observers[i];
+
                 if (instance.disposed)
                     continue;
 
-                yield return instance.observer;
+                try
+                {
+                    notify(instance.observer);
+                }
+                catch (Exception exc)
+                {
+                    // TODO: Decide
+                    // Should errors thrown by observers be looped back into the observer's onError callback?
+                    instance.observer.OnError(exc);
+                }
             }
 
-            _executingSafeEnumerate = true;
+            _notifyingObservers = false;
 
             foreach (var disposed in _disposedObservers)
                 _observers.Remove(disposed);
@@ -78,7 +96,7 @@ namespace ObserveThing
             if (_disposed)
                 return;
 
-            if (_executingSafeEnumerate)
+            if (_notifyingObservers)
             {
                 _disposedObservers.Add(observer);
                 return;
@@ -88,45 +106,46 @@ namespace ObserveThing
         }
 
         public bool TryGetValue(TKey key, out TValue value)
-            => _dictionary.TryGetValue(key, out value);
+        {
+            if (_dictionary.TryGetValue(key, out var data))
+            {
+                value = data.value;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
 
         public void Add(TKey key, TValue value)
         {
-            _dictionary.Add(key, value);
-
-            foreach (var observer in SafeObserverEnumeration())
-                observer.OnAdd(new KeyValuePair<TKey, TValue>(key, value));
+            var id = _idProvider.GetUnusedId();
+            _dictionary.Add(key, (id, value));
+            NotifyObservers(x => x.OnAdd(id, new KeyValuePair<TKey, TValue>(key, value)));
         }
 
         public bool Remove(TKey key)
         {
-            if (!_dictionary.TryGetValue(key, out var value))
+            if (!_dictionary.TryGetValue(key, out var data))
                 return false;
 
             _dictionary.Remove(key);
-
-            foreach (var observer in SafeObserverEnumeration())
-                observer.OnRemove(new KeyValuePair<TKey, TValue>(key, value));
+            NotifyObservers(x => x.OnRemove(data.id, new KeyValuePair<TKey, TValue>(key, data.value)));
 
             return true;
         }
 
         public void Clear()
         {
-            foreach (var kvp in _dictionary.ToArray())
-            {
-                _dictionary.Remove(kvp.Key);
-
-                foreach (var observer in SafeObserverEnumeration())
-                    observer.OnRemove(kvp);
-            }
+            foreach (var key in _dictionary.Keys.ToArray())
+                Remove(key);
         }
 
         public bool ContainsKey(TKey key)
             => _dictionary.ContainsKey(key);
 
         public bool ContainsValue(TValue value)
-            => _dictionary.ContainsValue(value);
+            => _dictionary.Values.Select(x => x.value).Contains(value);
 
         public IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer)
         {
@@ -135,7 +154,7 @@ namespace ObserveThing
             _observers.Add(data);
 
             foreach (var kvp in _dictionary)
-                data.observer.OnAdd(kvp);
+                data.observer.OnAdd(kvp.Value.id, new KeyValuePair<TKey, TValue>(kvp.Key, kvp.Value.value));
 
             return data;
         }
@@ -150,8 +169,8 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IObserver observer)
             => Subscribe(new DictionaryObserver<TKey, TValue>(
-                onAdd: _ => observer.OnChange(),
-                onRemove: _ => observer.OnChange(),
+                onAdd: (_, _) => observer.OnChange(),
+                onRemove: (_, _) => observer.OnChange(),
                 onError: observer.OnError,
                 onDispose: observer.OnDispose
             ));
