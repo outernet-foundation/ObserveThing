@@ -103,6 +103,18 @@ namespace ObserveThing
         public static IValueObservable<bool> ObservableContains<T>(this ICollectionObservable<T> source, IValueObservable<T> contains)
             => new FactoryValueObservable<bool>(receiver => new ContainsObservable<T>(source, contains, receiver));
 
+        public static IValueObservable<T> ObservableFirstOrDefault<T>(this ICollectionObservable<T> source, Func<T, bool> validate)
+            => source.ObservableFirstOrDefault(x => new ValueObservable<bool>(validate(x)));
+
+        public static IValueObservable<T> ObservableFirstOrDefault<T>(this ICollectionObservable<T> source, Func<T, IValueObservable<bool>> validate)
+            => source.ObservableFirst(validate).ObservableSelect(x => x.found ? x.value : default);
+
+        public static IValueObservable<(bool found, T value)> ObservableFirst<T>(this ICollectionObservable<T> source, Func<T, bool> validate)
+            => source.ObservableFirst(x => new ValueObservable<bool>(validate(x)));
+
+        public static IValueObservable<(bool found, T value)> ObservableFirst<T>(this ICollectionObservable<T> source, Func<T, IValueObservable<bool>> validate)
+            => new FactoryValueObservable<(bool found, T value)>(receiver => new FirstObservable<T>(source, validate, receiver));
+
         public static IValueObservable<(bool keyPresent, TValue value)> ObservableTrack<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, TKey key)
             => source.ObservableTrack(new ValueObservable<TKey>(key));
 

@@ -556,5 +556,108 @@ namespace ObserveThing.Tests
             LogAssert.Expect(UnityEngine.LogType.Exception, "Exception: Oh no! First");
             dict.Add(11, "dog");
         }
+
+        [Test]
+        public void TestFirst()
+        {
+            (bool found, ValueObservable<int> value) result = default;
+            bool receivedCall = false;
+            bool disposed = false;
+
+            var source = new ListObservable<ValueObservable<int>>(
+                new ValueObservable<int>(1),
+                new ValueObservable<int>(4),
+                new ValueObservable<int>(4),
+                new ValueObservable<int>(13)
+            );
+
+            var subscription = source.ObservableFirst(x => x.ObservableSelect(x => x == 4))
+                .Subscribe(
+                    onNext: x =>
+                    {
+                        result = x;
+                        receivedCall = true;
+                    },
+                    onDispose: () => disposed = true
+                );
+
+            Assert.IsTrue(result.found);
+            Assert.AreEqual(source[1], result.value);
+
+            source[1].value = 100;
+
+            Assert.IsTrue(result.found);
+            Assert.AreEqual(source[2], result.value);
+
+            source.RemoveAt(2);
+
+            Assert.IsFalse(result.found);
+            Assert.IsNull(result.value);
+
+            source[0].value = 4;
+
+            Assert.IsTrue(result.found);
+            Assert.AreEqual(source[0], result.value);
+
+            source.Dispose();
+
+            Assert.IsTrue(disposed);
+
+            receivedCall = false;
+            source[0].value = 0;
+
+            Assert.IsFalse(receivedCall);
+        }
+
+        [Test]
+        public void TestFirstOrDefault()
+        {
+            ValueObservable<int> result = default;
+            bool receivedCall = false;
+            bool disposed = false;
+
+            var source = new ListObservable<ValueObservable<int>>(
+                new ValueObservable<int>(1),
+                new ValueObservable<int>(4),
+                new ValueObservable<int>(4),
+                new ValueObservable<int>(13)
+            );
+
+            var subscription = source.ObservableFirstOrDefault(x => x.ObservableSelect(x => x == 4))
+                .Subscribe(
+                    onNext: x =>
+                    {
+                        result = x;
+                        receivedCall = true;
+                    },
+                    onDispose: () => disposed = true
+                );
+
+            Assert.IsNotNull(result);
+            Assert.AreEqual(source[1], result);
+
+            source[1].value = 100;
+
+            Assert.IsNotNull(result);
+            Assert.AreEqual(source[2], result);
+
+            source.RemoveAt(2);
+
+            Assert.IsNull(result);
+
+            source[0].value = 4;
+
+            Assert.IsNotNull(result);
+            Assert.AreEqual(source[0], result);
+
+            source.Dispose();
+
+            Assert.IsTrue(disposed);
+
+            receivedCall = false;
+            source[0].value = 0;
+
+            Assert.IsFalse(receivedCall);
+        }
     }
 }
