@@ -3,101 +3,50 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class SelectCollectionObservable<T, U> : ICollectionObservable<U>
+    public class SelectCollectionObservable<T, U> : IDisposable
     {
-        public ICollectionObservable<T> collection;
-        public Func<T, U> select;
+        private IDisposable _sourceStream;
+        private Func<T, U> _select;
+        private ICollectionObserver<U> _receiver;
+        private Dictionary<uint, U> _selected = new Dictionary<uint, U>();
+        private bool _disposed;
 
-        public SelectCollectionObservable(ICollectionObservable<T> collection, Func<T, U> select)
+        public SelectCollectionObservable(ICollectionObservable<T> source, Func<T, U> select, ICollectionObserver<U> receiver)
         {
-            this.collection = collection;
-            this.select = select;
+            _receiver = receiver;
+            _select = select;
+            _sourceStream = source.SubscribeWithId(
+                onAdd: HandleAdd,
+                onRemove: HandleRemove,
+                onError: _receiver.OnError,
+                onDispose: Dispose
+            );
         }
 
-        public IDisposable Subscribe(IObserver<ICollectionEventArgs<U>> observer)
-            => new Instance(this, collection, select, observer);
-
-        private class Instance : IDisposable
+        private void HandleAdd(uint id, T value)
         {
-            private IDisposable _collectionStream;
-            private Func<T, U> _select;
-            private IObserver<ICollectionEventArgs<U>> _observer;
-            private CollectionEventArgs<U> _args = new CollectionEventArgs<U>();
-            private bool _disposed = false;
+            var selected = _select(value);
+            _selected[id] = selected;
+            _receiver.OnAdd(id, selected);
+        }
 
-            private Dictionary<T, SelectData> _selectedData = new Dictionary<T, SelectData>();
+        private void HandleRemove(uint id, T value)
+        {
+            var selected = _selected[id];
+            _selected.Remove(id);
+            _receiver.OnRemove(id, selected);
+        }
 
-            private class SelectData
-            {
-                public T element;
-                public U selected;
-                public int count;
-            }
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
 
-            public Instance(IObservable source, ICollectionObservable<T> collection, Func<T, U> select, IObserver<ICollectionEventArgs<U>> observer)
-            {
-                _select = select;
-                _observer = observer;
-                _args.source = source;
-                _collectionStream = collection.Subscribe(HandleSourceChanged, HandleSourceError, HandleSourceDisposed);
-            }
+            _disposed = true;
 
-            private void HandleSourceChanged(ICollectionEventArgs<T> args)
-            {
-                _args.operationType = args.operationType;
+            _sourceStream.Dispose();
 
-                switch (args.operationType)
-                {
-                    case OpType.Add:
-
-                        if (!_selectedData.TryGetValue(args.element, out var added))
-                        {
-                            added = new SelectData() { element = args.element, selected = _select(args.element) };
-                            _selectedData.Add(args.element, added);
-                        }
-
-                        added.count++;
-
-                        _args.element = added.selected;
-                        _observer.OnNext(_args);
-
-                        break;
-
-                    case OpType.Remove:
-
-                        var removed = _selectedData[args.element];
-                        removed.count--;
-
-                        if (removed.count == 0)
-                            _selectedData.Remove(args.element);
-
-                        _args.element = removed.selected;
-                        _observer.OnNext(_args);
-
-                        break;
-                }
-            }
-
-            private void HandleSourceError(Exception error)
-            {
-                _observer.OnError(error);
-            }
-
-            private void HandleSourceDisposed()
-            {
-                Dispose();
-            }
-
-            public void Dispose()
-            {
-                if (_disposed)
-                    return;
-
-                _disposed = true;
-
-                _collectionStream.Dispose();
-                _observer.OnDispose();
-            }
+            _receiver.OnDispose();
         }
     }
 }

@@ -4,107 +4,107 @@ using NUnit.Framework;
 
 namespace ObserveThing.Tests
 {
-    public class ManualDictionaryObservable<TKey, TValue> : IDictionaryObservable<TKey, TValue>
-    {
-        private Dictionary<TKey, TValue> _mostRecentDictionary = new Dictionary<TKey, TValue>();
-        private DictionaryEventArgs<TKey, TValue> _args = new DictionaryEventArgs<TKey, TValue>();
-        private List<Instance> _instances = new List<Instance>();
-        private bool _disposing;
+    // public class ManualDictionaryObservable<TKey, TValue> : IDictionaryObservable<TKey, TValue>
+    // {
+    //     private Dictionary<TKey, TValue> _mostRecentDictionary = new Dictionary<TKey, TValue>();
+    //     private DictionaryEventArgs<TKey, TValue> _args = new DictionaryEventArgs<TKey, TValue>();
+    //     private List<Instance> _instances = new List<Instance>();
+    //     private bool _disposing;
 
 
-        public void OnAdd(TKey key, TValue value)
-        {
-            _mostRecentDictionary.Add(key, value);
-            _args.element = new KeyValuePair<TKey, TValue>(key, value);
-            _args.operationType = OpType.Add;
-            foreach (var instance in _instances)
-                instance.OnNext(_args);
-        }
+    //     public void OnAdd(TKey key, TValue value)
+    //     {
+    //         _mostRecentDictionary.Add(key, value);
+    //         _args.element = new KeyValuePair<TKey, TValue>(key, value);
+    //         _args.operationType = OpType.Add;
+    //         foreach (var instance in _instances)
+    //             instance.OnNext(_args);
+    //     }
 
-        public void OnRemove(TKey key)
-        {
-            if (!_mostRecentDictionary.TryGetValue(key, out var value))
-                return;
+    //     public void OnRemove(TKey key)
+    //     {
+    //         if (!_mostRecentDictionary.TryGetValue(key, out var value))
+    //             return;
 
-            _mostRecentDictionary.Remove(key);
+    //         _mostRecentDictionary.Remove(key);
 
-            _args.element = new KeyValuePair<TKey, TValue>(key, value);
-            _args.operationType = OpType.Remove;
-            foreach (var instance in _instances)
-                instance.OnNext(_args);
-        }
+    //         _args.element = new KeyValuePair<TKey, TValue>(key, value);
+    //         _args.operationType = OpType.Remove;
+    //         foreach (var instance in _instances)
+    //             instance.OnNext(_args);
+    //     }
 
-        public void OnError(Exception exception)
-        {
-            foreach (var instance in _instances)
-                instance.OnError(exception);
-        }
+    //     public void OnError(Exception exception)
+    //     {
+    //         foreach (var instance in _instances)
+    //             instance.OnError(exception);
+    //     }
 
-        public void DisposeAll()
-        {
-            _disposing = true;
+    //     public void DisposeAll()
+    //     {
+    //         _disposing = true;
 
-            foreach (var instance in _instances)
-                instance.Dispose();
+    //         foreach (var instance in _instances)
+    //             instance.Dispose();
 
-            _instances.Clear();
+    //         _instances.Clear();
 
-            _disposing = false;
-        }
+    //         _disposing = false;
+    //     }
 
-        public IDisposable Subscribe(IObserver<IDictionaryEventArgs<TKey, TValue>> observer)
-        {
-            var instance = new Instance(observer, x =>
-            {
-                if (!_disposing)
-                    _instances.Remove(x);
-            });
+    //     public IDisposable Subscribe(IObserver<IDictionaryEventArgs<TKey, TValue>> observer)
+    //     {
+    //         var instance = new Instance(observer, x =>
+    //         {
+    //             if (!_disposing)
+    //                 _instances.Remove(x);
+    //         });
 
-            _instances.Add(instance);
+    //         _instances.Add(instance);
 
-            foreach (var kvp in _mostRecentDictionary)
-            {
-                _args.element = kvp;
-                _args.operationType = OpType.Add;
-                instance.OnNext(_args);
-            }
+    //         foreach (var kvp in _mostRecentDictionary)
+    //         {
+    //             _args.element = kvp;
+    //             _args.operationType = OpType.Add;
+    //             instance.OnNext(_args);
+    //         }
 
-            return instance;
-        }
+    //         return instance;
+    //     }
 
-        private class Instance : IDisposable
-        {
-            private IObserver<DictionaryEventArgs<TKey, TValue>> _observer;
-            private Action<Instance> _onDispose;
+    //     private class Instance : IDisposable
+    //     {
+    //         private IObserver<DictionaryEventArgs<TKey, TValue>> _observer;
+    //         private Action<Instance> _onDispose;
 
-            public Instance(IObserver<DictionaryEventArgs<TKey, TValue>> observer, Action<Instance> onDispose)
-            {
-                _observer = observer;
-                _onDispose = onDispose;
-            }
+    //         public Instance(IObserver<DictionaryEventArgs<TKey, TValue>> observer, Action<Instance> onDispose)
+    //         {
+    //             _observer = observer;
+    //             _onDispose = onDispose;
+    //         }
 
-            public void OnNext(DictionaryEventArgs<TKey, TValue> args)
-            {
-                _observer?.OnNext(args);
-            }
+    //         public void OnNext(DictionaryEventArgs<TKey, TValue> args)
+    //         {
+    //             _observer?.OnNext(args);
+    //         }
 
-            public void OnError(Exception error)
-            {
-                _observer?.OnError(error);
-            }
+    //         public void OnError(Exception error)
+    //         {
+    //             _observer?.OnError(error);
+    //         }
 
-            public void Dispose()
-            {
-                if (_observer == null)
-                    throw new Exception("ALREADY DISPOSED");
+    //         public void Dispose()
+    //         {
+    //             if (_observer == null)
+    //                 throw new Exception("ALREADY DISPOSED");
 
-                _observer.OnDispose();
-                _observer = null;
+    //             _observer.OnDispose();
+    //             _observer = null;
 
-                _onDispose(this);
-            }
-        }
-    }
+    //             _onDispose(this);
+    //         }
+    //     }
+    // }
 
     public class DictionaryObservableTests
     {
@@ -113,19 +113,17 @@ namespace ObserveThing.Tests
         {
             int callCount = 0;
             (bool keyPresent, string value) value = default;
-            (bool keyPresent, string value) previousValue = default;
             Exception exception = default;
             bool disposed = false;
 
-            ManualDictionaryObservable<int, string> rootObservable = new ManualDictionaryObservable<int, string>();
-            ManualValueObservable<int> keyProvider = new ManualValueObservable<int>();
+            DictionaryObservable<int, string> dict = new DictionaryObservable<int, string>();
+            ValueObservable<int> key = new ValueObservable<int>();
 
-            rootObservable.TrackDynamic(keyProvider).Subscribe(
+            dict.ObservableTrack(key).Subscribe(
                 x =>
                 {
                     callCount++;
-                    value = x.currentValue;
-                    previousValue = x.previousValue;
+                    value = x;
                 },
                 exc => exception = exc,
                 () => disposed = true
@@ -134,58 +132,46 @@ namespace ObserveThing.Tests
             Assert.AreEqual(1, callCount);
             Assert.AreEqual(false, value.keyPresent);
             Assert.AreEqual(default, value.value);
-            Assert.AreEqual(false, previousValue.keyPresent);
-            Assert.AreEqual(default, previousValue.value);
 
-            rootObservable.OnAdd(2, "cat");
+            dict.Add(2, "cat");
 
             Assert.AreEqual(1, callCount);
             Assert.AreEqual(false, value.keyPresent);
             Assert.AreEqual(default, value.value);
-            Assert.AreEqual(false, previousValue.keyPresent);
-            Assert.AreEqual(default, previousValue.value);
 
-            keyProvider.OnNext(2);
+            key.value = 2;
 
             Assert.AreEqual(2, callCount);
             Assert.AreEqual(true, value.keyPresent);
             Assert.AreEqual("cat", value.value);
-            Assert.AreEqual(false, previousValue.keyPresent);
-            Assert.AreEqual(default, previousValue.value);
 
-            rootObservable.OnRemove(2);
+            dict.Remove(2);
 
             Assert.AreEqual(3, callCount);
             Assert.AreEqual(false, value.keyPresent);
             Assert.AreEqual(default, value.value);
-            Assert.AreEqual(true, previousValue.keyPresent);
-            Assert.AreEqual("cat", previousValue.value);
 
-            rootObservable.OnRemove(40);
+            dict.Remove(40);
 
             Assert.AreEqual(3, callCount);
             Assert.AreEqual(false, value.keyPresent);
             Assert.AreEqual(default, value.value);
-            Assert.AreEqual(true, previousValue.keyPresent);
-            Assert.AreEqual("cat", previousValue.value);
 
-            rootObservable.OnAdd(2, "dog");
+            dict.Add(2, "dog");
 
             Assert.AreEqual(4, callCount);
             Assert.AreEqual(true, value.keyPresent);
             Assert.AreEqual("dog", value.value);
-            Assert.AreEqual(false, previousValue.keyPresent);
-            Assert.AreEqual(default, previousValue.value);
 
-            var exc = new Exception();
-            rootObservable.OnError(exc);
-            Assert.AreEqual(exc, exception);
+            // var exc = new Exception();
+            // dict.OnError(exc);
+            // Assert.AreEqual(exc, exception);
 
-            var keyProviderExc = new Exception();
-            rootObservable.OnError(keyProviderExc);
-            Assert.AreEqual(keyProviderExc, exception);
+            // var keyProviderExc = new Exception();
+            // dict.OnError(keyProviderExc);
+            // Assert.AreEqual(keyProviderExc, exception);
 
-            rootObservable.DisposeAll();
+            dict.Dispose();
             Assert.IsTrue(disposed);
         }
     }

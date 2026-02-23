@@ -1,67 +1,32 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 
 namespace ObserveThing
 {
-    public class AnyObservable : IObservable
+    public class AnyObservable : IDisposable
     {
-        public IObservable[] observables;
+        private IDisposable _subscription;
+        private IObserver _receiver;
 
-        public AnyObservable(params IObservable[] observables)
+        private bool _disposed;
+
+        public AnyObservable(IObservable[] observables, IObserver receiver)
         {
-            this.observables = observables;
+            _receiver = receiver;
+            _subscription = new ComposedDisposable(observables.Select(x => x.Subscribe(
+                onChange: receiver.OnChange,
+                onError: receiver.OnError
+            )).ToArray());
         }
 
-        public IDisposable Subscribe(IObserver<IObservableEventArgs> observer)
-            => new Instance(observables, observer);
-
-        private class Instance : IDisposable
+        public void Dispose()
         {
-            private IObserver<IObservableEventArgs> _observer;
-            private List<IObservable> _activeObservers = new List<IObservable>();
-            private IDisposable _streams;
-            private bool _disposed;
+            if (_disposed)
+                return;
 
-            public Instance(IObservable[] observables, IObserver<IObservableEventArgs> observer)
-            {
-                _observer = observer;
-                _activeObservers.AddRange(observables);
-                _streams = new ComposedDisposable(
-                    observables.Select(x => x.Subscribe(
-                        HandleObservableChanged,
-                        HandleObservableError,
-                        () => HandleObservableDisposed(x)
-                    )).ToArray()
-                );
-            }
-
-            private void HandleObservableChanged(IObservableEventArgs args)
-            {
-                _observer.OnNext(args);
-            }
-
-            public void HandleObservableError(Exception exception)
-            {
-                _observer.OnError(exception);
-            }
-
-            public void HandleObservableDisposed(IObservable observable)
-            {
-                _activeObservers.Remove(observable);
-                if (_activeObservers.Count == 0)
-                    Dispose();
-            }
-
-            public void Dispose()
-            {
-                if (_disposed)
-                    return;
-
-                _disposed = true;
-                _streams.Dispose();
-                _observer.OnDispose();
-            }
+            _disposed = true;
+            _subscription.Dispose();
+            _receiver.OnDispose();
         }
     }
 }

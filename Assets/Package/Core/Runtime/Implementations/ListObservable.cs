@@ -1,52 +1,110 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace ObserveThing
 {
     public class ListObservable<T> : IListObservable<T>, IEnumerable<T>
     {
-        IEnumerator<T> IEnumerable<T>.GetEnumerator() => _list.GetEnumerator();
-        IEnumerator IEnumerable.GetEnumerator() => _list.GetEnumerator();
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
 
         public int count => _list.Count;
-        public T this[int index] => _list[index];
+        public T this[int index]
+        {
+            get => _list[index].value;
+            set
+            {
+                if (Equals(_list[index].value, value))
+                    return;
 
-        private List<T> _list = new List<T>();
-        private List<Instance> _instances = new List<Instance>();
-        private List<Instance> _disposedInstances = new List<Instance>();
-        private bool _executingOnNext;
+                RemoveAt(index);
+                Insert(index, value);
+            }
+        }
+
+        private List<(uint id, T value)> _list = new List<(uint id, T value)>();
+        private List<ObserverData> _observers = new List<ObserverData>();
+        private List<ObserverData> _disposedObservers = new List<ObserverData>();
+        private bool _notifyingObservers;
         private bool _disposed;
-        private IDisposable _fromSubscription;
 
-        public ListObservable(params T[] source) : this((IEnumerable<T>)source)
-        { }
+        private CollectionIdProvider _idProvider;
+
+        private class ObserverData : IDisposable
+        {
+            public IListObserver<T> observer;
+            public Action<ObserverData> onDispose;
+            public bool disposed { get; private set; }
+
+            public void Dispose()
+            {
+                if (disposed)
+                    return;
+
+                disposed = true;
+                onDispose?.Invoke(this);
+                observer.OnDispose();
+            }
+        }
+
+        public ListObservable(params T[] source) : this((IEnumerable<T>)source) { }
 
         public ListObservable(IEnumerable<T> source) : this()
         {
-            _list.AddRange(source);
+            foreach (var element in source)
+                _list.Add(new(_idProvider.GetUnusedId(), element));
         }
 
-        public ListObservable() { }
-
-        private void SafeOnNext(IObservable source, T element, int index, OpType opType)
+        public ListObservable()
         {
-            _executingOnNext = true;
+            _idProvider = new CollectionIdProvider(x => _list.Any(item => item.id == x));
+        }
 
-            int count = _instances.Count;
+        private void NotifyObservers(Action<IListObserver<T>> notify)
+        {
+            if (_notifyingObservers)
+                throw new Exception("Cannot notify observers while already notifying observers.");
+
+            _notifyingObservers = true;
+
+            int count = _observers.Count;
             for (int i = 0; i < count; i++)
             {
-                var instance = _instances[i];
+                var instance = _observers[i];
+
                 if (instance.disposed)
                     continue;
 
-                instance.OnNext(source, element, index, opType);
+                try
+                {
+                    notify(instance.observer);
+                }
+                catch (Exception exc)
+                {
+                    instance.observer.OnError(exc);
+                }
             }
 
-            foreach (var disposedInstance in _disposedInstances)
-                _instances.Remove(disposedInstance);
+            _notifyingObservers = false;
 
-            _executingOnNext = false;
+            foreach (var disposed in _disposedObservers)
+                _observers.Remove(disposed);
+        }
+
+        private void HandleObserverDisposed(ObserverData observer)
+        {
+            if (_disposed)
+                return;
+
+            if (_notifyingObservers)
+            {
+                _disposedObservers.Add(observer);
+                return;
+            }
+
+            _observers.Remove(observer);
         }
 
         public void Add(T added)
@@ -60,7 +118,8 @@ namespace ObserveThing
 
         public bool Remove(T removed)
         {
-            var index = _list.IndexOf(removed);
+            var index = _list.FindIndex(x => Equals(x.value, removed));
+
             if (index == -1)
                 return false;
 
@@ -70,15 +129,16 @@ namespace ObserveThing
 
         public void RemoveAt(int index)
         {
-            T removed = _list[index];
+            var removed = _list[index];
             _list.RemoveAt(index);
-            SafeOnNext(this, removed, index, OpType.Remove);
+            NotifyObservers(x => x.OnRemove(removed.id, index, removed.value));
         }
 
         public void Insert(int index, T inserted)
         {
-            _list.Insert(index, inserted);
-            SafeOnNext(this, inserted, index, OpType.Add);
+            var id = _idProvider.GetUnusedId();
+            _list.Insert(index, new(id, inserted));
+            NotifyObservers(x => x.OnAdd(id, index, inserted));
         }
 
         public void Clear()
@@ -88,36 +148,41 @@ namespace ObserveThing
         }
 
         public int IndexOf(T item)
-        {
-            return _list.IndexOf(item);
-        }
+            => _list.FindIndex(x => Equals(x.value, item));
 
         public bool Contains(T item)
-            => _list.Contains(item);
+            => _list.Any(x => Equals(x.value, item));
 
-        public IDisposable Subscribe(IObserver<IListEventArgs<T>> observer)
+        public IDisposable Subscribe(IListObserver<T> observer)
         {
-            var instance = new Instance(observer, x =>
-            {
-                if (_disposed)
-                    return;
+            var data = new ObserverData() { observer = observer, onDispose = HandleObserverDisposed };
 
-                if (_executingOnNext)
-                {
-                    _disposedInstances.Add(x);
-                    return;
-                }
-
-                _instances.Remove(x);
-            });
-
-            _instances.Add(instance);
+            _observers.Add(data);
 
             for (int i = 0; i < _list.Count; i++)
-                instance.OnNext(this, _list[i], i, OpType.Add);
+            {
+                var element = _list[i];
+                data.observer.OnAdd(element.id, i, element.value);
+            }
 
-            return instance;
+            return data;
         }
+
+        public IDisposable Subscribe(ICollectionObserver<T> observer)
+            => Subscribe(new ListObserver<T>(
+                onAdd: (id, _, value) => observer.OnAdd(id, value),
+                onRemove: (id, _, value) => observer.OnRemove(id, value),
+                onError: observer.OnError,
+                onDispose: observer.OnDispose
+            ));
+
+        public IDisposable Subscribe(IObserver observer)
+            => Subscribe(new ListObserver<T>(
+                onAdd: (_, _, _) => observer.OnChange(),
+                onRemove: (_, _, _) => observer.OnChange(),
+                onError: observer.OnError,
+                onDispose: observer.OnDispose
+            ));
 
         public void Dispose()
         {
@@ -126,53 +191,10 @@ namespace ObserveThing
 
             _disposed = true;
 
-            foreach (var instance in _instances)
+            foreach (var instance in _observers)
                 instance.Dispose();
 
-            _instances.Clear();
-            _fromSubscription?.Dispose();
-        }
-
-        private class Instance : IDisposable
-        {
-            public bool disposed { get; private set; }
-
-            private IObserver<ListEventArgs<T>> _observer;
-            private Action<Instance> _onDispose;
-            private ListEventArgs<T> _args = new ListEventArgs<T>();
-
-            public Instance(IObserver<ListEventArgs<T>> observer, Action<Instance> onDispose)
-            {
-                _observer = observer;
-                _onDispose = onDispose;
-            }
-
-            public void OnNext(IObservable source, T element, int index, OpType opType)
-            {
-                _args.source = source;
-                _args.element = element;
-                _args.index = index;
-                _args.operationType = opType;
-                _observer?.OnNext(_args);
-            }
-
-            public void OnError(Exception error)
-            {
-                _observer?.OnError(error);
-            }
-
-            public void Dispose()
-            {
-                if (disposed)
-                    return;
-
-                disposed = true;
-
-                _observer.OnDispose();
-                _observer = null;
-
-                _onDispose(this);
-            }
+            _observers.Clear();
         }
     }
 }

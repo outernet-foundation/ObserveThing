@@ -3,92 +3,50 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class SelectListObservable<T, U> : IListObservable<U>
+    public class SelectListObservable<T, U> : IDisposable
     {
-        public IListObservable<T> list;
-        public Func<T, U> select;
+        private IDisposable _sourceStream;
+        private Func<T, U> _select;
+        private IListObserver<U> _receiver;
+        private List<U> _selectedElements = new List<U>();
+        private bool _disposed;
 
-        public SelectListObservable(IListObservable<T> list, Func<T, U> select)
+        public SelectListObservable(IListObservable<T> source, Func<T, U> select, IListObserver<U> receiver)
         {
-            this.list = list;
-            this.select = select;
+            _receiver = receiver;
+            _select = select;
+            _sourceStream = source.Subscribe(new ListObserver<T>(
+                onAdd: HandleAdd,
+                onRemove: HandleRemove,
+                onError: receiver.OnError,
+                onDispose: Dispose
+            ));
         }
 
-        public IDisposable Subscribe(IObserver<IListEventArgs<U>> observer)
-            => new Instance(this, list, select, observer);
-
-        private class Instance : IDisposable
+        private void HandleAdd(uint id, int index, T value)
         {
-            private IDisposable _listStream;
-            private Func<T, U> _select;
-            private IObserver<IListEventArgs<U>> _observer;
-            private ListEventArgs<U> _args = new ListEventArgs<U>();
-            private bool _disposed = false;
+            var selected = _select(value);
+            _selectedElements.Insert(index, selected);
+            _receiver.OnAdd(id, index, selected);
+        }
 
-            private List<U> _currentList = new List<U>();
+        private void HandleRemove(uint id, int index, T _)
+        {
+            var selected = _selectedElements[index];
+            _selectedElements.RemoveAt(index);
+            _receiver.OnRemove(id, index, selected);
+        }
 
-            public Instance(IObservable source, IListObservable<T> list, Func<T, U> select, IObserver<IListEventArgs<U>> observer)
-            {
-                _select = select;
-                _observer = observer;
-                _args.source = source;
-                _listStream = list.Subscribe(HandleSourceChanged, HandleSourceError, HandleSourceDisposed);
-            }
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
 
-            private void HandleSourceChanged(IListEventArgs<T> args)
-            {
-                _args.operationType = args.operationType;
+            _disposed = true;
 
-                switch (args.operationType)
-                {
-                    case OpType.Add:
+            _sourceStream.Dispose();
 
-                        var added = _select(args.element);
-                        _currentList.Insert(args.index, added);
-
-                        _args.operationType = OpType.Add;
-                        _args.element = added;
-                        _args.index = args.index;
-
-                        _observer.OnNext(_args);
-
-                        break;
-
-                    case OpType.Remove:
-
-                        var removed = _currentList[args.index];
-                        _currentList.RemoveAt(args.index);
-
-                        _args.operationType = OpType.Remove;
-                        _args.element = removed;
-                        _args.index = args.index;
-
-                        _observer.OnNext(_args);
-
-                        break;
-                }
-            }
-
-            private void HandleSourceError(Exception error)
-            {
-                _observer.OnError(error);
-            }
-
-            private void HandleSourceDisposed()
-            {
-                Dispose();
-            }
-
-            public void Dispose()
-            {
-                if (_disposed)
-                    return;
-
-                _disposed = true;
-
-                _listStream.Dispose();
-                _observer.OnDispose();
-            }
+            _receiver.OnDispose();
         }
     }
 }

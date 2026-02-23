@@ -8,843 +8,500 @@ namespace ObserveThing.StatefulExtensions
     public static class Extensions
     {
         public static ICollectionObservable<PrimitiveMapPair<TLeft, TRight>> AsObservable<TLeft, TRight>(this ObservablePrimitiveMap<TLeft, TRight> map)
-        {
-            return new StatefulPrimitiveMapObservable<TLeft, TRight>(map);
-        }
+            => new FactoryCollectionObservable<PrimitiveMapPair<TLeft, TRight>>(receiver => new StatefulPrimitiveMapObservable<TLeft, TRight>(map, receiver));
 
-        private class StatefulPrimitiveMapObservable<TLeft, TRight> : ICollectionObservable<PrimitiveMapPair<TLeft, TRight>>
+        public class StatefulPrimitiveMapObservable<TLeft, TRight> : IDisposable
         {
-            private ObservablePrimitiveMap<TLeft, TRight> _source;
-            private CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>> _args = new CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>();
-            private List<IObserver<ICollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>>> _observers = new List<IObserver<ICollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>>>();
+            private ObservablePrimitiveMap<TLeft, TRight> _primitiveMap;
+            private ICollectionObserver<PrimitiveMapPair<TLeft, TRight>> _receiver;
+            private CollectionIdProvider _idProvider;
+            private Dictionary<PrimitiveMapPair<TLeft, TRight>, uint> _idByElement = new Dictionary<PrimitiveMapPair<TLeft, TRight>, uint>();
+            private bool _disposed;
 
-            public StatefulPrimitiveMapObservable(ObservablePrimitiveMap<TLeft, TRight> source)
+            public StatefulPrimitiveMapObservable(ObservablePrimitiveMap<TLeft, TRight> primitiveMap, ICollectionObserver<PrimitiveMapPair<TLeft, TRight>> receiver)
             {
-                _source = source;
+                _primitiveMap = primitiveMap;
+                _receiver = receiver;
+                _idProvider = new CollectionIdProvider(x => _idByElement.Values.Contains(x));
+                _primitiveMap.context.RegisterObserver(HandlePrimitiveMapChanged, new ObserverParameters() { scope = ObservationScope.Self }, _primitiveMap);
             }
 
-            public IDisposable Subscribe(IObserver<ICollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>> observer)
-            {
-                _observers.Add(observer);
-
-                if (_observers.Count == 1)
-                    _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
-
-                var initArgs = new CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>() { operationType = OpType.Add };
-
-                foreach (var element in _source)
-                {
-                    initArgs.element = element;
-                    observer.OnNext(initArgs);
-                }
-
-                return new ObserverHandle() { observer = observer, source = this };
-            }
-
-            private void HandleSourceChanged(NodeChangeEventArgs args)
+            private void HandlePrimitiveMapChanged(NodeChangeEventArgs args)
             {
                 if (args.initialize)
+                {
+                    foreach (var element in _primitiveMap)
+                    {
+                        var id = _idProvider.GetUnusedId();
+                        _idByElement.Add(element, id);
+                        _receiver.OnAdd(id, element);
+                    }
+
                     return;
+                }
 
                 foreach (var change in args.changes)
                 {
-                    switch (change.changeType)
+                    if (change.changeType == ChangeType.Add)
                     {
-                        case ChangeType.Add:
-                            _args.operationType = OpType.Add;
-                            _args.element = (PrimitiveMapPair<TLeft, TRight>)change.collectionElement;
-                            NotifyObservers(_args);
-                            break;
-
-                        case ChangeType.Remove:
-                            _args.operationType = OpType.Remove;
-                            _args.element = (PrimitiveMapPair<TLeft, TRight>)change.collectionElement;
-                            NotifyObservers(_args);
-                            break;
-
-                        case ChangeType.Dispose:
-                            DisposeObservers();
-                            return;
+                        var element = (PrimitiveMapPair<TLeft, TRight>)change.collectionElement;
+                        var id = _idProvider.GetUnusedId();
+                        _idByElement.Add(element, id);
+                        _receiver.OnAdd(id, element);
+                    }
+                    else if (change.changeType == ChangeType.Remove)
+                    {
+                        var element = (PrimitiveMapPair<TLeft, TRight>)change.collectionElement;
+                        var id = _idByElement[element];
+                        _idByElement.Remove(element);
+                        _receiver.OnRemove(id, element);
+                    }
+                    else if (change.changeType == ChangeType.Dispose)
+                    {
+                        Dispose();
+                        return;
                     }
                 }
             }
 
-            private void NotifyObservers(CollectionEventArgs<PrimitiveMapPair<TLeft, TRight>> args)
+            public void Dispose()
             {
-                foreach (var observer in _observers.ToArray())
-                    observer.OnNext(args);
-            }
+                if (_disposed)
+                    return;
 
-            private void DisposeObservers()
-            {
-                foreach (var observer in _observers.ToArray())
-                    observer.OnDispose();
+                _disposed = true;
 
-                _observers.Clear();
-            }
-
-            private void Unsubscribe(IObserver<ICollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>> observer)
-            {
-                if (_observers.Remove(observer) && _observers.Count == 0)
-                    _source.context.DeregisterObserver(HandleSourceChanged);
-            }
-
-            private class ObserverHandle : IDisposable
-            {
-                public IObserver<ICollectionEventArgs<PrimitiveMapPair<TLeft, TRight>>> observer;
-                public StatefulPrimitiveMapObservable<TLeft, TRight> source;
-
-                private bool _disposed;
-
-                public void Dispose()
-                {
-                    if (_disposed)
-                        return;
-
-                    _disposed = true;
-                    source.Unsubscribe(observer);
-                }
+                _primitiveMap.context.DeregisterObserver(HandlePrimitiveMapChanged);
+                _receiver.OnDispose();
             }
         }
 
-        public static IValueObservable<T[]> AsObservable<T>(this ObservablePrimitiveArray<T> primitiveArray)
-        {
-            return new StatefulPrimitiveArrayObservable<T>(primitiveArray);
-        }
+        public static IValueObservable<IReadOnlyCollection<T>> AsObservable<T>(this ObservablePrimitiveArray<T> primitiveArray)
+            => new FactoryValueObservable<IReadOnlyCollection<T>>(receiver => new StatefulPrimitiveArrayObservable<T>(primitiveArray, receiver));
 
-        private class StatefulPrimitiveArrayObservable<T> : IValueObservable<T[]>
+        private class StatefulPrimitiveArrayObservable<T> : IDisposable
         {
-            private ObservablePrimitiveArray<T> _source;
-            private T[] _previousValue;
-            private ValueEventArgs<T[]> _args = new ValueEventArgs<T[]>();
-            private List<IObserver<IValueEventArgs<T[]>>> _observers = new List<IObserver<IValueEventArgs<T[]>>>();
+            private ObservablePrimitiveArray<T> _primitiveArray;
+            private IValueObserver<IReadOnlyCollection<T>> _receiver;
+            private bool _disposed;
 
-            public StatefulPrimitiveArrayObservable(ObservablePrimitiveArray<T> source)
+            public StatefulPrimitiveArrayObservable(ObservablePrimitiveArray<T> primitiveArray, IValueObserver<IReadOnlyCollection<T>> receiver)
             {
-                _source = source;
+                _primitiveArray = primitiveArray;
+                _receiver = receiver;
+
+                _primitiveArray.context.RegisterObserver(HandlePrimitiveChanged, new ObserverParameters() { scope = ObservationScope.Self }, _primitiveArray);
             }
 
-            public IDisposable Subscribe(IObserver<IValueEventArgs<T[]>> observer)
-            {
-                _observers.Add(observer);
-
-                if (_observers.Count == 1)
-                    _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
-
-                observer.OnNext(new ValueEventArgs<T[]>() { previousValue = null, currentValue = _source.ToArray() });
-
-                return new ObserverHandle() { observer = observer, source = this };
-            }
-
-            private void HandleSourceChanged(NodeChangeEventArgs args)
+            private void HandlePrimitiveChanged(NodeChangeEventArgs args)
             {
                 if (args.initialize)
-                    return;
-
-                if (_source.disposed)
                 {
-                    foreach (var observer in _observers.ToArray())
-                        observer.OnDispose();
-
-                    _observers.Clear();
-
+                    _receiver.OnNext(_primitiveArray.ToArray());
                     return;
                 }
 
-                _args.previousValue = _previousValue;
-                _args.currentValue = _source.ToArray();
-
-                foreach (var observer in _observers.ToArray())
-                    observer.OnNext(_args);
-
-                _previousValue = _args.currentValue;
-            }
-
-            private void Unsubscribe(IObserver<IValueEventArgs<T[]>> observer)
-            {
-                if (_observers.Remove(observer) && _observers.Count == 0)
-                    _source.context.DeregisterObserver(HandleSourceChanged);
-            }
-
-            private class ObserverHandle : IDisposable
-            {
-                public IObserver<IValueEventArgs<T[]>> observer;
-                public StatefulPrimitiveArrayObservable<T> source;
-
-                private bool _disposed;
-
-                public void Dispose()
+                foreach (var change in args.changes)
                 {
-                    if (_disposed)
+                    if (change.changeType == ChangeType.Set)
+                    {
+                        _receiver.OnNext((IReadOnlyCollection<T>)change.currentValue);
+                    }
+                    else if (change.changeType == ChangeType.Dispose)
+                    {
+                        Dispose();
                         return;
-
-                    _disposed = true;
-                    source.Unsubscribe(observer);
+                    }
                 }
+            }
+
+            public void Dispose()
+            {
+                if (_disposed)
+                    return;
+
+                _disposed = true;
+
+                _primitiveArray.context.DeregisterObserver(HandlePrimitiveChanged);
+                _receiver.OnDispose();
             }
         }
 
         public static IDictionaryObservable<TKey, TValue> AsObservable<TKey, TValue>(this ObservableDictionary<TKey, TValue> dictionary)
-            where TValue : IObservableNode, new()
-        {
-            return new StatefulDictionaryObservable<TKey, TValue>(dictionary);
-        }
+            where TValue : IObservableNode, new() => new FactoryDictionaryObservable<TKey, TValue>(receiver => new StatefulDictionaryObservable<TKey, TValue>(dictionary, receiver));
 
-        private class StatefulDictionaryObservable<TKey, TValue> : IDictionaryObservable<TKey, TValue> where TValue : IObservableNode, new()
+        public class StatefulDictionaryObservable<TKey, TValue> : IDisposable where TValue : IObservableNode, new()
         {
-            private ObservableDictionary<TKey, TValue> _source;
-            private DictionaryEventArgs<TKey, TValue> _args = new DictionaryEventArgs<TKey, TValue>();
-            private List<IObserver<DictionaryEventArgs<TKey, TValue>>> _observers = new List<IObserver<DictionaryEventArgs<TKey, TValue>>>();
+            private ObservableDictionary<TKey, TValue> _dictionary;
+            private IDictionaryObserver<TKey, TValue> _receiver;
+            private CollectionIdProvider _idProvider;
+            private Dictionary<TKey, uint> _idByKey = new Dictionary<TKey, uint>();
+            private bool _disposed;
 
-            public StatefulDictionaryObservable(ObservableDictionary<TKey, TValue> source)
+            public StatefulDictionaryObservable(ObservableDictionary<TKey, TValue> dictionary, IDictionaryObserver<TKey, TValue> receiver)
             {
-                _source = source;
+                _dictionary = dictionary;
+                _receiver = receiver;
+                _idProvider = new CollectionIdProvider(x => _idByKey.Values.Contains(x));
+                _dictionary.context.RegisterObserver(HandleDictionaryChanged, new ObserverParameters() { scope = ObservationScope.Self }, _dictionary);
             }
 
-            public IDisposable Subscribe(IObserver<IDictionaryEventArgs<TKey, TValue>> observer)
-            {
-                _observers.Add(observer);
-
-                if (_observers.Count == 1)
-                    _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
-
-                var initArgs = new DictionaryEventArgs<TKey, TValue>() { operationType = OpType.Add };
-
-                foreach (var kvp in _source)
-                {
-                    initArgs.element = new KeyValuePair<TKey, TValue>(kvp.key, kvp.value);
-                    observer.OnNext(initArgs);
-                }
-
-                return new ObserverHandle() { observer = observer, source = this };
-            }
-
-            private void HandleSourceChanged(NodeChangeEventArgs args)
+            private void HandleDictionaryChanged(NodeChangeEventArgs args)
             {
                 if (args.initialize)
+                {
+                    foreach (var kvp in _dictionary)
+                    {
+                        var id = _idProvider.GetUnusedId();
+                        _idByKey.Add(kvp.key, id);
+                        _receiver.OnAdd(id, new KeyValuePair<TKey, TValue>(kvp.key, kvp.value));
+                    }
+
                     return;
+                }
 
                 foreach (var change in args.changes)
                 {
-                    switch (change.changeType)
+                    if (change.changeType == ChangeType.Add)
                     {
-                        case ChangeType.Add:
-                            _args.operationType = OpType.Add;
-                            var addedElement = (KVP<TKey, TValue>)change.collectionElement;
-                            _args.element = new KeyValuePair<TKey, TValue>(addedElement.key, addedElement.value);
-                            NotifyObservers(_args);
-                            break;
-
-                        case ChangeType.Remove:
-                            _args.operationType = OpType.Remove;
-                            var removedElement = (KVP<TKey, TValue>)change.collectionElement;
-                            _args.element = new KeyValuePair<TKey, TValue>(removedElement.key, removedElement.value);
-                            NotifyObservers(_args);
-                            break;
-
-                        case ChangeType.Dispose:
-                            DisposeObservers();
-                            return;
+                        var kvp = (KVP<TKey, TValue>)change.collectionElement;
+                        var id = _idProvider.GetUnusedId();
+                        _idByKey.Add(kvp.key, id);
+                        _receiver.OnAdd(id, new KeyValuePair<TKey, TValue>(kvp.key, kvp.value));
+                    }
+                    else if (change.changeType == ChangeType.Remove)
+                    {
+                        var kvp = (KVP<TKey, TValue>)change.collectionElement;
+                        var id = _idByKey[kvp.key];
+                        _idByKey.Remove(kvp.key);
+                        _receiver.OnRemove(id, new KeyValuePair<TKey, TValue>(kvp.key, kvp.value));
+                    }
+                    else if (change.changeType == ChangeType.Dispose)
+                    {
+                        Dispose();
+                        return;
                     }
                 }
             }
 
-            private void NotifyObservers(DictionaryEventArgs<TKey, TValue> args)
+            public void Dispose()
             {
-                foreach (var observer in _observers.ToArray())
-                    observer.OnNext(args);
-            }
+                if (_disposed)
+                    return;
 
-            private void DisposeObservers()
-            {
-                foreach (var observer in _observers.ToArray())
-                    observer.OnDispose();
+                _disposed = true;
 
-                _observers.Clear();
-            }
-
-            private void Unsubscribe(IObserver<DictionaryEventArgs<TKey, TValue>> observer)
-            {
-                if (_observers.Remove(observer) && _observers.Count == 0)
-                    _source.context.DeregisterObserver(HandleSourceChanged);
-            }
-
-            private class ObserverHandle : IDisposable
-            {
-                public IObserver<DictionaryEventArgs<TKey, TValue>> observer;
-                public StatefulDictionaryObservable<TKey, TValue> source;
-
-                private bool _disposed;
-
-                public void Dispose()
-                {
-                    if (_disposed)
-                        return;
-
-                    _disposed = true;
-                    source.Unsubscribe(observer);
-                }
+                _dictionary.context.DeregisterObserver(HandleDictionaryChanged);
+                _receiver.OnDispose();
             }
         }
 
         public static IListObservable<T> AsObservable<T>(this ObservableList<T> list)
-            where T : IObservableNode, new()
-        {
-            return new StatefulListObservable<T>(list);
-        }
+            where T : IObservableNode, new() => new FactoryListObservable<T>(receiver => new StatefulListObservable<T>(list, receiver));
 
-        private class StatefulListObservable<T> : IListObservable<T> where T : IObservableNode, new()
+        public class StatefulListObservable<T> : IDisposable where T : IObservableNode, new()
         {
-            private ObservableList<T> _source;
-            private ListEventArgs<T> _args = new ListEventArgs<T>();
-            private List<IObserver<ListEventArgs<T>>> _observers = new List<IObserver<ListEventArgs<T>>>();
+            private ObservableList<T> _list;
+            private IListObserver<T> _receiver;
+            private CollectionIdProvider _idProvider;
+            private Dictionary<T, uint> _idByElement = new Dictionary<T, uint>();
+            private bool _disposed;
 
-            public StatefulListObservable(ObservableList<T> source)
+            public StatefulListObservable(ObservableList<T> list, IListObserver<T> receiver)
             {
-                _source = source;
+                _list = list;
+                _receiver = receiver;
+                _idProvider = new CollectionIdProvider(x => _idByElement.Values.Contains(x));
+                _list.context.RegisterObserver(HandleListChanged, new ObserverParameters() { scope = ObservationScope.Self }, _list);
             }
 
-            public IDisposable Subscribe(IObserver<IListEventArgs<T>> observer)
-            {
-                _observers.Add(observer);
-
-                if (_observers.Count == 1)
-                    _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
-
-                var initArgs = new ListEventArgs<T>() { operationType = OpType.Add };
-
-                for (int i = 0; i < _source.count; i++)
-                {
-                    initArgs.index = i;
-                    initArgs.element = _source[i];
-                    observer.OnNext(initArgs);
-                }
-
-                return new ObserverHandle() { observer = observer, source = this };
-            }
-
-            private void HandleSourceChanged(NodeChangeEventArgs args)
+            private void HandleListChanged(NodeChangeEventArgs args)
             {
                 if (args.initialize)
+                {
+                    for (int i = 0; i < _list.count; i++)
+                    {
+                        var element = _list[i];
+                        var id = _idProvider.GetUnusedId();
+                        _idByElement.Add(element, id);
+                        _receiver.OnAdd(id, i, element);
+                    }
+
                     return;
+                }
 
                 foreach (var change in args.changes)
                 {
-                    switch (change.changeType)
+                    if (change.changeType == ChangeType.Add)
                     {
-                        case ChangeType.Add:
-                            _args.operationType = OpType.Add;
-                            _args.index = change.index.Value;
-                            _args.element = (T)change.collectionElement;
-                            NotifyObservers(_args);
-                            break;
-
-                        case ChangeType.Remove:
-                            _args.operationType = OpType.Remove;
-                            _args.index = change.index.Value;
-                            _args.element = (T)change.collectionElement;
-                            NotifyObservers(_args);
-                            break;
-
-                        case ChangeType.Dispose:
-                            DisposeObservers();
-                            return;
+                        var element = (T)change.collectionElement;
+                        var id = _idProvider.GetUnusedId();
+                        _idByElement.Add(element, id);
+                        _receiver.OnAdd(id, change.index.Value, element);
+                    }
+                    else if (change.changeType == ChangeType.Remove)
+                    {
+                        var element = (T)change.collectionElement;
+                        var id = _idByElement[element];
+                        _idByElement.Remove(element);
+                        _receiver.OnRemove(id, change.index.Value, element);
+                    }
+                    else if (change.changeType == ChangeType.Dispose)
+                    {
+                        Dispose();
+                        return;
                     }
                 }
             }
 
-            private void NotifyObservers(ListEventArgs<T> args)
+            public void Dispose()
             {
-                foreach (var observer in _observers.ToArray())
-                    observer.OnNext(args);
-            }
+                if (_disposed)
+                    return;
 
-            private void DisposeObservers()
-            {
-                foreach (var observer in _observers.ToArray())
-                    observer.OnDispose();
+                _disposed = true;
 
-                _observers.Clear();
-            }
-
-            private void Unsubscribe(IObserver<ListEventArgs<T>> observer)
-            {
-                if (_observers.Remove(observer) && _observers.Count == 0)
-                    _source.context.DeregisterObserver(HandleSourceChanged);
-            }
-
-            private class ObserverHandle : IDisposable
-            {
-                public IObserver<ListEventArgs<T>> observer;
-                public StatefulListObservable<T> source;
-
-                private bool _disposed;
-
-                public void Dispose()
-                {
-                    if (_disposed)
-                        return;
-
-                    _disposed = true;
-                    source.Unsubscribe(observer);
-                }
+                _list.context.DeregisterObserver(HandleListChanged);
+                _receiver.OnDispose();
             }
         }
 
         public static IListObservable<object> AsObservable(this IObservableList list)
-        {
-            return new StatefulListObservable(list);
-        }
+            => new FactoryListObservable<object>(receiver => new StatefulListObservable(list, receiver));
 
-        private class StatefulListObservable : IListObservable<object>
+        public class StatefulListObservable : IDisposable
         {
-            private IObservableList _source;
-            private ListEventArgs<object> _args = new ListEventArgs<object>();
-            private List<IObserver<ListEventArgs<object>>> _observers = new List<IObserver<ListEventArgs<object>>>();
+            private IObservableList _list;
+            private IListObserver<object> _receiver;
+            private CollectionIdProvider _idProvider;
+            private Dictionary<object, uint> _idByElement = new Dictionary<object, uint>();
+            private bool _disposed;
 
-            public StatefulListObservable(IObservableList source)
+            public StatefulListObservable(IObservableList list, IListObserver<object> receiver)
             {
-                _source = source;
+                _list = list;
+                _receiver = receiver;
+                _idProvider = new CollectionIdProvider(x => _idByElement.Values.Contains(x));
+                _list.context.RegisterObserver(HandleListChanged, new ObserverParameters() { scope = ObservationScope.Self }, _list);
             }
 
-            public IDisposable Subscribe(IObserver<IListEventArgs<object>> observer)
-            {
-                _observers.Add(observer);
-
-                if (_observers.Count == 1)
-                    _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
-
-                var initArgs = new ListEventArgs<object>() { operationType = OpType.Add };
-
-                for (int i = 0; i < _source.count; i++)
-                {
-                    initArgs.index = i;
-                    initArgs.element = _source[i];
-                    observer.OnNext(initArgs);
-                }
-
-                return new ObserverHandle() { observer = observer, source = this };
-            }
-
-            private void HandleSourceChanged(NodeChangeEventArgs args)
+            private void HandleListChanged(NodeChangeEventArgs args)
             {
                 if (args.initialize)
+                {
+                    for (int i = 0; i < _list.count; i++)
+                    {
+                        var element = _list[i];
+                        var id = _idProvider.GetUnusedId();
+                        _idByElement.Add(element, id);
+                        _receiver.OnAdd(id, i, element);
+                    }
+
                     return;
+                }
 
                 foreach (var change in args.changes)
                 {
-                    switch (change.changeType)
+                    if (change.changeType == ChangeType.Add)
                     {
-                        case ChangeType.Add:
-                            _args.operationType = OpType.Add;
-                            _args.index = change.index.Value;
-                            _args.element = change.collectionElement;
-                            NotifyObservers(_args);
-                            break;
-
-                        case ChangeType.Remove:
-                            _args.operationType = OpType.Remove;
-                            _args.index = change.index.Value;
-                            _args.element = change.collectionElement;
-                            NotifyObservers(_args);
-                            break;
-
-                        case ChangeType.Dispose:
-                            DisposeObservers();
-                            return;
+                        var id = _idProvider.GetUnusedId();
+                        _idByElement.Add(change.collectionElement, id);
+                        _receiver.OnAdd(id, change.index.Value, change.collectionElement);
+                    }
+                    else if (change.changeType == ChangeType.Remove)
+                    {
+                        var id = _idByElement[change.collectionElement];
+                        _idByElement.Remove(change.collectionElement);
+                        _receiver.OnRemove(id, change.index.Value, change.collectionElement);
+                    }
+                    else if (change.changeType == ChangeType.Dispose)
+                    {
+                        Dispose();
+                        return;
                     }
                 }
             }
 
-            private void NotifyObservers(ListEventArgs<object> args)
+            public void Dispose()
             {
-                foreach (var observer in _observers.ToArray())
-                    observer.OnNext(args);
-            }
+                if (_disposed)
+                    return;
 
-            private void DisposeObservers()
-            {
-                foreach (var observer in _observers.ToArray())
-                    observer.OnDispose();
+                _disposed = true;
 
-                _observers.Clear();
-            }
-
-            private void Unsubscribe(IObserver<ListEventArgs<object>> observer)
-            {
-                if (_observers.Remove(observer) && _observers.Count == 0)
-                    _source.context.DeregisterObserver(HandleSourceChanged);
-            }
-
-            private class ObserverHandle : IDisposable
-            {
-                public IObserver<ListEventArgs<object>> observer;
-                public StatefulListObservable source;
-
-                private bool _disposed;
-
-                public void Dispose()
-                {
-                    if (_disposed)
-                        return;
-
-                    _disposed = true;
-                    source.Unsubscribe(observer);
-                }
+                _list.context.DeregisterObserver(HandleListChanged);
+                _receiver.OnDispose();
             }
         }
 
         public static ICollectionObservable<T> AsObservable<T>(this ObservableSet<T> set)
-        {
-            return new StatefulSetObservable<T>(set);
-        }
+            => new FactoryCollectionObservable<T>(receiver => new StatefulSetObservable<T>(set, receiver));
 
-        private class StatefulSetObservable<T> : ICollectionObservable<T>
+        public class StatefulSetObservable<T> : IDisposable
         {
-            private ObservableSet<T> _source;
-            private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
-            private List<IObserver<ICollectionEventArgs<T>>> _observers = new List<IObserver<ICollectionEventArgs<T>>>();
+            private ObservableSet<T> _set;
+            private ICollectionObserver<T> _receiver;
+            private CollectionIdProvider _idProvider;
+            private Dictionary<T, uint> _idByElement = new Dictionary<T, uint>();
+            private bool _disposed;
 
-            public StatefulSetObservable(ObservableSet<T> source)
+            public StatefulSetObservable(ObservableSet<T> set, ICollectionObserver<T> receiver)
             {
-                _source = source;
+                _set = set;
+                _receiver = receiver;
+                _idProvider = new CollectionIdProvider(x => _idByElement.Values.Contains(x));
+                _set.context.RegisterObserver(HandleSetChanged, new ObserverParameters() { scope = ObservationScope.Self }, _set);
             }
 
-            public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
-            {
-                _observers.Add(observer);
-
-                if (_observers.Count == 1)
-                    _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
-
-                var initArgs = new CollectionEventArgs<T>() { operationType = OpType.Add };
-
-                foreach (var element in _source)
-                {
-                    initArgs.element = element;
-                    observer.OnNext(initArgs);
-                }
-
-                return new ObserverHandle() { observer = observer, source = this };
-            }
-
-            private void HandleSourceChanged(NodeChangeEventArgs args)
+            private void HandleSetChanged(NodeChangeEventArgs args)
             {
                 if (args.initialize)
+                {
+                    foreach (var element in _set)
+                    {
+                        var id = _idProvider.GetUnusedId();
+                        _idByElement.Add(element, id);
+                        _receiver.OnAdd(id, element);
+                    }
+
                     return;
+                }
 
                 foreach (var change in args.changes)
                 {
-                    switch (change.changeType)
+                    if (change.changeType == ChangeType.Add)
                     {
-                        case ChangeType.Add:
-                            _args.operationType = OpType.Add;
-                            _args.element = (T)change.collectionElement;
-                            NotifyObservers(_args);
-                            break;
-
-                        case ChangeType.Remove:
-                            _args.operationType = OpType.Remove;
-                            _args.element = (T)change.collectionElement;
-                            NotifyObservers(_args);
-                            break;
-
-                        case ChangeType.Dispose:
-                            DisposeObservers();
-                            return;
+                        var element = (T)change.collectionElement;
+                        var id = _idProvider.GetUnusedId();
+                        _idByElement.Add(element, id);
+                        _receiver.OnAdd(id, element);
+                    }
+                    else if (change.changeType == ChangeType.Remove)
+                    {
+                        var element = (T)change.collectionElement;
+                        var id = _idByElement[element];
+                        _idByElement.Remove(element);
+                        _receiver.OnRemove(id, element);
+                    }
+                    else if (change.changeType == ChangeType.Dispose)
+                    {
+                        Dispose();
+                        return;
                     }
                 }
             }
 
-            private void NotifyObservers(ICollectionEventArgs<T> args)
+            public void Dispose()
             {
-                foreach (var observer in _observers.ToArray())
-                    observer.OnNext(args);
-            }
-
-            private void DisposeObservers()
-            {
-                foreach (var observer in _observers.ToArray())
-                    observer.OnDispose();
-
-                _observers.Clear();
-            }
-
-            private void Unsubscribe(IObserver<ICollectionEventArgs<T>> observer)
-            {
-                if (_observers.Remove(observer) && _observers.Count == 0)
-                    _source.context.DeregisterObserver(HandleSourceChanged);
-            }
-
-            private class ObserverHandle : IDisposable
-            {
-                public IObserver<ICollectionEventArgs<T>> observer;
-                public StatefulSetObservable<T> source;
-
-                private bool _disposed;
-
-                public void Dispose()
-                {
-                    if (_disposed)
-                        return;
-
-                    _disposed = true;
-                    source.Unsubscribe(observer);
-                }
-            }
-        }
-
-        public static ICollectionObservable<object> AsObservable(this IObservableCollection collection)
-        {
-            return new StatefulCollectionObservable(collection);
-        }
-
-        private class StatefulCollectionObservable : ICollectionObservable<object>
-        {
-            private IObservableCollection _source;
-            private CollectionEventArgs<object> _args = new CollectionEventArgs<object>();
-            private List<IObserver<ICollectionEventArgs<object>>> _observers = new List<IObserver<ICollectionEventArgs<object>>>();
-
-            public StatefulCollectionObservable(IObservableCollection source)
-            {
-                _source = source;
-            }
-
-            public IDisposable Subscribe(IObserver<ICollectionEventArgs<object>> observer)
-            {
-                _observers.Add(observer);
-
-                if (_observers.Count == 1)
-                    _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
-
-                var initArgs = new CollectionEventArgs<object>() { operationType = OpType.Add };
-
-                foreach (var element in _source)
-                {
-                    initArgs.element = element;
-                    observer.OnNext(initArgs);
-                }
-
-                return new ObserverHandle() { observer = observer, source = this };
-            }
-
-            private void HandleSourceChanged(NodeChangeEventArgs args)
-            {
-                if (args.initialize)
+                if (_disposed)
                     return;
 
-                foreach (var change in args.changes)
-                {
-                    switch (change.changeType)
-                    {
-                        case ChangeType.Add:
-                            _args.operationType = OpType.Add;
-                            _args.element = change.collectionElement;
-                            NotifyObservers(_args);
-                            break;
+                _disposed = true;
 
-                        case ChangeType.Remove:
-                            _args.operationType = OpType.Remove;
-                            _args.element = change.collectionElement;
-                            NotifyObservers(_args);
-                            break;
-
-                        case ChangeType.Dispose:
-                            DisposeObservers();
-                            return;
-                    }
-                }
-            }
-
-            private void NotifyObservers(ICollectionEventArgs<object> args)
-            {
-                foreach (var observer in _observers.ToArray())
-                    observer.OnNext(args);
-            }
-
-            private void DisposeObservers()
-            {
-                foreach (var observer in _observers.ToArray())
-                    observer.OnDispose();
-
-                _observers.Clear();
-            }
-
-            private void Unsubscribe(IObserver<ICollectionEventArgs<object>> observer)
-            {
-                if (_observers.Remove(observer) && _observers.Count == 0)
-                    _source.context.DeregisterObserver(HandleSourceChanged);
-            }
-
-            private class ObserverHandle : IDisposable
-            {
-                public IObserver<ICollectionEventArgs<object>> observer;
-                public StatefulCollectionObservable source;
-
-                private bool _disposed;
-
-                public void Dispose()
-                {
-                    if (_disposed)
-                        return;
-
-                    _disposed = true;
-                    source.Unsubscribe(observer);
-                }
+                _set.context.DeregisterObserver(HandleSetChanged);
+                _receiver.OnDispose();
             }
         }
 
         public static IValueObservable<T> AsObservable<T>(this ObservablePrimitive<T> primitive)
-        {
-            return new StatefulPrimitiveObservable<T>(primitive);
-        }
+            => new FactoryValueObservable<T>(receiver => new StatefulPrimitiveObservable<T>(primitive, receiver));
 
-        private class StatefulPrimitiveObservable<T> : IValueObservable<T>
+        public class StatefulPrimitiveObservable<T> : IDisposable
         {
-            private ObservablePrimitive<T> _source;
-            private T _previousValue;
-            private ValueEventArgs<T> _args = new ValueEventArgs<T>();
-            private List<IObserver<IValueEventArgs<T>>> _observers = new List<IObserver<IValueEventArgs<T>>>();
+            private ObservablePrimitive<T> _primitive;
+            private IValueObserver<T> _receiver;
+            private bool _disposed;
 
-            public StatefulPrimitiveObservable(ObservablePrimitive<T> source)
+            public StatefulPrimitiveObservable(ObservablePrimitive<T> primitive, IValueObserver<T> receiver)
             {
-                _source = source;
+                _primitive = primitive;
+                _receiver = receiver;
+
+                _primitive.context.RegisterObserver(HandlePrimitiveChanged, new ObserverParameters() { scope = ObservationScope.Self }, _primitive);
             }
 
-            public IDisposable Subscribe(IObserver<IValueEventArgs<T>> observer)
-            {
-                _observers.Add(observer);
-
-                if (_observers.Count == 1)
-                    _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
-
-                observer.OnNext(new ValueEventArgs<T>() { previousValue = default, currentValue = _source.value });
-
-                return new ObserverHandle() { observer = observer, source = this };
-            }
-
-            private void HandleSourceChanged(NodeChangeEventArgs args)
+            private void HandlePrimitiveChanged(NodeChangeEventArgs args)
             {
                 if (args.initialize)
-                    return;
-
-                if (_source.disposed)
                 {
-                    foreach (var observer in _observers.ToArray())
-                        observer.OnDispose();
-
-                    _observers.Clear();
-
+                    _receiver.OnNext(_primitive.value);
                     return;
                 }
 
-                _args.previousValue = _previousValue;
-                _args.currentValue = _source.value;
-
-                foreach (var observer in _observers.ToArray())
-                    observer.OnNext(_args);
-
-                _previousValue = _source.value;
-            }
-
-            private void Unsubscribe(IObserver<IValueEventArgs<T>> observer)
-            {
-                if (_observers.Remove(observer) && _observers.Count == 0)
-                    _source.context.DeregisterObserver(HandleSourceChanged);
-            }
-
-            private class ObserverHandle : IDisposable
-            {
-                public IObserver<IValueEventArgs<T>> observer;
-                public StatefulPrimitiveObservable<T> source;
-
-                private bool _disposed;
-
-                public void Dispose()
+                foreach (var change in args.changes)
                 {
-                    if (_disposed)
+                    if (change.changeType == ChangeType.Set)
+                    {
+                        _receiver.OnNext((T)change.currentValue);
+                    }
+                    else if (change.changeType == ChangeType.Dispose)
+                    {
+                        Dispose();
                         return;
-
-                    _disposed = true;
-                    source.Unsubscribe(observer);
+                    }
                 }
+            }
+
+            public void Dispose()
+            {
+                if (_disposed)
+                    return;
+
+                _disposed = true;
+
+                _primitive.context.DeregisterObserver(HandlePrimitiveChanged);
+                _receiver.OnDispose();
             }
         }
 
         public static IValueObservable<object> AsObservable(this IObservablePrimitive primitive)
-        {
-            return new StatefulPrimitiveObservable(primitive);
-        }
+            => new FactoryValueObservable<object>(receiver => new StatefulPrimitiveObservable(primitive, receiver));
 
-        private class StatefulPrimitiveObservable : IValueObservable<object>
+        public class StatefulPrimitiveObservable : IDisposable
         {
-            private IObservablePrimitive _source;
-            private object _previousValue;
-            private ValueEventArgs<object> _args = new ValueEventArgs<object>();
-            private List<IObserver<IValueEventArgs<object>>> _observers = new List<IObserver<IValueEventArgs<object>>>();
+            private IObservablePrimitive _primitive;
+            private IValueObserver<object> _receiver;
+            private bool _disposed;
 
-            public StatefulPrimitiveObservable(IObservablePrimitive source)
+            public StatefulPrimitiveObservable(IObservablePrimitive primitive, IValueObserver<object> receiver)
             {
-                _source = source;
+                _primitive = primitive;
+                _receiver = receiver;
+
+                _primitive.context.RegisterObserver(HandlePrimitiveChanged, new ObserverParameters() { scope = ObservationScope.Self }, _primitive);
             }
 
-            public IDisposable Subscribe(IObserver<IValueEventArgs<object>> observer)
-            {
-                _observers.Add(observer);
-
-                if (_observers.Count == 1)
-                    _source.context.RegisterObserver(HandleSourceChanged, new ObserverParameters() { scope = ObservationScope.Self }, _source);
-
-                observer.OnNext(new ValueEventArgs<object>() { previousValue = default, currentValue = _source.GetValue() });
-
-                return new ObserverHandle() { observer = observer, source = this };
-            }
-
-            private void HandleSourceChanged(NodeChangeEventArgs args)
+            private void HandlePrimitiveChanged(NodeChangeEventArgs args)
             {
                 if (args.initialize)
-                    return;
-
-                if (_source.disposed)
                 {
-                    foreach (var observer in _observers.ToArray())
-                        observer.OnDispose();
-
-                    _observers.Clear();
-
+                    _receiver.OnNext(_primitive.GetValue());
                     return;
                 }
 
-                _args.previousValue = _previousValue;
-                _args.currentValue = _source.GetValue();
-
-                foreach (var observer in _observers.ToArray())
-                    observer.OnNext(_args);
-
-                _previousValue = _source.GetValue();
-            }
-
-            private void Unsubscribe(IObserver<IValueEventArgs<object>> observer)
-            {
-                if (_observers.Remove(observer) && _observers.Count == 0)
-                    _source.context.DeregisterObserver(HandleSourceChanged);
-            }
-
-            private class ObserverHandle : IDisposable
-            {
-                public IObserver<IValueEventArgs<object>> observer;
-                public StatefulPrimitiveObservable source;
-
-                private bool _disposed;
-
-                public void Dispose()
+                foreach (var change in args.changes)
                 {
-                    if (_disposed)
+                    if (change.changeType == ChangeType.Set)
+                    {
+                        _receiver.OnNext(change.currentValue);
+                    }
+                    else if (change.changeType == ChangeType.Dispose)
+                    {
+                        Dispose();
                         return;
-
-                    _disposed = true;
-                    source.Unsubscribe(observer);
+                    }
                 }
+            }
+
+            public void Dispose()
+            {
+                if (_disposed)
+                    return;
+
+                _disposed = true;
+
+                _primitive.context.DeregisterObserver(HandlePrimitiveChanged);
+                _receiver.OnDispose();
             }
         }
     }

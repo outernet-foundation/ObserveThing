@@ -1,243 +1,131 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public enum OpType
-    {
-        Add,
-        Remove
-    }
-
-    public interface IObservableEventArgs
-    {
-        IObservable source { get; }
-    }
-
-    public interface IValueEventArgs<out T> : IObservableEventArgs
-    {
-        T previousValue { get; }
-        T currentValue { get; }
-    }
-
-    public interface ICollectionEventArgs<out T> : IObservableEventArgs
-    {
-        T element { get; }
-        OpType operationType { get; }
-    }
-
-    public interface IDictionaryEventArgs<TKey, TValue> : ICollectionEventArgs<KeyValuePair<TKey, TValue>>
-    {
-        TKey key { get; }
-        TValue value { get; }
-    }
-
-    public interface IListEventArgs<out T> : ICollectionEventArgs<T>
-    {
-        int index { get; }
-    }
-
-    public class ObservableEventArgs : IObservableEventArgs
-    {
-        public IObservable source { get; set; }
-    }
-
-    public class ValueEventArgs<T> : ObservableEventArgs, IValueEventArgs<T>
-    {
-        public T currentValue { get; set; }
-        public T previousValue { get; set; }
-    }
-
-    public class CollectionEventArgs<T> : ObservableEventArgs, ICollectionEventArgs<T>
-    {
-        public T element { get; set; }
-        public OpType operationType { get; set; }
-    }
-
-    public class DictionaryEventArgs<TKey, TValue> : CollectionEventArgs<KeyValuePair<TKey, TValue>>, IDictionaryEventArgs<TKey, TValue>
-    {
-        public TKey key => element.Key;
-        public TValue value => element.Value;
-    }
-
-    public class ListEventArgs<T> : CollectionEventArgs<T>, IListEventArgs<T>
-    {
-        public int index { get; set; }
-    }
-
     public interface IObservable
     {
-        IDisposable Subscribe(IObserver<IObservableEventArgs> observer);
+        IDisposable Subscribe(IObserver observer);
     }
 
-    public interface IValueObservable<T> : IObservable
+    public interface IValueObservable<out T> : IObservable
     {
-        IDisposable Subscribe(IObserver<IValueEventArgs<T>> observer);
-
-        IDisposable IObservable.Subscribe(IObserver<IObservableEventArgs> observer)
-            => Subscribe(observer);
+        IDisposable Subscribe(IValueObserver<T> observer);
     }
 
     public interface ICollectionObservable<out T> : IObservable
     {
-        IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer);
-
-        IDisposable IObservable.Subscribe(IObserver<IObservableEventArgs> observer)
-            => Subscribe(observer);
+        IDisposable Subscribe(ICollectionObserver<T> observer);
     }
 
     public interface IDictionaryObservable<TKey, TValue> : ICollectionObservable<KeyValuePair<TKey, TValue>>
     {
-        IDisposable Subscribe(IObserver<IDictionaryEventArgs<TKey, TValue>> observer);
-
-        IDisposable ICollectionObservable<KeyValuePair<TKey, TValue>>.Subscribe(IObserver<ICollectionEventArgs<KeyValuePair<TKey, TValue>>> observer)
-            => Subscribe(observer);
+        IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer);
     }
 
     public interface IListObservable<out T> : ICollectionObservable<T>
     {
-        IDisposable Subscribe(IObserver<IListEventArgs<T>> observer);
-
-        IDisposable ICollectionObservable<T>.Subscribe(IObserver<ICollectionEventArgs<T>> observer)
-            => Subscribe(observer);
+        IDisposable Subscribe(IListObserver<T> observer);
     }
 
     public static class Observables
     {
         public static IValueObservable<TResult> Combine<T1, T2, TResult>(IValueObservable<T1> v1, IValueObservable<T2> v2, Func<T1, T2, TResult> combine)
-            => v1.SelectDynamic(x1 => v2.SelectDynamic(x2 => combine(x1, x2)));
+            => v1.ObservableSelect(x1 => v2.ObservableSelect(x2 => combine(x1, x2)));
 
         public static IValueObservable<TResult> Combine<T1, T2, T3, TResult>(IValueObservable<T1> v1, IValueObservable<T2> v2, IValueObservable<T3> v3, Func<T1, T2, T3, TResult> combine)
-            => v1.SelectDynamic(x1 => v2.SelectDynamic(x2 => v3.SelectDynamic(x3 => combine(x1, x2, x3))));
+            => v1.ObservableSelect(x1 => v2.ObservableSelect(x2 => v3.ObservableSelect(x3 => combine(x1, x2, x3))));
 
         public static IValueObservable<TResult> Combine<T1, T2, T3, T4, TResult>(IValueObservable<T1> v1, IValueObservable<T2> v2, IValueObservable<T3> v3, IValueObservable<T4> v4, Func<T1, T2, T3, T4, TResult> combine)
-            => v1.SelectDynamic(x1 => v2.SelectDynamic(x2 => v3.SelectDynamic(x3 => v4.SelectDynamic(x4 => combine(x1, x2, x3, x4)))));
+            => v1.ObservableSelect(x1 => v2.ObservableSelect(x2 => v3.ObservableSelect(x3 => v4.ObservableSelect(x4 => combine(x1, x2, x3, x4)))));
 
         public static IObservable Any(params IObservable[] observables)
-            => new AnyObservable(observables);
-
-        public static IValueObservable<T> AsValueObservable<T>(T value)
-            => new ValueObservable<T>(value);
-
-        public static ICollectionObservable<T> AsCollectionObservable<T>(params T[] values)
-            => new CollectionObservable<T>(values);
-
-        public static ICollectionObservable<T> AsCollectionObservable<T>(IEnumerable<T> values)
-            => new CollectionObservable<T>(values);
-
-        public static IListObservable<T> AsListObservable<T>(params T[] values)
-            => new ListObservable<T>(values);
-
-        public static IListObservable<T> AsListObservable<T>(IEnumerable<T> values)
-            => new ListObservable<T>(values);
+            => new FactoryObservable(receiver => new AnyObservable(observables, receiver));
     }
 
     public static class ObservableExtensions
     {
-        public static IValueObservable<T> ShallowCopyDynamic<T>(this IValueObservable<IValueObservable<T>> source)
-            => new ShallowCopyValueObservable<T>(source);
+        public static IValueObservable<T> ObservableShallowCopy<T>(this IValueObservable<IValueObservable<T>> source)
+            => new FactoryValueObservable<T>(receiver => new ShallowCopyValueObservable<T>(source, receiver));
 
-        public static IValueObservable<U> SelectDynamic<T, U>(this IValueObservable<T> source, Func<T, U> select)
-            => new SelectValueObservable<T, U>(source, select);
+        public static IValueObservable<U> ObservableSelect<T, U>(this IValueObservable<T> source, Func<T, U> select)
+            => new FactoryValueObservable<U>(receiver => new SelectValueObservable<T, U>(source, select, receiver));
 
-        public static IValueObservable<U> SelectDynamic<T, U>(this IValueObservable<T> source, Func<T, IValueObservable<U>> select)
-            => source.SelectDynamic<T, IValueObservable<U>>(select).ShallowCopyDynamic();
+        public static IValueObservable<U> ObservableSelect<T, U>(this IValueObservable<T> source, Func<T, IValueObservable<U>> select)
+            => source.ObservableSelect<T, IValueObservable<U>>(select).ObservableShallowCopy();
 
-        public static ICollectionObservable<T> ShallowCopyDynamic<T>(this ICollectionObservable<IValueObservable<T>> source)
-            => new ShallowCopyCollectionObservable<T>(source);
+        public static IValueObservable<(T current, T previous)> ObservableWithPrevious<T>(this IValueObservable<T> source)
+            => new FactoryValueObservable<(T current, T previous)>(receiver => new WithPreviousObservable<T>(source, receiver));
 
-        public static ICollectionObservable<U> SelectDynamic<T, U>(this ICollectionObservable<T> source, Func<T, U> select)
-            => new SelectCollectionObservable<T, U>(source, select);
+        public static ICollectionObservable<T> ObservableShallowCopy<T>(this ICollectionObservable<IValueObservable<T>> source)
+            => new FactoryCollectionObservable<T>(receiver => new ShallowCopyCollectionObservable<T>(source, receiver));
 
-        public static ICollectionObservable<U> SelectDynamic<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> select)
-            => source.SelectDynamic<T, IValueObservable<U>>(select).ShallowCopyDynamic();
+        public static ICollectionObservable<U> ObservableSelect<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> select)
+            => source.ObservableSelect<T, IValueObservable<U>>(select).ObservableShallowCopy();
 
-        public static ICollectionObservable<T> WhereDynamic<T>(this ICollectionObservable<T> source, Func<T, bool> where)
-            => source.WhereDynamic(x => Observables.AsValueObservable(where(x)));
+        public static ICollectionObservable<U> ObservableSelect<T, U>(this ICollectionObservable<T> source, Func<T, U> select)
+            => new FactoryCollectionObservable<U>(receiver => new SelectCollectionObservable<T, U>(source, select, receiver));
 
-        public static ICollectionObservable<T> WhereDynamic<T>(this ICollectionObservable<T> source, Func<T, IValueObservable<bool>> where)
-            => new WhereCollectionObservable<T>(source, where);
+        public static ICollectionObservable<T> ObservableDistinct<T>(this ICollectionObservable<T> source)
+            => new FactoryCollectionObservable<T>(receiver => new DistinctObservable<T>(source, receiver));
 
-        public static ICollectionObservable<T> ConcatDynamic<T>(this ICollectionObservable<T> source1, IEnumerable<T> source2)
-            => source1.ConcatDynamic(Observables.AsCollectionObservable(source2));
+        public static ICollectionObservable<T> ObservableWhere<T>(this ICollectionObservable<T> source, Func<T, bool> where)
+            => source.ObservableWhere(x => new ValueObservable<bool>(where(x)));
 
-        public static ICollectionObservable<T> ConcatDynamic<T>(this ICollectionObservable<T> source1, ICollectionObservable<T> source2)
-            => new ConcatCollectionObservable<T>(source1, source2);
+        public static ICollectionObservable<T> ObservableWhere<T>(this ICollectionObservable<T> source, Func<T, IValueObservable<bool>> where)
+            => new FactoryCollectionObservable<T>(receiver => new WhereObservable<T>(source, where, receiver));
 
-        public static ICollectionObservable<U> SelectManyDynamic<T, U>(this ICollectionObservable<T> source, Func<T, IEnumerable<U>> selectMany)
-            => source.SelectManyDynamic(x => Observables.AsCollectionObservable(selectMany(x)));
+        public static ICollectionObservable<T> ObservableConcat<T>(this ICollectionObservable<T> source1, IEnumerable<T> source2)
+            => source1.ObservableConcat((ICollectionObservable<T>)new ReadonlyCollectionObservable<T>(source2));
 
-        public static ICollectionObservable<U> SelectManyDynamic<T, U>(this ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> selectMany)
-            => new SelectManyCollectionObservable<T, U>(source, selectMany);
+        public static ICollectionObservable<T> ObservableConcat<T>(this ICollectionObservable<T> source1, ICollectionObservable<T> source2)
+            => new FactoryCollectionObservable<T>(receiver => new ConcatObservable<T>(source1, source2, receiver));
 
-        public static ICollectionObservable<T> DistinctDynamic<T>(this ICollectionObservable<T> source)
-            => new DistinctCollectionObservable<T>(source);
+        public static ICollectionObservable<U> ObservableSelectMany<T, U>(this ICollectionObservable<T> source, Func<T, IEnumerable<U>> selectMany)
+            => source.ObservableSelectMany(x => (ICollectionObservable<U>)new ReadonlyCollectionObservable<U>(selectMany(x)));
 
-        public static IDictionaryObservable<TKey, TValue> ToDictionaryDynamic<TSource, TKey, TValue>(this ICollectionObservable<TSource> source, Func<TSource, TKey> selectKey, Func<TSource, TValue> selectValue)
-            => source.ToDictionaryDynamic(x => Observables.AsValueObservable(selectKey(x)), x => Observables.AsValueObservable(selectValue(x)));
+        public static ICollectionObservable<U> ObservableSelectMany<T, U>(this ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> selectMany)
+            => new FactoryCollectionObservable<U>(receiver => new SelectManyObservable<T, U>(source, selectMany, receiver));
 
-        public static IDictionaryObservable<TKey, TValue> ToDictionaryDynamic<TSource, TKey, TValue>(this ICollectionObservable<TSource> source, Func<TSource, TKey> selectKey, Func<TSource, IValueObservable<TValue>> selectValue)
-            => source.ToDictionaryDynamic(x => Observables.AsValueObservable(selectKey(x)), selectValue);
+        public static IListObservable<T> ObservableOrderBy<T, U>(this ICollectionObservable<T> source, Func<T, U> orderBy)
+            => source.ObservableOrderBy<T, U>(x => new ValueObservable<U>(orderBy(x)));
 
-        public static IDictionaryObservable<TKey, TValue> ToDictionaryDynamic<TSource, TKey, TValue>(this ICollectionObservable<TSource> source, Func<TSource, IValueObservable<TKey>> selectKey, Func<TSource, TValue> selectValue)
-            => source.ToDictionaryDynamic(selectKey, x => Observables.AsValueObservable(selectValue(x)));
+        public static IListObservable<T> ObservableOrderBy<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> orderBy)
+            => new FactoryListObservable<T>(receiver => new OrderByObservable<T, U>(source, orderBy, receiver));
 
-        public static IDictionaryObservable<TKey, TValue> ToDictionaryDynamic<TSource, TKey, TValue>(this ICollectionObservable<TSource> source, Func<TSource, IValueObservable<TKey>> selectKey, Func<TSource, IValueObservable<TValue>> selectValue)
-            => new ToDictionaryObservable<TSource, TKey, TValue>(source, selectKey, selectValue);
+        public static IValueObservable<int> ObservableCount<T>(this ICollectionObservable<T> source)
+            => new FactoryValueObservable<int>(receiver => new CountObserverable<T>(source, receiver));
 
-        public static IListObservable<T> OrderByDynamic<T, U>(this ICollectionObservable<T> source, Func<T, U> orderBy)
-            => source.OrderByDynamic(x => Observables.AsValueObservable(orderBy(x)));
+        public static IValueObservable<bool> ObservableContains<T>(this ICollectionObservable<T> source, T contains)
+            => source.ObservableContains(new ValueObservable<T>(contains));
 
-        public static IListObservable<T> OrderByDynamic<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> orderBy)
-            => new OrderByCollectionObservable<T, U>(source, orderBy);
+        public static IValueObservable<bool> ObservableContains<T>(this ICollectionObservable<T> source, IValueObservable<T> contains)
+            => new FactoryValueObservable<bool>(receiver => new ContainsObservable<T>(source, contains, receiver));
 
-        public static IValueObservable<int> CountDynamic<T>(this ICollectionObservable<T> source)
-            => new CountCollectionObservable<T>(source);
+        public static IValueObservable<(bool keyPresent, TValue value)> ObservableTrack<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, TKey key)
+            => source.ObservableTrack(new ValueObservable<TKey>(key));
 
-        public static IValueObservable<bool> ContainsDynamic<T>(this ICollectionObservable<T> source, T contains)
-            => source.ContainsDynamic(Observables.AsValueObservable(contains));
+        public static IValueObservable<(bool keyPresent, TValue value)> ObservableTrack<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, IValueObservable<TKey> key)
+            => new FactoryValueObservable<(bool keyPresent, TValue value)>(receiver => new TrackObservable<TKey, TValue>(source, key, receiver));
 
-        public static IValueObservable<bool> ContainsDynamic<T>(this ICollectionObservable<T> source, IValueObservable<T> contains)
-            => new ContainsCollectionObservable<T>(source, contains);
+        public static ICollectionObservable<TValue> ObservableTrack<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, ICollectionObservable<TKey> keys)
+            => keys.ObservableSelect(x => source.ObservableTrack(x)).ObservableWhere(x => x.keyPresent).ObservableSelect(x => x.value);
 
-        public static IValueObservable<(T1 value1, T2 value2)> WithDynamic<T1, T2>(this IValueObservable<T1> source1, IValueObservable<T2> source2)
-            => new WithValueObservable<T1, T2>(source1, source2);
+        public static IListObservable<T> ObservableShallowCopy<T>(this IListObservable<IValueObservable<T>> source)
+            => new FactoryListObservable<T>(receiver => new ShallowCopyListObservable<T>(source, receiver));
 
-        public static IValueObservable<(bool keyPresent, TValue value)> TrackDynamic<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, TKey key)
-            => source.TrackDynamic(Observables.AsValueObservable(key));
+        public static IListObservable<U> ObservableSelect<T, U>(this IListObservable<T> source, Func<T, U> select)
+            => new FactoryListObservable<U>(receiver => new SelectListObservable<T, U>(source, select, receiver));
 
-        public static IValueObservable<(bool keyPresent, TValue value)> TrackDynamic<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, IValueObservable<TKey> key)
-            => new TrackValueObservable<TKey, TValue>(source, key);
+        public static IListObservable<U> ObservableSelect<T, U>(this IListObservable<T> source, Func<T, IValueObservable<U>> select)
+            => source.ObservableSelect<T, IValueObservable<U>>(select).ObservableShallowCopy();
 
-        public static ICollectionObservable<TValue> TrackDynamic<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, ICollectionObservable<TKey> keys)
-            => keys.SelectDynamic(x => source.TrackDynamic(x)).WhereDynamic(x => x.keyPresent).SelectDynamic(x => x.value);
+        public static IValueObservable<int> ObservableIndexOf<T>(this IListObservable<T> source, T value)
+            => source.ObservableIndexOf(new ValueObservable<T>(value));
 
-        public static IListObservable<T> ShallowCopyDynamic<T>(this IListObservable<IValueObservable<T>> source)
-            => new ShallowCopyListObservable<T>(source);
-
-        public static IListObservable<U> SelectDynamic<T, U>(this IListObservable<T> source, Func<T, U> select)
-            => new SelectListObservable<T, U>(source, select);
-
-        public static IListObservable<U> SelectDynamic<T, U>(this IListObservable<T> source, Func<T, IValueObservable<U>> select)
-            => source.SelectDynamic<T, IValueObservable<U>>(select).ShallowCopyDynamic();
-
-        public static IValueObservable<int> IndexOfDynamic<T>(this IListObservable<T> source, T value)
-            => new IndexOfObservable<T>(source, value);
-
-        public static IDisposable Subscribe(this IObservable source, Action<IObservableEventArgs> observer = default, Action<Exception> onError = default, Action onDispose = default, string name = default)
-            => source.Subscribe(new Observer<IObservableEventArgs>(observer, onError, onDispose, name));
-
-        public static IDisposable Subscribe<T>(this IValueObservable<T> source, Action<IValueEventArgs<T>> observer = default, Action<Exception> onError = default, Action onDispose = default, string name = default)
-            => source.Subscribe(new Observer<IValueEventArgs<T>>(observer, onError, onDispose, name));
-
-        public static IDisposable Subscribe<T>(this ICollectionObservable<T> source, Action<ICollectionEventArgs<T>> observer = default, Action<Exception> onError = default, Action onDispose = default, string name = default)
-            => source.Subscribe(new Observer<ICollectionEventArgs<T>>(observer, onError, onDispose, name));
-
-        public static IDisposable Subscribe<T>(this IListObservable<T> source, Action<IListEventArgs<T>> observer = default, Action<Exception> onError = default, Action onDispose = default, string name = default)
-            => source.Subscribe(new Observer<IListEventArgs<T>>(observer, onError, onDispose, name));
-
-        public static IDisposable Subscribe<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<IDictionaryEventArgs<TKey, TValue>> observer = default, Action<Exception> onError = default, Action onDispose = default, string name = default)
-            => source.Subscribe(new Observer<IDictionaryEventArgs<TKey, TValue>>(observer, onError, onDispose, name));
+        public static IValueObservable<int> ObservableIndexOf<T>(this IListObservable<T> source, IValueObservable<T> value)
+            => new FactoryValueObservable<int>(receiver => new IndexOfObservable<T>(source, value, receiver));
 
         public static IValueObservable<T> AsObservable<T>(this IValueObservable<T> observable)
             => observable;
@@ -254,9 +142,63 @@ namespace ObserveThing
         public static T Peek<T>(this IValueObservable<T> source)
         {
             T result = default;
-            source.Subscribe(x => result = x.currentValue).Dispose();
+            source.Subscribe(x => result = x).Dispose();
             return result;
         }
+
+        public static IDisposable Subscribe(this IObservable source, Action onChange = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.Subscribe(new Observer(onChange: onChange, onError: onError, onDispose: onDispose));
+
+        public static IDisposable Subscribe<T>(this IValueObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.Subscribe(new ValueObserver<T>(onNext: onNext, onError: onError, onDispose: onDispose));
+
+        public static IDisposable Subscribe<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<KeyValuePair<TKey, TValue>> onAdd = default, Action<KeyValuePair<TKey, TValue>> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.Subscribe(new DictionaryObserver<TKey, TValue>(
+                onAdd: onAdd == null ? null : (_, value) => onAdd?.Invoke(value),
+                onRemove: onRemove == null ? null : (_, value) => onRemove?.Invoke(value),
+                onError: onError,
+                onDispose: onDispose
+            ));
+
+        public static IDisposable Subscribe<T>(this IListObservable<T> source, Action<int, T> onAdd = default, Action<int, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.Subscribe(new ListObserver<T>(
+                onAdd: onAdd == null ? null : (_, index, value) => onAdd?.Invoke(index, value),
+                onRemove: onRemove == null ? null : (_, index, value) => onRemove?.Invoke(index, value),
+                onError: onError,
+                onDispose: onDispose
+            ));
+
+        public static IDisposable Subscribe<T>(this ICollectionObservable<T> source, Action<T> onAdd = default, Action<T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.Subscribe(new CollectionObserver<T>(
+                onAdd: onAdd == null ? null : (_, value) => onAdd?.Invoke(value),
+                onRemove: onRemove == null ? null : (_, value) => onRemove?.Invoke(value),
+                onError: onError,
+                onDispose: onDispose
+            ));
+
+        public static IDisposable SubscribeWithId<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<uint, KeyValuePair<TKey, TValue>> onAdd = default, Action<uint, KeyValuePair<TKey, TValue>> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.Subscribe(new DictionaryObserver<TKey, TValue>(
+                onAdd: onAdd,
+                onRemove: onRemove,
+                onError: onError,
+                onDispose: onDispose
+            ));
+
+        public static IDisposable SubscribeWithId<T>(this IListObservable<T> source, Action<uint, int, T> onAdd = default, Action<uint, int, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.Subscribe(new ListObserver<T>(
+                onAdd: onAdd,
+                onRemove: onRemove,
+                onError: onError,
+                onDispose: onDispose
+            ));
+
+        public static IDisposable SubscribeWithId<T>(this ICollectionObservable<T> source, Action<uint, T> onAdd = default, Action<uint, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.Subscribe(new CollectionObserver<T>(
+                onAdd: onAdd,
+                onRemove: onRemove,
+                onError: onError,
+                onDispose: onDispose
+            ));
     }
 
     public class Disposable : IDisposable

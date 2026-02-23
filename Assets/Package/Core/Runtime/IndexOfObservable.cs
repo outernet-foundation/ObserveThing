@@ -3,106 +3,74 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class IndexOfObservable<T> : IValueObservable<int>
+    public class IndexOfObservable<T> : IDisposable
     {
-        public IListObservable<T> list;
-        public T indexOf;
+        private IDisposable _valueStream;
+        private IDisposable _sourceStream;
+        private IValueObserver<int> _receiver;
+        private T _latest = default;
+        private List<T> _list = new List<T>();
+        private int _index = -1;
+        private bool _disposed;
 
-        public IndexOfObservable(IListObservable<T> list, T indexOf)
+        public IndexOfObservable(ICollectionObservable<T> source, IValueObservable<T> value, IValueObserver<int> receiver)
         {
-            this.list = list;
-            this.indexOf = indexOf;
+            _receiver = receiver;
+            _valueStream = value.Subscribe(
+                onNext: HandleNext,
+                onError: receiver.OnError,
+                onDispose: Dispose
+            );
+
+            _sourceStream = source.Subscribe(
+                onAdd: HandleAdd,
+                onRemove: HandleRemove,
+                onError: receiver.OnError,
+                onDispose: Dispose
+            );
         }
 
-        public IDisposable Subscribe(IObserver<IValueEventArgs<int>> observer)
-            => new Instance(this, list, indexOf, observer);
-
-        private class Instance : IDisposable
+        private void HandleAdd(T element)
         {
-            private IDisposable _listStream;
-            private T _indexOf;
-            private IObserver<IValueEventArgs<int>> _observer;
-            private ValueEventArgs<int> _args = new ValueEventArgs<int>();
-            private bool _disposed = false;
+            _list.Add(element);
+            UpdateIndexIfNecessary();
+        }
 
-            private List<T> _list = new List<T>();
+        private void HandleRemove(T element)
+        {
+            _list.Remove(element);
+            UpdateIndexIfNecessary();
+        }
 
-            public Instance(IObservable source, IListObservable<T> list, T indexOf, IObserver<IValueEventArgs<int>> observer)
-            {
-                _indexOf = indexOf;
-                _observer = observer;
-                _args.source = source;
-                _args.previousValue = -1;
-                _args.currentValue = -1;
-                _listStream = list.Subscribe(HandleSourceChanged, HandleSourceError, HandleSourceDisposed);
-            }
+        private void HandleNext(T value)
+        {
+            _latest = value;
+            UpdateIndexIfNecessary();
+        }
 
-            private void HandleSourceChanged(IListEventArgs<T> args)
-            {
-                if (args.operationType == OpType.Add)
-                {
-                    _list.Insert(args.index, args.element);
-                }
-                else
-                {
-                    _list.RemoveAt(args.index);
-                }
+        private void UpdateIndexIfNecessary()
+        {
+            var newIndex = _list.IndexOf(_latest);
 
-                var newIndex = _list.IndexOf(_indexOf);
-                if (newIndex == _args.currentValue)
-                    return;
+            if (_index == newIndex)
+                return;
 
-                _args.previousValue = _args.currentValue;
-                _args.currentValue = newIndex;
+            _index = newIndex;
 
-                _observer.OnNext(_args);
+            _receiver.OnNext(_index);
+        }
 
-                // if (Equals(args.element, _indexOf))
-                // {
-                //     if (args.operationType == OpType.Add)
-                //     {
-                //         _args.previousValue = _args.currentValue;
-                //         _args.currentValue = args.index;
-                //         _observer.OnNext(_args);
-                //     }
-                //     else
-                //     {
-                //         _args.previousValue = _args.currentValue;
-                //         _args.currentValue = -1;
-                //         _observer.OnNext(_args);
-                //     }
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
 
-                //     return;
-                // }
+            _disposed = true;
 
-                // if (args.index > _args.currentValue)
-                //     return;
+            _sourceStream.Dispose();
+            _valueStream.Dispose();
 
-                // _args.previousValue = _args.currentValue;
-                // _args.currentValue = args.operationType == OpType.Add ? _args.currentValue++ : _args.currentValue--;
-                // _observer.OnNext(_args);
-            }
-
-            private void HandleSourceError(Exception error)
-            {
-                _observer.OnError(error);
-            }
-
-            private void HandleSourceDisposed()
-            {
-                Dispose();
-            }
-
-            public void Dispose()
-            {
-                if (_disposed)
-                    return;
-
-                _disposed = true;
-
-                _listStream.Dispose();
-                _observer.OnDispose();
-            }
+            _receiver.OnDispose();
         }
     }
 }

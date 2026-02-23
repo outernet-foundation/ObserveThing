@@ -2,98 +2,63 @@ using System;
 
 namespace ObserveThing
 {
-    public class ShallowCopyValueObservable<T> : IValueObservable<T>
+    public class ShallowCopyValueObservable<T> : IDisposable
     {
-        private IValueObservable<IValueObservable<T>> _value;
+        private IDisposable _sourceStream;
+        private IValueObserver<T> _receiver;
+        private IDisposable _nestedSubscription = default;
+        private bool _changingNestedSource = false;
+        private ValueObserver<T> _nestedObserver;
+        private bool _disposed;
 
-        public ShallowCopyValueObservable(IValueObservable<IValueObservable<T>> value)
+        public ShallowCopyValueObservable(IValueObservable<IValueObservable<T>> source, IValueObserver<T> receiver)
         {
-            _value = value;
+            _receiver = receiver;
+
+            _nestedObserver = new ValueObserver<T>(
+                onNext: _receiver.OnNext,
+                onError: _receiver.OnError,
+                onDispose: () =>
+                {
+                    if (!_changingNestedSource)
+                        receiver.OnNext(default);
+                }
+            );
+
+            _sourceStream = source.Subscribe(
+                onNext: HandleNext,
+                onError: _receiver.OnError,
+                onDispose: Dispose
+            );
         }
 
-        public IDisposable Subscribe(IObserver<IValueEventArgs<T>> observer)
-            => new Instance(this, _value, observer);
-
-        private class Instance : IDisposable
+        private void HandleNext(IValueObservable<T> value)
         {
-            private IDisposable _valueStream;
-            private IDisposable _nestedValueStream;
-            private IObserver<IValueEventArgs<T>> _observer;
-            private ValueEventArgs<T> _args = new ValueEventArgs<T>();
-            private bool _initializeCalled = false;
-            private bool _disposed = false;
-            private bool _disposingForSwitch = false;
+            _changingNestedSource = true;
+            _nestedSubscription?.Dispose();
+            _changingNestedSource = false;
 
-            public Instance(IObservable source, IValueObservable<IValueObservable<T>> value, IObserver<IValueEventArgs<T>> observer)
+            if (_nestedObserver == null)
             {
-                _observer = observer;
-                _args.source = source;
-                _valueStream = value.Subscribe(HandleSourceChanged, HandleSourceError, HandleSourceDisposed);
-
-                if (!_initializeCalled)
-                    _observer.OnNext(_args); // we should always send an initial call, even if there's no change
+                _nestedSubscription = null;
+                _receiver.OnNext(default);
+                return;
             }
 
-            private void HandleSourceChanged(IValueEventArgs<IValueObservable<T>> args)
-            {
-                _disposingForSwitch = true;
-                _nestedValueStream?.Dispose();
-                _nestedValueStream = null;
-                _disposingForSwitch = false;
+            _nestedSubscription = value?.Subscribe(_nestedObserver);
+        }
 
-                if (args.currentValue == default)
-                {
-                    if (Equals(_args.currentValue, default(T)))
-                        return;
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
 
-                    _args.previousValue = _args.currentValue;
-                    _args.currentValue = default;
-                    _initializeCalled = true;
-                    _observer.OnNext(_args);
-                    return;
-                }
+            _disposed = true;
 
-                _nestedValueStream = args.currentValue.Subscribe(HandleNestedSourceChanged, HandleSourceError, HandleNestedSourceDisposed);
-            }
+            _sourceStream.Dispose();
+            _nestedSubscription?.Dispose();
 
-            private void HandleSourceError(Exception error)
-            {
-                _observer.OnError(error);
-            }
-
-            private void HandleSourceDisposed()
-            {
-                Dispose();
-            }
-
-            private void HandleNestedSourceChanged(IValueEventArgs<T> args)
-            {
-                _args.previousValue = _args.currentValue;
-                _args.currentValue = args.currentValue;
-                _initializeCalled = true;
-                _observer.OnNext(_args);
-            }
-
-            private void HandleNestedSourceDisposed()
-            {
-                if (_disposingForSwitch)
-                    return;
-
-                HandleSourceError(new Exception("Source value disposed unexpectedly."));
-            }
-
-            public void Dispose()
-            {
-                if (_disposed)
-                    return;
-
-                _disposed = true;
-
-                _valueStream.Dispose();
-                _disposingForSwitch = true; // set this to supress the reset call
-                _nestedValueStream?.Dispose();
-                _observer.OnDispose();
-            }
+            _receiver.OnDispose();
         }
     }
 }

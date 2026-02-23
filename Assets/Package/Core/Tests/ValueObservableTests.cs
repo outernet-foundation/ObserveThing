@@ -1,267 +1,156 @@
 using System;
-using System.Linq;
-using System.Collections.Generic;
 using NUnit.Framework;
+using UnityEngine.TestTools;
 
 namespace ObserveThing.Tests
 {
-    public class ManualValueObservable<T> : IValueObservable<T>
-    {
-        public T value => _mostRecentValue;
-
-        private T _mostRecentValue = default;
-        private ValueEventArgs<T> _args = new ValueEventArgs<T>();
-        private List<Instance> _instances = new List<Instance>();
-        private bool _disposing;
-
-        public ManualValueObservable() : this(default) { }
-        public ManualValueObservable(T startValue)
-        {
-            _mostRecentValue = startValue;
-        }
-
-        public void OnNext(T value)
-        {
-            _args.currentValue = value;
-            _args.previousValue = _mostRecentValue;
-
-            _mostRecentValue = value;
-
-            foreach (var instance in _instances)
-                instance.OnNext(_args);
-        }
-
-        public void OnError(Exception exception)
-        {
-            foreach (var instance in _instances)
-                instance.OnError(exception);
-        }
-
-        public void DisposeAll()
-        {
-            _disposing = true;
-
-            foreach (var instance in _instances)
-                instance.Dispose();
-
-            _instances.Clear();
-
-            _disposing = false;
-        }
-
-        public IDisposable Subscribe(IObserver<IValueEventArgs<T>> observer)
-        {
-            var instance = new Instance(observer, x =>
-            {
-                if (!_disposing)
-                    _instances.Remove(x);
-            });
-
-            _instances.Add(instance);
-
-            _args.previousValue = default;
-            _args.currentValue = _mostRecentValue;
-
-            instance.OnNext(_args);
-            return instance;
-        }
-
-        private class Instance : IDisposable
-        {
-            private IObserver<IValueEventArgs<T>> _observer;
-            private Action<Instance> _onDispose;
-
-            public Instance(IObserver<IValueEventArgs<T>> observer, Action<Instance> onDispose)
-            {
-                _observer = observer;
-                _onDispose = onDispose;
-            }
-
-            public void OnNext(IValueEventArgs<T> args)
-            {
-                _observer?.OnNext(args);
-            }
-
-            public void OnError(Exception error)
-            {
-                _observer?.OnError(error);
-            }
-
-            public void Dispose()
-            {
-                if (_observer == null)
-                    return;
-
-                _observer.OnDispose();
-                _observer = null;
-
-                _onDispose(this);
-            }
-        }
-    }
-
     public class ValueObservableTests
     {
+        [Test]
+        public void TestErrorLogging()
+        {
+            var source = new ValueObservable<bool>();
+            var errorSelect = source
+                .ObservableSelect(x => x)
+                .ObservableSelect(x => x)
+                .ObservableSelect(x => x)
+                .ObservableSelect(x =>
+                {
+                    if (x)
+                        throw new Exception("This is an exception");
+
+                    return x;
+                });
+
+            var errorObservable = errorSelect.Subscribe();
+
+            LogAssert.Expect(UnityEngine.LogType.Exception, "Exception: This is an exception");
+            source.value = true;
+
+            errorObservable.Dispose();
+            source.value = false;
+
+            errorObservable = errorSelect.Subscribe(
+                onError: exc => UnityEngine.Debug.Log("Got exception")
+            );
+
+            LogAssert.Expect(UnityEngine.LogType.Log, "Got exception");
+            source.value = true;
+        }
+
         [Test]
         public void TestSelect()
         {
             int callCount = 0;
             int result = 0;
-            int prevResult = 0;
 
             Exception exception = null;
             bool disposed = false;
 
-            var rootObservable = new ManualValueObservable<bool>();
-            var intObservable1 = new ManualValueObservable<int>();
-            var intObservable2 = new ManualValueObservable<int>();
-
-            var selectObservable = rootObservable
-                .SelectDynamic(x => x ? intObservable2.AsObservable() : intObservable1.AsObservable())
+            var toggle = new ValueObservable<bool>();
+            var selectObservable = toggle
+                .ObservableSelect(x => x ? 0 : 1)
                 .Subscribe(
                     x =>
                     {
                         callCount++;
-                        result = x.currentValue;
-                        prevResult = x.previousValue;
+                        result = x;
                     },
                     exc => exception = exc,
                     () => disposed = true
                 );
 
-            Assert.AreEqual(1, callCount); // init call
-
-            intObservable1.OnNext(1);
-            Assert.AreEqual(2, callCount);
+            // init call
+            Assert.AreEqual(1, callCount);
             Assert.AreEqual(1, result);
-            Assert.AreEqual(0, prevResult);
 
-            intObservable2.OnNext(2);
+            toggle.value = true;
             Assert.AreEqual(2, callCount);
+            Assert.AreEqual(0, result);
+
+            toggle.value = false;
+            Assert.AreEqual(3, callCount);
             Assert.AreEqual(1, result);
-            Assert.AreEqual(0, prevResult);
 
-            rootObservable.OnNext(true);
+            toggle.value = false;
             Assert.AreEqual(3, callCount);
-            Assert.AreEqual(2, result);
-            Assert.AreEqual(1, prevResult);
+            Assert.AreEqual(1, result);
 
-            intObservable2.OnNext(8);
-            Assert.AreEqual(4, callCount);
-            Assert.AreEqual(8, result);
-            Assert.AreEqual(2, prevResult);
+            toggle.Dispose();
+            Assert.IsTrue(disposed); //should not produce an OnDisposed call
 
-            intObservable1.OnError(new Exception());
-            Assert.IsNull(exception);
-
-            Exception exc2 = new Exception();
-            intObservable2.OnError(exc2);
-            Assert.AreEqual(exception, exc2);
-
-            Exception excRoot = new Exception();
-            rootObservable.OnError(excRoot);
-            Assert.AreEqual(excRoot, exception);
-
-            exception = null;
-            intObservable2.DisposeAll();
-            Assert.IsNotNull(exception);
-            Assert.IsFalse(disposed); //should not produce an OnDisposed call
-            // Assert.AreEqual(0, result); //disposing should reset the result value
-
-            rootObservable.OnNext(false);
-            Assert.AreEqual(5, callCount);
-            Assert.AreEqual(8, prevResult);
-        }
-
-        [Test]
-        public void TestWith()
-        {
-            int callCount = 0;
-            (int value1, int value2) result = default;
-            (int value1, int value2) prevResult = default;
-
-            Exception exception = null;
-            bool disposed = false;
-
-            var intObservable1 = new ManualValueObservable<int>();
-            var intObservable2 = new ManualValueObservable<int>();
-
-            var selectObservable = intObservable1.WithDynamic(intObservable2)
-                .Subscribe(
-                    x =>
-                    {
-                        callCount++;
-                        result = x.currentValue;
-                        prevResult = x.previousValue;
-                    },
-                    exc => exception = exc,
-                    () => disposed = true
-                );
-
-            Assert.AreEqual(1, callCount); // init call
-
-            intObservable1.OnNext(1);
-            Assert.AreEqual(2, callCount);
-            Assert.AreEqual(1, result.value1);
-            Assert.AreEqual(0, result.value2);
-            Assert.AreEqual(0, prevResult.value1);
-            Assert.AreEqual(0, prevResult.value2);
-
-            intObservable2.OnNext(2);
+            toggle.value = true;
             Assert.AreEqual(3, callCount);
-            Assert.AreEqual(1, result.value1);
-            Assert.AreEqual(2, result.value2);
-            Assert.AreEqual(1, prevResult.value1);
-            Assert.AreEqual(0, prevResult.value2);
-
-            var exc1 = new Exception();
-            intObservable1.OnError(exc1);
-            Assert.AreEqual(exception, exc1);
-
-            var exc2 = new Exception();
-            intObservable2.OnError(exc2);
-            Assert.AreEqual(exception, exc2);
-
-            intObservable1.DisposeAll();
-            Assert.IsTrue(disposed);
-
-            disposed = false;
-
-            intObservable2.DisposeAll();
-            Assert.IsFalse(disposed); //should not produce dispose call
         }
 
         [Test]
         public void TestSelectRaisesException()
         {
-            var toObserve = new ValueObservable<bool>();
+            Exception exception = null;
+            var source = new ValueObservable<bool>();
+            var selectChain = source.ObservableSelect(x => x).ObservableSelect(x => x);
 
-            var stream = toObserve.SelectDynamic(x => x).SelectDynamic(x => x).Subscribe(x =>
-            {
-                if (x.currentValue)
-                    throw new Exception("THIS IS AN EXCEPTION");
-            });
-
-            Assert.Throws<Exception>(() => toObserve.value = true);
-            toObserve.value = false;
-            stream.Dispose();
-
-            Assert.DoesNotThrow(() => toObserve.value = true);
-            Assert.DoesNotThrow(() => toObserve.value = false);
-
-            Exception exception = default;
-
-            var streamWithHandler = toObserve.SelectDynamic(x => x).SelectDynamic(x => x).Subscribe(
-                x =>
+            var stream = selectChain.Subscribe(
+                onNext: x =>
                 {
-                    if (x.currentValue)
-                        throw new Exception("THIS IS AN EXCEPTION");
+                    if (x)
+                        throw new Exception("This is an exception");
                 },
-                exc => exception = exc
+                onError: exc => exception = exc
             );
 
-            Assert.DoesNotThrow(() => toObserve.value = true);
+            source.value = true;
             Assert.IsNotNull(exception);
+
+            exception = null;
+
+            source.value = false;
+            Assert.IsNull(exception);
+
+            stream.Dispose();
+
+            source.value = true;
+            Assert.IsNull(exception);
+
+            source.value = false;
+            Assert.IsNull(exception);
+
+            stream = selectChain.Subscribe(
+                onNext: x =>
+                {
+                    if (x)
+                        throw new Exception("This is an exception");
+                }
+            );
+
+            LogAssert.Expect(UnityEngine.LogType.Exception, "Exception: This is an exception");
+            source.value = true;
+        }
+
+        [Test]
+        public void TestWithPrevious()
+        {
+            int currentValue = 0;
+            int previousValue = 0;
+            var source = new ValueObservable<int>();
+            var stream = source.ObservableWithPrevious().Subscribe(x =>
+            {
+                currentValue = x.current;
+                previousValue = x.previous;
+            });
+
+            Assert.AreEqual(currentValue, 0);
+            Assert.AreEqual(previousValue, 0);
+
+            source.value = 1;
+
+            Assert.AreEqual(currentValue, 1);
+            Assert.AreEqual(previousValue, 0);
+
+            source.value = 2;
+
+            Assert.AreEqual(currentValue, 2);
+            Assert.AreEqual(previousValue, 1);
         }
     }
 }

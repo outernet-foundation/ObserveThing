@@ -2,72 +2,46 @@ using System;
 
 namespace ObserveThing
 {
-    public class SelectValueObservable<T, U> : IValueObservable<U>
+    public class SelectValueObservable<T, U> : IDisposable
     {
-        public IValueObservable<T> value;
-        public Func<T, U> select;
+        private IDisposable _sourceStream;
+        private Func<T, U> _select;
+        private IValueObserver<U> _receiver;
+        private U _selected;
+        private bool _disposed;
 
-        public SelectValueObservable(IValueObservable<T> value, Func<T, U> select)
+        public SelectValueObservable(IValueObservable<T> source, Func<T, U> select, IValueObserver<U> receiver)
         {
-            this.value = value;
-            this.select = select;
+            _receiver = receiver;
+            _select = select;
+            _sourceStream = source.Subscribe(
+                onNext: HandleNext,
+                onError: _receiver.OnError,
+                onDispose: Dispose
+            );
         }
 
-        public IDisposable Subscribe(IObserver<IValueEventArgs<U>> observer)
-            => new Instance(this, value, select, observer);
-
-        private class Instance : IDisposable
+        private void HandleNext(T value)
         {
-            private IDisposable _valueStream;
-            private Func<T, U> _select;
-            private IObserver<IValueEventArgs<U>> _observer;
-            private ValueEventArgs<U> _args = new ValueEventArgs<U>();
-            private bool _initializeCalled = false;
-            private bool _disposed = false;
+            var nextSelect = _select(value);
 
-            public Instance(IObservable source, IValueObservable<T> value, Func<T, U> select, IObserver<IValueEventArgs<U>> observer)
-            {
-                _select = select;
-                _observer = observer;
-                _args.source = source;
-                _valueStream = value.Subscribe(HandleSourceChanged, HandleSourceError, HandleSourceDisposed);
+            if (Equals(nextSelect, _selected))
+                return;
 
-                if (!_initializeCalled)
-                    _observer.OnNext(_args); // we should always send an initial call, even if there's no change
-            }
+            _selected = nextSelect;
+            _receiver.OnNext(_selected);
+        }
 
-            private void HandleSourceChanged(IValueEventArgs<T> args)
-            {
-                _args.previousValue = _args.currentValue;
-                _args.currentValue = _select(args.currentValue);
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
 
-                if (Equals(_args.currentValue, _args.previousValue))
-                    return;
+            _disposed = true;
 
-                _initializeCalled = true;
-                _observer.OnNext(_args);
-            }
+            _sourceStream.Dispose();
 
-            private void HandleSourceError(Exception error)
-            {
-                _observer.OnError(error);
-            }
-
-            private void HandleSourceDisposed()
-            {
-                Dispose();
-            }
-
-            public void Dispose()
-            {
-                if (_disposed)
-                    return;
-
-                _disposed = true;
-
-                _valueStream.Dispose();
-                _observer.OnDispose();
-            }
+            _receiver.OnDispose();
         }
     }
 }
