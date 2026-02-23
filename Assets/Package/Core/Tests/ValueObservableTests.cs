@@ -152,5 +152,32 @@ namespace ObserveThing.Tests
             Assert.AreEqual(currentValue, 2);
             Assert.AreEqual(previousValue, 1);
         }
+
+        [Test]
+        public void TestShallowCopy()
+        {
+            var result = 0;
+            var source = new ValueObservable<ValueObservable<int>>(new ValueObservable<int>(10));
+            var subscription = source.ObservableShallowCopy().Subscribe(onNext: x => result = x);
+
+            Assert.AreEqual(10, result);
+
+            source.value.value = 100;
+
+            Assert.AreEqual(100, result);
+
+            var prevValue = source.value;
+            source.value = new ValueObservable<int>(-3);
+
+            Assert.AreEqual(-3, result);
+
+            prevValue.value = 2;
+
+            Assert.AreEqual(-3, result);
+
+            source.value = prevValue;
+
+            Assert.AreEqual(2, result);
+        }
     }
 }

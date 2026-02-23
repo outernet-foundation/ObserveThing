@@ -10,7 +10,6 @@ namespace ObserveThing
         private IValueObserver<(bool found, T value)> _receiver;
         private (uint id, T value) _latest;
         private bool _disposed;
-        private bool _latestIsDefault => _latest.id == default && Equals(_latest.value, default);
 
         public FirstObservable(ICollectionObservable<T> source, Func<T, IValueObservable<bool>> validate, IValueObserver<(bool found, T value)> receiver)
         {
@@ -30,6 +29,10 @@ namespace ObserveThing
                 onError: _receiver.OnError,
                 onDispose: Dispose
             );
+
+            // Always send init call
+            if (_latest.id == default && Equals(_latest.value, default))
+                _receiver.OnNext(new(false, default));
         }
 
         private void NotifyReceiverIfNecessary()
