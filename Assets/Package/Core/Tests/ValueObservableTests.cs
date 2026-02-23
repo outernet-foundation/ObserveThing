@@ -1,12 +1,43 @@
 using System;
-using System.Linq;
-using System.Collections.Generic;
 using NUnit.Framework;
+using UnityEngine.TestTools;
 
 namespace ObserveThing.Tests
 {
     public class ValueObservableTests
     {
+        [Test]
+        public void TestErrorLogging()
+        {
+            var source = new ValueObservable<bool>();
+            var errorSelect = source
+                .ObservableSelect(x => x)
+                .ObservableSelect(x => x)
+                .ObservableSelect(x => x)
+                .ObservableSelect(x =>
+                {
+                    if (x)
+                        throw new Exception("This is an exception");
+
+                    return x;
+                });
+
+            var errorObservable = errorSelect.Subscribe();
+
+            LogAssert.Expect(UnityEngine.LogType.Exception, "Exception: This is an exception");
+            source.value = true;
+
+            errorObservable.Dispose();
+            source.value = false;
+
+            errorObservable = errorSelect.Subscribe(
+                onError: exc => UnityEngine.Debug.Log("Got exception")
+            );
+
+            LogAssert.Expect(UnityEngine.LogType.Log, "Got exception");
+            source.value = true;
+        }
+
         [Test]
         public void TestSelect()
         {
@@ -45,11 +76,6 @@ namespace ObserveThing.Tests
             Assert.AreEqual(3, callCount);
             Assert.AreEqual(1, result);
 
-            // TODO: Implement?
-            // Exception excRoot = new Exception();
-            // toggle.OnError(excRoot);
-            // Assert.AreEqual(excRoot, exception);
-
             toggle.Dispose();
             Assert.IsTrue(disposed); //should not produce an OnDisposed call
 
@@ -61,47 +87,70 @@ namespace ObserveThing.Tests
         public void TestSelectRaisesException()
         {
             Exception exception = null;
-            var toggle = new ValueObservable<bool>();
-            var stream = toggle.ObservableSelect(x => x).ObservableSelect(x => x).Subscribe(
+            var source = new ValueObservable<bool>();
+            var selectChain = source.ObservableSelect(x => x).ObservableSelect(x => x);
+
+            var stream = selectChain.Subscribe(
                 onNext: x =>
                 {
                     if (x)
-                        throw new Exception("THIS IS AN EXCEPTION");
+                        throw new Exception("This is an exception");
                 },
                 onError: exc => exception = exc
             );
 
-            toggle.value = true;
+            source.value = true;
             Assert.IsNotNull(exception);
 
             exception = null;
 
-            toggle.value = false;
+            source.value = false;
             Assert.IsNull(exception);
 
             stream.Dispose();
 
-            toggle.value = true;
+            source.value = true;
             Assert.IsNull(exception);
 
-            toggle.value = false;
+            source.value = false;
             Assert.IsNull(exception);
 
-            // TODO: Decide
-            // At one point the intent was that, when an observable generates an error that the
-            // observer doesn't catch, the error should throw like normal. I'm not sure if we can
-            // actually achieve that goal or if that's the correct intent to have.
-            // var streamWithHandler = toggle.SelectDynamic(x => x).SelectDynamic(x => x).Subscribe(
-            //     x =>
-            //     {
-            //         if (x)
-            //             throw new Exception("THIS IS AN EXCEPTION");
-            //     },
-            //     exc => exception = exc
-            // );
+            stream = selectChain.Subscribe(
+                onNext: x =>
+                {
+                    if (x)
+                        throw new Exception("This is an exception");
+                }
+            );
 
-            // Assert.DoesNotThrow(() => toggle.value = true);
-            // Assert.IsNotNull(exception);
+            LogAssert.Expect(UnityEngine.LogType.Exception, "Exception: This is an exception");
+            source.value = true;
+        }
+
+        [Test]
+        public void TestWithPrevious()
+        {
+            int currentValue = 0;
+            int previousValue = 0;
+            var source = new ValueObservable<int>();
+            var stream = source.ObservableWithPrevious().Subscribe(x =>
+            {
+                currentValue = x.current;
+                previousValue = x.previous;
+            });
+
+            Assert.AreEqual(currentValue, 0);
+            Assert.AreEqual(previousValue, 0);
+
+            source.value = 1;
+
+            Assert.AreEqual(currentValue, 1);
+            Assert.AreEqual(previousValue, 0);
+
+            source.value = 2;
+
+            Assert.AreEqual(currentValue, 2);
+            Assert.AreEqual(previousValue, 1);
         }
     }
 }

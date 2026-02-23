@@ -83,8 +83,6 @@ namespace ObserveThing
                 }
                 catch (Exception exc)
                 {
-                    // TODO: Decide
-                    // Should errors thrown by observers be looped back into the observer's onError callback?
                     instance.observer.OnError(exc);
                 }
             }

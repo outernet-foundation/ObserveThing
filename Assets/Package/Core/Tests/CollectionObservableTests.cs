@@ -1,121 +1,11 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using NUnit.Framework;
+using UnityEngine.TestTools;
 
 namespace ObserveThing.Tests
 {
-    // public class ManualCollectionObservable<T> : ICollectionObservable<T>, IEnumerable<T>
-    // {
-    //     private List<T> _mostRecentCollection = new List<T>();
-    //     private CollectionEventArgs<T> _args = new CollectionEventArgs<T>();
-    //     private List<Instance> _instances = new List<Instance>();
-    //     private bool _disposing;
-
-    //     public ManualCollectionObservable() { }
-    //     public ManualCollectionObservable(IEnumerable<T> values)
-    //     {
-    //         _mostRecentCollection.AddRange(values);
-    //     }
-
-    //     public void OnAdd(T added)
-    //     {
-    //         _mostRecentCollection.Add(added);
-    //         _args.element = added;
-    //         _args.operationType = OpType.Add;
-    //         foreach (var instance in _instances)
-    //             instance.OnNext(_args);
-    //     }
-
-    //     public void OnRemove(T removed)
-    //     {
-    //         _mostRecentCollection.Remove(removed);
-    //         _args.element = removed;
-    //         _args.operationType = OpType.Remove;
-    //         foreach (var instance in _instances)
-    //             instance.OnNext(_args);
-    //     }
-
-    //     public void OnError(Exception exception)
-    //     {
-    //         foreach (var instance in _instances)
-    //             instance.OnError(exception);
-    //     }
-
-    //     public void DisposeAll()
-    //     {
-    //         _disposing = true;
-
-    //         foreach (var instance in _instances)
-    //             instance.Dispose();
-
-    //         _instances.Clear();
-
-    //         _disposing = false;
-    //     }
-
-    //     public IDisposable Subscribe(IObserver<ICollectionEventArgs<T>> observer)
-    //     {
-    //         var instance = new Instance(observer, x =>
-    //         {
-    //             if (!_disposing)
-    //                 _instances.Remove(x);
-    //         });
-
-    //         _instances.Add(instance);
-
-    //         foreach (var kvp in _mostRecentCollection)
-    //         {
-    //             _args.element = kvp;
-    //             _args.operationType = OpType.Add;
-    //             instance.OnNext(_args);
-    //         }
-
-    //         return instance;
-    //     }
-
-    //     public IEnumerator<T> GetEnumerator()
-    //         => _mostRecentCollection.GetEnumerator();
-
-    //     IEnumerator IEnumerable.GetEnumerator()
-    //         => _mostRecentCollection.GetEnumerator();
-
-    //     private class Instance : IDisposable
-    //     {
-    //         private IObserver<ICollectionEventArgs<T>> _observer;
-    //         private Action<Instance> _onDispose;
-
-    //         public Instance(IObserver<ICollectionEventArgs<T>> observer, Action<Instance> onDispose)
-    //         {
-    //             _observer = observer;
-    //             _onDispose = onDispose;
-    //         }
-
-    //         public void OnNext(ICollectionEventArgs<T> args)
-    //         {
-    //             _observer?.OnNext(args);
-    //         }
-
-    //         public void OnError(Exception error)
-    //         {
-    //             _observer?.OnError(error);
-    //         }
-
-    //         public void Dispose()
-    //         {
-    //             if (_observer == null)
-    //                 throw new Exception("ALREADY DISPOSED");
-
-    //             _observer.OnDispose();
-    //             _observer = null;
-
-    //             _onDispose(this);
-    //         }
-    //     }
-    // }
-
     public class CollectionObservableTests
     {
         private T Peek<T>(IValueObservable<T> observable)
@@ -224,10 +114,6 @@ namespace ObserveThing.Tests
             Assert.AreEqual(39, callCount);
             AreEqual(new int[] { -33, 1, 4, 5, 5, 5, 22 }, results);
 
-            // var exc = new Exception();
-            // list.OnError(exc);
-            // Assert.AreEqual(exc, exception);
-
             orderBy.Dispose();
             Assert.IsTrue(disposed);
 
@@ -307,19 +193,6 @@ namespace ObserveThing.Tests
             Assert.AreEqual(4, callCount);
             Assert.That(results, Is.EquivalentTo(new[] { v2, v5 }));
 
-            // list.Remove(new ValueObservable<int>(22));
-
-            // Assert.IsNotNull(exception);
-            // Assert.AreEqual(4, callCount);
-            // Assert.That(results, Is.EquivalentTo(new[] { v2, v5 }));
-
-            // exception = null;
-            // list.Remove(new ValueObservable<int>(6));
-
-            // Assert.IsNotNull(exception);
-            // Assert.AreEqual(4, callCount);
-            // Assert.That(results, Is.EquivalentTo(new[] { v2, v5 }));
-
             list.Remove(v3);
 
             Assert.AreEqual(4, callCount);
@@ -346,11 +219,6 @@ namespace ObserveThing.Tests
 
             Assert.AreEqual(6, callCount);
             Assert.That(results, Is.EquivalentTo(new[] { v2, v5 }));
-
-            // TODO : Implement?
-            // var exc = new Exception();
-            // rootObservable.OnError(exc);
-            // Assert.AreEqual(exc, exception);
 
             where.Dispose();
             Assert.IsTrue(disposed);
@@ -411,11 +279,6 @@ namespace ObserveThing.Tests
 
             Assert.AreEqual(6, callCount);
             Assert.That(results, Is.EquivalentTo(new int[] { 6, 2, 4, 13 }));
-
-            // TODO : Implement?
-            // var exc = new Exception();
-            // rootObservable.OnError(exc);
-            // Assert.AreEqual(exc, exception);
 
             distinct.Dispose();
             Assert.IsTrue(disposed);
@@ -492,11 +355,6 @@ namespace ObserveThing.Tests
             Assert.AreEqual(12, callCount);
             Assert.That(results, Is.EquivalentTo(new int[] { 1, 2, 5, 6, 7, 8 }));
 
-            // TODO : Implement?
-            // var exc1 = new Exception();
-            // observable1.OnError(exc1);
-            // Assert.AreEqual(exc1, exception);
-
             list1.Dispose();
             Assert.IsTrue(disposed);
 
@@ -572,11 +430,6 @@ namespace ObserveThing.Tests
             Assert.AreEqual(24, callCount);
             Assert.That(results, Is.EquivalentTo(new int[] { 1, 2, 3, 4, 6, 4, 6, 7, 8, 100, 44, 44 }));
 
-            // TODO : Implement?
-            // var exc = new Exception();
-            // observableRoot.OnError(exc);
-            // Assert.AreEqual(exc, exception);
-
             list.Dispose();
             Assert.IsTrue(disposed);
 
@@ -627,12 +480,49 @@ namespace ObserveThing.Tests
             );
         }
 
-        // TODO: Implement
-        // [Test]
-        // public void TestShallowCopy()
-        // {
-        //     throw new NotImplementedException();
-        // }
+        [Test]
+        public void TestShallowCopy()
+        {
+            var result = new List<float>();
+            var source = new ListObservable<ValueObservable<float>>(
+                new ValueObservable<float>(1),
+                new ValueObservable<float>(2),
+                new ValueObservable<float>(3)
+            );
+
+            var stream = new ShallowCopyCollectionObservable<float>(
+                source,
+                new CollectionObserver<float>(
+                    onAdd: (_, x) => result.Add(x),
+                    onRemove: (_, x) => result.Remove(x)
+                )
+            );
+
+            Assert.That(result, Is.EquivalentTo(new float[] { 1, 2, 3 }));
+
+            source[1].value = 3;
+
+            Assert.That(result, Is.EquivalentTo(new float[] { 1, 3, 3 }));
+
+            var removed = source[1];
+            source.RemoveAt(1);
+
+            Assert.That(result, Is.EquivalentTo(new float[] { 1, 3 }));
+
+            removed.value = 100;
+
+            Assert.That(result, Is.EquivalentTo(new float[] { 1, 3 }));
+
+            source.Add(new ValueObservable<float>(55));
+            source.Add(new ValueObservable<float>(55));
+            source.Add(new ValueObservable<float>(1));
+
+            Assert.That(result, Is.EquivalentTo(new float[] { 1, 1, 3, 55, 55 }));
+
+            source.Clear();
+
+            Assert.That(result, Is.EquivalentTo(new float[] { }));
+        }
 
         public class TestElement
         {
@@ -647,125 +537,24 @@ namespace ObserveThing.Tests
             var stream = dict.ObservableSelect(x =>
             {
                 if (x.Key != 0)
-                    throw new Exception("Oh no!");
+                    throw new Exception("Oh no! First");
 
                 return x.Key;
 
             }).ObservableSelect(x =>
             {
                 if (x != 0)
-                    throw new Exception("Oh no!");
+                    throw new Exception("Oh no! Second");
 
                 return x;
 
             }).Subscribe(onAdd: null, onRemove: null, onError: null, onDispose: null);
 
+            LogAssert.Expect(UnityEngine.LogType.Exception, "Exception: Oh no! First");
             dict.Add(10, "cat");
+
+            LogAssert.Expect(UnityEngine.LogType.Exception, "Exception: Oh no! First");
             dict.Add(11, "dog");
         }
-
-        // [Test]
-        // public void TestToDictionary()
-        // {
-        //     int callCount = 0;
-        //     Exception exception = default;
-        //     bool disposed = false;
-        //     var result = new Dictionary<int, string>();
-
-        //     var list = new ListObservable<TestElement>();
-        //     var toDict = list.ToDictionaryDynamic(x => x.intValue.AsObservable(), x => x.stringValue.AsObservable());
-        //     var observable = toDict.Subscribe(
-        //         onAdd: x =>
-        //         {
-        //             UnityEngine.Debug.Log("EP: Got add");
-        //             callCount++;
-        //             result.Add(x.Key, x.Value);
-        //         },
-        //         onRemove: x =>
-        //         {
-        //             UnityEngine.Debug.Log("EP: Got remove");
-        //             callCount++;
-        //             result.Remove(x.Key);
-        //         },
-        //         onError: exc => exception = exc,
-        //         onDispose: () => disposed = true
-        //     );
-
-        //     list.Add(new TestElement());
-
-        //     Assert.AreEqual(3, callCount);
-        //     Assert.IsNull(exception);
-        //     CollectionAssert.AreEquivalent(
-        //         list.ToDictionary(x => x.intValue.value, x => x.stringValue.value),
-        //         result
-        //     );
-
-        //     var element = new TestElement();
-        //     element.intValue.value = 3;
-        //     element.stringValue.value = "cat";
-
-        //     //Test change key/value before adding
-        //     list.Add(element);
-
-        //     Assert.AreEqual(6, callCount);
-        //     Assert.IsNull(exception);
-        //     CollectionAssert.AreEquivalent(
-        //         list.ToDictionary(x => x.intValue.value, x => x.stringValue.value),
-        //         result
-        //     );
-
-        //     //Test change key/value after adding
-        //     element.intValue.value = 100;
-        //     element.stringValue.value = "dog";
-        //     Assert.AreEqual(10, callCount);
-        //     Assert.IsNull(exception);
-        //     CollectionAssert.AreEquivalent(
-        //         list.ToDictionary(x => x.intValue.value, x => x.stringValue.value),
-        //         result
-        //     );
-
-        //     //Test remove element
-        //     list.Remove(element);
-        //     Assert.AreEqual(11, callCount);
-        //     Assert.IsNull(exception);
-        //     CollectionAssert.AreEquivalent(
-        //         list.ToDictionary(x => x.intValue.value, x => x.stringValue.value),
-        //         result
-        //     );
-
-        //     // Reset observable and source collection
-        //     observable.Dispose(); // clear subscription to test errors
-        //     list.Clear();
-        //     observable = toDict.Subscribe(); // need a subscription for operations to function
-
-        //     //Test double add element
-        //     list.Add(element);
-        //     list.Add(element);
-        //     Assert.IsNotNull(exception);
-        //     exception = null;
-
-        //     // Reset observable and source collection
-        //     observable.Dispose();
-        //     list.Clear();
-        //     observable = toDict.Subscribe(); // need a subscription for operations to function
-
-        //     //Test double add key
-        //     list.Add(element);
-        //     var conflictingElement = new TestElement();
-        //     conflictingElement.intValue.value = 100;
-        //     conflictingElement.stringValue.value = "cat";
-        //     Assert.Throws<Exception>(() => list.Add(conflictingElement));
-
-        //     // Reset observable and source collection
-        //     observable.Dispose();
-        //     list.Clear();
-        //     observable = toDict.Subscribe(); // need a subscription for operations to function
-
-        //     //Test converge keys
-        //     conflictingElement.intValue.value = 30;
-        //     list.Add(element);
-        //     list.Add(conflictingElement);
-        //     Assert.Throws<Exception>(() => conflictingElement.intValue.value = 100);
-        // }
     }
 }

@@ -11,6 +11,7 @@ namespace ObserveThing
 
         public WithPreviousObservable(IValueObservable<T> source, IValueObserver<(T current, T previous)> receiver)
         {
+            _receiver = receiver;
             _sourceStream = source.Subscribe(
                 onNext: HandleNext,
                 onError: receiver.OnError,
