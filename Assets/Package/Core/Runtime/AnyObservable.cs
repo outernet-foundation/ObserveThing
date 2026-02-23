@@ -7,16 +7,25 @@ namespace ObserveThing
     {
         private IDisposable _subscription;
         private IObserver _receiver;
-
+        private bool _updated;
         private bool _disposed;
 
         public AnyObservable(IObservable[] observables, IObserver receiver)
         {
             _receiver = receiver;
             _subscription = new ComposedDisposable(observables.Select(x => x.Subscribe(
-                onChange: receiver.OnChange,
+                onChange: OnChange,
                 onError: receiver.OnError
             )).ToArray());
+
+            if (!_updated)
+                receiver.OnChange();
+        }
+
+        private void OnChange()
+        {
+            _updated = true;
+            _receiver.OnChange();
         }
 
         public void Dispose()

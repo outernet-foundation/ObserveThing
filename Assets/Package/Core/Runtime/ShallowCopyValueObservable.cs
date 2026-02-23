@@ -9,6 +9,7 @@ namespace ObserveThing
         private IDisposable _nestedSubscription = default;
         private bool _changingNestedSource = false;
         private ValueObserver<T> _nestedObserver;
+        private T _latest;
         private bool _disposed;
 
         public ShallowCopyValueObservable(IValueObservable<IValueObservable<T>> source, IValueObserver<T> receiver)
@@ -16,12 +17,22 @@ namespace ObserveThing
             _receiver = receiver;
 
             _nestedObserver = new ValueObserver<T>(
-                onNext: _receiver.OnNext,
+                onNext: x =>
+                {
+                    if (!Equals(x, _latest))
+                    {
+                        _latest = x;
+                        _receiver.OnNext(x);
+                    }
+                },
                 onError: _receiver.OnError,
                 onDispose: () =>
                 {
                     if (!_changingNestedSource)
-                        receiver.OnNext(default);
+                    {
+                        _latest = default;
+                        _receiver.OnNext(default);
+                    }
                 }
             );
 
@@ -30,6 +41,9 @@ namespace ObserveThing
                 onError: _receiver.OnError,
                 onDispose: Dispose
             );
+
+            if (Equals(_latest, default(T)))
+                _receiver.OnNext(default);
         }
 
         private void HandleNext(IValueObservable<T> value)
@@ -41,7 +55,13 @@ namespace ObserveThing
             if (_nestedObserver == null)
             {
                 _nestedSubscription = null;
-                _receiver.OnNext(default);
+
+                if (!Equals(_latest, default(T)))
+                {
+                    _latest = default;
+                    _receiver.OnNext(default);
+                }
+
                 return;
             }
 

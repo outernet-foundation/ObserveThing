@@ -27,6 +27,9 @@ namespace ObserveThing
                 onError: _receiver.OnError,
                 onDispose: Dispose
             );
+
+            if (!_present)
+                _receiver.OnNext(false);
         }
 
         private void HandleAdd(T element)
