@@ -41,82 +41,82 @@ namespace ObserveThing
             => v1.ObservableSelect(x1 => v2.ObservableSelect(x2 => v3.ObservableSelect(x3 => v4.ObservableSelect(x4 => combine(x1, x2, x3, x4)))));
 
         public static IObservable Any(params IObservable[] observables)
-            => new FactoryObservable(receiver => new AnyDynamic(observables, receiver));
+            => new FactoryObservable(receiver => new AnyObservable(observables, receiver));
     }
 
     public static class ObservableExtensions
     {
         public static IValueObservable<T> ObservableShallowCopy<T>(this IValueObservable<IValueObservable<T>> source)
-            => new FactoryValueObservable<T>(receiver => new ValueShallowCopyDynamic<T>(source, receiver));
+            => new FactoryValueObservable<T>(receiver => new ShallowCopyValueObservable<T>(source, receiver));
 
         public static IValueObservable<U> ObservableSelect<T, U>(this IValueObservable<T> source, Func<T, U> select)
-            => new FactoryValueObservable<U>(receiver => new ValueSelectDynamic<T, U>(source, select, receiver));
+            => new FactoryValueObservable<U>(receiver => new SelectValueObservable<T, U>(source, select, receiver));
 
         public static IValueObservable<U> ObservableSelect<T, U>(this IValueObservable<T> source, Func<T, IValueObservable<U>> select)
             => source.ObservableSelect<T, IValueObservable<U>>(select).ObservableShallowCopy();
 
         public static IValueObservable<(T current, T previous)> ObservableWithPrevious<T>(this IValueObservable<T> source)
-            => new FactoryValueObservable<(T current, T previous)>(receiver => new WithPreviousDynamic<T>(source, receiver));
+            => new FactoryValueObservable<(T current, T previous)>(receiver => new WithPreviousObservable<T>(source, receiver));
 
         public static ICollectionObservable<T> ObservableShallowCopy<T>(this ICollectionObservable<IValueObservable<T>> source)
-            => new FactoryCollectionObservable<T>(receiver => new CollectionShallowCopyDynamic<T>(source, receiver));
+            => new FactoryCollectionObservable<T>(receiver => new ShallowCopyCollectionObservable<T>(source, receiver));
 
         public static ICollectionObservable<U> ObservableSelect<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> select)
             => source.ObservableSelect<T, IValueObservable<U>>(select).ObservableShallowCopy();
 
         public static ICollectionObservable<U> ObservableSelect<T, U>(this ICollectionObservable<T> source, Func<T, U> select)
-            => new FactoryCollectionObservable<U>(receiver => new CollectionSelectDynamic<T, U>(source, select, receiver));
+            => new FactoryCollectionObservable<U>(receiver => new SelectCollectionObservable<T, U>(source, select, receiver));
 
         public static ICollectionObservable<T> ObservableDistinct<T>(this ICollectionObservable<T> source)
-            => new FactoryCollectionObservable<T>(receiver => new DistinctDynamic<T>(source, receiver));
+            => new FactoryCollectionObservable<T>(receiver => new DistinctObservable<T>(source, receiver));
 
         public static ICollectionObservable<T> ObservableWhere<T>(this ICollectionObservable<T> source, Func<T, bool> where)
             => source.ObservableWhere(x => new ValueObservable<bool>(where(x)));
 
         public static ICollectionObservable<T> ObservableWhere<T>(this ICollectionObservable<T> source, Func<T, IValueObservable<bool>> where)
-            => new FactoryCollectionObservable<T>(receiver => new WhereDynamic<T>(source, where, receiver));
+            => new FactoryCollectionObservable<T>(receiver => new WhereObservable<T>(source, where, receiver));
 
         public static ICollectionObservable<T> ObservableConcat<T>(this ICollectionObservable<T> source1, IEnumerable<T> source2)
             => source1.ObservableConcat((ICollectionObservable<T>)new ReadonlyCollectionObservable<T>(source2));
 
         public static ICollectionObservable<T> ObservableConcat<T>(this ICollectionObservable<T> source1, ICollectionObservable<T> source2)
-            => new FactoryCollectionObservable<T>(receiver => new ConcatDynamic<T>(source1, source2, receiver));
+            => new FactoryCollectionObservable<T>(receiver => new ConcatObservable<T>(source1, source2, receiver));
 
         public static ICollectionObservable<U> ObservableSelectMany<T, U>(this ICollectionObservable<T> source, Func<T, IEnumerable<U>> selectMany)
             => source.ObservableSelectMany(x => (ICollectionObservable<U>)new ReadonlyCollectionObservable<U>(selectMany(x)));
 
         public static ICollectionObservable<U> ObservableSelectMany<T, U>(this ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> selectMany)
-            => new FactoryCollectionObservable<U>(receiver => new SelectManyDynamic<T, U>(source, selectMany, receiver));
+            => new FactoryCollectionObservable<U>(receiver => new SelectManyObservable<T, U>(source, selectMany, receiver));
 
         public static IListObservable<T> ObservableOrderBy<T, U>(this ICollectionObservable<T> source, Func<T, U> orderBy)
             => source.ObservableOrderBy<T, U>(x => new ValueObservable<U>(orderBy(x)));
 
         public static IListObservable<T> ObservableOrderBy<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> orderBy)
-            => new FactoryListObservable<T>(receiver => new OrderByDynamic<T, U>(source, orderBy, receiver));
+            => new FactoryListObservable<T>(receiver => new OrderByObservable<T, U>(source, orderBy, receiver));
 
         public static IValueObservable<int> ObservableCount<T>(this ICollectionObservable<T> source)
-            => new FactoryValueObservable<int>(receiver => new CountDynamic<T>(source, receiver));
+            => new FactoryValueObservable<int>(receiver => new CountObserverable<T>(source, receiver));
 
         public static IValueObservable<bool> ObservableContains<T>(this ICollectionObservable<T> source, T contains)
             => source.ObservableContains(new ValueObservable<T>(contains));
 
         public static IValueObservable<bool> ObservableContains<T>(this ICollectionObservable<T> source, IValueObservable<T> contains)
-            => new FactoryValueObservable<bool>(receiver => new ContainsDynamic<T>(source, contains, receiver));
+            => new FactoryValueObservable<bool>(receiver => new ContainsObservable<T>(source, contains, receiver));
 
         public static IValueObservable<(bool keyPresent, TValue value)> ObservableTrack<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, TKey key)
             => source.ObservableTrack(new ValueObservable<TKey>(key));
 
         public static IValueObservable<(bool keyPresent, TValue value)> ObservableTrack<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, IValueObservable<TKey> key)
-            => new FactoryValueObservable<(bool keyPresent, TValue value)>(receiver => new TrackDynamic<TKey, TValue>(source, key, receiver));
+            => new FactoryValueObservable<(bool keyPresent, TValue value)>(receiver => new TrackObservable<TKey, TValue>(source, key, receiver));
 
         public static ICollectionObservable<TValue> ObservableTrack<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, ICollectionObservable<TKey> keys)
             => keys.ObservableSelect(x => source.ObservableTrack(x)).ObservableWhere(x => x.keyPresent).ObservableSelect(x => x.value);
 
         public static IListObservable<T> ObservableShallowCopy<T>(this IListObservable<IValueObservable<T>> source)
-            => new FactoryListObservable<T>(receiver => new ListShallowCopyDynamic<T>(source, receiver));
+            => new FactoryListObservable<T>(receiver => new ShallowCopyListObservable<T>(source, receiver));
 
         public static IListObservable<U> ObservableSelect<T, U>(this IListObservable<T> source, Func<T, U> select)
-            => new FactoryListObservable<U>(receiver => new ListSelectDynamic<T, U>(source, select, receiver));
+            => new FactoryListObservable<U>(receiver => new SelectListObservable<T, U>(source, select, receiver));
 
         public static IListObservable<U> ObservableSelect<T, U>(this IListObservable<T> source, Func<T, IValueObservable<U>> select)
             => source.ObservableSelect<T, IValueObservable<U>>(select).ObservableShallowCopy();
@@ -125,7 +125,7 @@ namespace ObserveThing
             => source.ObservableIndexOf(new ValueObservable<T>(value));
 
         public static IValueObservable<int> ObservableIndexOf<T>(this IListObservable<T> source, IValueObservable<T> value)
-            => new FactoryValueObservable<int>(receiver => new IndexOfDynamic<T>(source, value, receiver));
+            => new FactoryValueObservable<int>(receiver => new IndexOfObservable<T>(source, value, receiver));
 
         public static IValueObservable<T> AsObservable<T>(this IValueObservable<T> observable)
             => observable;
