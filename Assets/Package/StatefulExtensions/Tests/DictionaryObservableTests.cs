@@ -19,7 +19,7 @@ namespace ObserveThing.Tests
             var dict = new ObservableDictionary<int, ObservablePrimitive<string>>();
             dict.Initialize("root", new ObservableNodeContext());
 
-            var observable = dict.AsObservable().Subscribe(
+            var observable = dict.ToObservable().Subscribe(
                 onAdd: x =>
                 {
                     callCount++;
