@@ -19,6 +19,10 @@ namespace ObserveThing
                 onError: _receiver.OnError,
                 onDispose: Dispose
             );
+
+            // Always send init call
+            if(Equals(_selected, default))
+                _receiver.OnNext(default);
         }
 
         private void HandleNext(T value)
