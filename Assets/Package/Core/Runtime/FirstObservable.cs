@@ -31,8 +31,8 @@ namespace ObserveThing
             );
 
             // Always send init call
-            if (_latest.id == default && Equals(_latest.value, default))
-                _receiver.OnNext(new(false, default));
+            if (_latest.id == default && Equals(_latest.value, default(T)))
+                _receiver.OnNext(new(false, default(T)));
         }
 
         private void NotifyReceiverIfNecessary()

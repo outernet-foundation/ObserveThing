@@ -21,7 +21,7 @@ namespace ObserveThing
             );
 
             // Always send init call
-            if(Equals(_selected, default))
+            if (Equals(_selected, default(T)))
                 _receiver.OnNext(default);
         }
 
