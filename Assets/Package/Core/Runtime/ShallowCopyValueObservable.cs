@@ -28,7 +28,7 @@ namespace ObserveThing
                 onError: _receiver.OnError,
                 onDispose: () =>
                 {
-                    if (!_changingNestedSource)
+                    if (!_changingNestedSource && !_disposed)
                     {
                         _latest = default;
                         _receiver.OnNext(default);
@@ -52,7 +52,7 @@ namespace ObserveThing
             _nestedSubscription?.Dispose();
             _changingNestedSource = false;
 
-            if (_nestedObserver == null)
+            if (value == null)
             {
                 _nestedSubscription = null;
 

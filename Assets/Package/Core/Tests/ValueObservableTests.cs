@@ -175,7 +175,15 @@ namespace ObserveThing.Tests
 
             Assert.AreEqual(-3, result);
 
+            source.value = null;
+
+            Assert.AreEqual(0, result);
+
             source.value = prevValue;
+
+            Assert.AreEqual(2, result);
+
+            subscription.Dispose();
 
             Assert.AreEqual(2, result);
         }
