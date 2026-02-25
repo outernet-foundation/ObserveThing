@@ -25,15 +25,7 @@ namespace ObserveThing
                         _receiver.OnNext(x);
                     }
                 },
-                onError: _receiver.OnError,
-                onDispose: () =>
-                {
-                    if (!_changingNestedSource && !_disposed)
-                    {
-                        _latest = default;
-                        _receiver.OnNext(default);
-                    }
-                }
+                onError: _receiver.OnError
             );
 
             _sourceStream = source.Subscribe(
@@ -48,14 +40,11 @@ namespace ObserveThing
 
         private void HandleNext(IValueObservable<T> value)
         {
-            _changingNestedSource = true;
             _nestedSubscription?.Dispose();
-            _changingNestedSource = false;
+            _nestedSubscription = null;
 
             if (value == null)
             {
-                _nestedSubscription = null;
-
                 if (!Equals(_latest, default(T)))
                 {
                     _latest = default;

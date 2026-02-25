@@ -118,7 +118,7 @@ namespace ObserveThing.Tests
             Assert.IsTrue(disposed);
 
             list.Remove(results[1]);
-
+            Assert.AreEqual(39, callCount);
             AreEqual(new int[] { -33, 1, 4, 5, 5, 5, 22 }, results);
         }
 
@@ -444,9 +444,21 @@ namespace ObserveThing.Tests
         {
             var result = new List<string>();
             var list = new ListObservable<int>();
+            bool disposed = false;
+            bool receivedCall = false;
+
             var select = ((ICollectionObservable<int>)list).ObservableSelect(x => x.ToString()).Subscribe(
-                onAdd: x => result.Add(x),
-                onRemove: x => result.Remove(x)
+                onAdd: x =>
+                {
+                    result.Add(x);
+                    receivedCall = true;
+                },
+                onRemove: x =>
+                {
+                    result.Remove(x);
+                    receivedCall = true;
+                },
+                onDispose: () => disposed = true
             );
 
             list.Add(1);
@@ -478,11 +490,21 @@ namespace ObserveThing.Tests
                 Enumerable.Select(list, x => x.ToString()),
                 result
             );
+
+            receivedCall = false;
+            select.Dispose();
+
+            list.Add(234);
+
+            Assert.IsTrue(disposed);
+            Assert.IsFalse(receivedCall);
         }
 
         [Test]
         public void TestShallowCopy()
         {
+            bool disposed = false;
+            bool callReceived = false;
             var result = new List<float>();
             var source = new ListObservable<ValueObservable<float>>(
                 new ValueObservable<float>(1),
@@ -493,8 +515,17 @@ namespace ObserveThing.Tests
             var stream = new ShallowCopyCollectionObservable<float>(
                 source,
                 new CollectionObserver<float>(
-                    onAdd: (_, x) => result.Add(x),
-                    onRemove: (_, x) => result.Remove(x)
+                    onAdd: (_, x) =>
+                    {
+                        result.Add(x);
+                        callReceived = true;
+                    },
+                    onRemove: (_, x) =>
+                    {
+                        result.Remove(x);
+                        callReceived = true;
+                    },
+                    onDispose: () => disposed = true
                 )
             );
 
@@ -522,6 +553,13 @@ namespace ObserveThing.Tests
             source.Clear();
 
             Assert.That(result, Is.EquivalentTo(new float[] { }));
+
+            callReceived = false;
+            stream.Dispose();
+
+            source.Add(new ValueObservable<float>(100));
+            Assert.IsTrue(disposed);
+            Assert.IsFalse(callReceived);
         }
 
         public class TestElement

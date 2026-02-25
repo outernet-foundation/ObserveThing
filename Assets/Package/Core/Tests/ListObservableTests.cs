@@ -12,9 +12,20 @@ namespace ObserveThing.Tests
         {
             var result = new List<string>();
             var list = new ListObservable<int>();
+            bool disposed = false;
+            bool receivedCall = false;
             var select = list.ObservableSelect(x => x.ToString()).Subscribe(
-                onAdd: (index, value) => result.Insert(index, value),
-                onRemove: (index, value) => result.RemoveAt(index)
+                onAdd: (index, value) =>
+                {
+                    result.Insert(index, value);
+                    receivedCall = true;
+                },
+                onRemove: (index, value) =>
+                {
+                    result.RemoveAt(index);
+                    receivedCall = true;
+                },
+                onDispose: () => disposed = true
             );
 
             list.Add(1);
@@ -46,6 +57,12 @@ namespace ObserveThing.Tests
                 Enumerable.Select(list, x => x.ToString()),
                 result
             );
+
+            receivedCall = false;
+            select.Dispose();
+            Assert.IsTrue(disposed);
+            list.Add(100);
+            Assert.IsFalse(receivedCall);
         }
 
         [Test]
@@ -53,9 +70,20 @@ namespace ObserveThing.Tests
         {
             var list = new ListObservable<ValueObservable<int>>();
             var result = new List<string>();
+            bool disposed = false;
+            bool receivedCall = false;
             var stream = list.ObservableSelect(x => x.ObservableSelect(x => x.ToString())).Subscribe(
-                onAdd: (index, x) => result.Insert(index, x),
-                onRemove: (index, x) => result.RemoveAt(index)
+                onAdd: (index, x) =>
+                {
+                    result.Insert(index, x);
+                    receivedCall = true;
+                },
+                onRemove: (index, x) =>
+                {
+                    result.RemoveAt(index);
+                    receivedCall = true;
+                },
+                onDispose: () => disposed = true
             );
 
             var element1 = new ValueObservable<int>(2);
@@ -103,6 +131,12 @@ namespace ObserveThing.Tests
                 Enumerable.Select(list, x => x.value.ToString()),
                 result
             );
+
+            receivedCall = false;
+            stream.Dispose();
+            Assert.IsTrue(disposed);
+            list.Add(new ValueObservable<int>(150));
+            Assert.IsFalse(receivedCall);
         }
     }
 }

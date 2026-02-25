@@ -77,7 +77,7 @@ namespace ObserveThing.Tests
             Assert.AreEqual(1, result);
 
             toggle.Dispose();
-            Assert.IsTrue(disposed); //should not produce an OnDisposed call
+            Assert.IsTrue(disposed);
 
             toggle.value = true;
             Assert.AreEqual(3, callCount);
@@ -130,14 +130,19 @@ namespace ObserveThing.Tests
         [Test]
         public void TestWithPrevious()
         {
+            bool disposed = false;
+            bool receivedCall = false;
             int currentValue = 0;
             int previousValue = 0;
             var source = new ValueObservable<int>();
-            var stream = source.ObservableWithPrevious().Subscribe(x =>
-            {
-                currentValue = x.current;
-                previousValue = x.previous;
-            });
+            var stream = source.ObservableWithPrevious().Subscribe(
+                onNext: x =>
+                {
+                    currentValue = x.current;
+                    previousValue = x.previous;
+                },
+                onDispose: () => disposed = true
+            );
 
             Assert.AreEqual(currentValue, 0);
             Assert.AreEqual(previousValue, 0);
@@ -151,6 +156,12 @@ namespace ObserveThing.Tests
 
             Assert.AreEqual(currentValue, 2);
             Assert.AreEqual(previousValue, 1);
+
+            receivedCall = false;
+            stream.Dispose();
+            Assert.IsTrue(disposed);
+            source.value = 100;
+            Assert.IsFalse(receivedCall);
         }
 
         [Test]
@@ -158,7 +169,16 @@ namespace ObserveThing.Tests
         {
             var result = 0;
             var source = new ValueObservable<ValueObservable<int>>(new ValueObservable<int>(10));
-            var subscription = source.ObservableShallowCopy().Subscribe(onNext: x => result = x);
+            bool disposed = false;
+            bool receivedCall = false;
+            var subscription = source.ObservableShallowCopy().Subscribe(
+                onNext: x =>
+                {
+                    result = x;
+                    receivedCall = true;
+                },
+                onDispose: () => disposed = true
+            );
 
             Assert.AreEqual(10, result);
 
@@ -183,8 +203,11 @@ namespace ObserveThing.Tests
 
             Assert.AreEqual(2, result);
 
+            receivedCall = false;
             subscription.Dispose();
-
+            Assert.IsTrue(disposed);
+            source.value.value = 100;
+            Assert.IsFalse(receivedCall);
             Assert.AreEqual(2, result);
         }
     }

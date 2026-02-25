@@ -9,7 +9,7 @@ namespace ObserveThing.Tests
     public class DictionaryObservableTests
     {
         [Test]
-        public void TestAsObservable()
+        public void TestToObservable()
         {
             int callCount = 0;
             Exception exception = default;
@@ -96,7 +96,7 @@ namespace ObserveThing.Tests
 
             Assert.AreEqual(3, callCount);
             Assert.IsNull(exception);
-            Assert.AreEqual(true, disposed);
+            Assert.IsTrue(disposed);
             CollectionAssert.AreEquivalent(
                 dict,
                 result

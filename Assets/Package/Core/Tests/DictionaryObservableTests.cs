@@ -173,6 +173,8 @@ namespace ObserveThing.Tests
 
             dict.Dispose();
             Assert.IsTrue(disposed);
+            dict.Add(100, "me");
+            Assert.AreEqual(4, callCount);
         }
     }
 }
