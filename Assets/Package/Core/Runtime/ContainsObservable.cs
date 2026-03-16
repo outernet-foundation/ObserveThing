@@ -15,6 +15,7 @@ namespace ObserveThing
 
         public ContainsObservable(ICollectionObservable<T> source, IValueObservable<T> value, IValueObserver<bool> receiver)
         {
+            _receiver = receiver;
             _sourceStream = source.Subscribe(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
