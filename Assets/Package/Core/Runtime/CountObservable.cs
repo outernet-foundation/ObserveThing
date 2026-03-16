@@ -12,6 +12,7 @@ namespace ObserveThing
 
         public CountObserverable(ICollectionObservable<T> source, IValueObserver<int> receiver)
         {
+            _receiver = receiver;
             _sourceStream = source.Subscribe(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
