@@ -7,7 +7,6 @@ namespace ObserveThing
         private IDisposable _sourceStream;
         private IValueObserver<T> _receiver;
         private IDisposable _nestedSubscription = default;
-        private bool _changingNestedSource = false;
         private ValueObserver<T> _nestedObserver;
         private T _latest;
         private bool _disposed;

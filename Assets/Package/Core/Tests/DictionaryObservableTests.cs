@@ -108,6 +108,12 @@ namespace ObserveThing.Tests
 
     public class DictionaryObservableTests
     {
+        [SetUp]
+        public void SetUp()
+        {
+            Observers.DefaultExceptionHandler = UnityEngine.Debug.LogException;
+        }
+
         [Test]
         public void TestTrack()
         {

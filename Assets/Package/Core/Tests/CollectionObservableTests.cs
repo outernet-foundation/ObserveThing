@@ -8,6 +8,12 @@ namespace ObserveThing.Tests
 {
     public class CollectionObservableTests
     {
+        [SetUp]
+        public void SetUp()
+        {
+            Observers.DefaultExceptionHandler = UnityEngine.Debug.LogException;
+        }
+
         private T Peek<T>(IValueObservable<T> observable)
         {
             T result = default;

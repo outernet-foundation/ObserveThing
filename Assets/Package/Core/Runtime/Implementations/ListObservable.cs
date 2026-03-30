@@ -24,8 +24,8 @@ namespace ObserveThing
             }
         }
 
+        private SynchronizationContext _context;
         private List<(uint id, T value)> _list = new List<(uint id, T value)>();
-        private Queue<Action<IListObserver<T>>> _pendingNotifies = new Queue<Action<IListObserver<T>>>();
         private List<ObserverData> _observers = new List<ObserverData>();
         private List<ObserverData> _disposedObservers = new List<ObserverData>();
         private bool _notifyingObservers;
@@ -50,53 +50,39 @@ namespace ObserveThing
             }
         }
 
-        public ListObservable(params T[] source) : this((IEnumerable<T>)source) { }
-
-        public ListObservable(IEnumerable<T> source) : this()
+        public ListObservable(params T[] source) : this(source, default) { }
+        public ListObservable(SynchronizationContext context, params T[] source) : this(source, context) { }
+        public ListObservable(IEnumerable<T> source, SynchronizationContext context = default) : this(context)
         {
             foreach (var element in source)
                 _list.Add(new(_idProvider.GetUnusedId(), element));
         }
 
-        public ListObservable()
+        public ListObservable(SynchronizationContext context = default)
         {
+            _context = context ?? SynchronizationContext.Default;
             _idProvider = new CollectionIdProvider(x => _list.Any(item => item.id == x));
         }
 
-        private void NotifyObserversOrEnqueue(Action<IListObserver<T>> notify)
+        private void NotifyObservers(Action<IListObserver<T>> notifyObserver)
         {
-            _pendingNotifies.Enqueue(notify);
-
-            if (_notifyingObservers)
-                return;
-
             _notifyingObservers = true;
 
-            while (_pendingNotifies.TryDequeue(out var nextNotify))
+            int count = _observers.Count;
+            for (int i = 0; i < count; i++)
             {
-                int count = _observers.Count;
-                for (int i = 0; i < count; i++)
-                {
-                    var instance = _observers[i];
+                var instance = _observers[i];
 
-                    if (instance.disposed)
-                        continue;
+                if (instance.disposed)
+                    continue;
 
-                    try
-                    {
-                        nextNotify(instance.observer);
-                    }
-                    catch (Exception exc)
-                    {
-                        instance.observer.OnError(exc);
-                    }
-                }
-
-                foreach (var disposed in _disposedObservers)
-                    _observers.Remove(disposed);
-
-                _disposedObservers.Clear();
+                notifyObserver(instance.observer);
             }
+
+            foreach (var disposed in _disposedObservers)
+                _observers.Remove(disposed);
+
+            _disposedObservers.Clear();
 
             _notifyingObservers = false;
         }
@@ -139,14 +125,14 @@ namespace ObserveThing
         {
             var removed = _list[index];
             _list.RemoveAt(index);
-            NotifyObserversOrEnqueue(x => x.OnRemove(removed.id, index, removed.value));
+            _context.EnqueueAction(() => NotifyObservers(x => x.OnRemove(removed.id, index, removed.value)));
         }
 
         public void Insert(int index, T inserted)
         {
             var id = _idProvider.GetUnusedId();
             _list.Insert(index, new(id, inserted));
-            NotifyObserversOrEnqueue(x => x.OnAdd(id, index, inserted));
+            _context.EnqueueAction(() => NotifyObservers(x => x.OnAdd(id, index, inserted)));
         }
 
         public void Clear()

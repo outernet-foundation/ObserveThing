@@ -28,8 +28,8 @@ namespace ObserveThing
 
         public int count => _dictionary.Count;
 
+        private SynchronizationContext _context;
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
-        public Queue<Action<IDictionaryObserver<TKey, TValue>>> _pendingNotifies = new Queue<Action<IDictionaryObserver<TKey, TValue>>>();
         private List<ObserverData> _observers = new List<ObserverData>();
         private List<ObserverData> _disposedObservers = new List<ObserverData>();
         private bool _notifyingObservers;
@@ -54,45 +54,31 @@ namespace ObserveThing
             }
         }
 
-        public DictionaryObservable()
+        public DictionaryObservable(SynchronizationContext context = default)
         {
+            _context = context ?? SynchronizationContext.Default;
             _idProvider = new CollectionIdProvider(x => _dictionary.Values.Any(y => y.id == x));
         }
 
-        private void NotifyObserversOrEnqueue(Action<IDictionaryObserver<TKey, TValue>> notify)
+        private void NotifyObservers(Action<IDictionaryObserver<TKey, TValue>> notifyObserver)
         {
-            _pendingNotifies.Enqueue(notify);
-
-            if (_notifyingObservers)
-                return;
-
             _notifyingObservers = true;
 
-            while (_pendingNotifies.TryDequeue(out var nextNotify))
+            int count = _observers.Count;
+            for (int i = 0; i < count; i++)
             {
-                int count = _observers.Count;
-                for (int i = 0; i < count; i++)
-                {
-                    var instance = _observers[i];
+                var instance = _observers[i];
 
-                    if (instance.disposed)
-                        continue;
+                if (instance.disposed)
+                    continue;
 
-                    try
-                    {
-                        nextNotify(instance.observer);
-                    }
-                    catch (Exception exc)
-                    {
-                        instance.observer.OnError(exc);
-                    }
-                }
-
-                foreach (var disposed in _disposedObservers)
-                    _observers.Remove(disposed);
-
-                _disposedObservers.Clear();
+                notifyObserver(instance.observer);
             }
+
+            foreach (var disposed in _disposedObservers)
+                _observers.Remove(disposed);
+
+            _disposedObservers.Clear();
 
             _notifyingObservers = false;
         }
@@ -127,7 +113,7 @@ namespace ObserveThing
         {
             var id = _idProvider.GetUnusedId();
             _dictionary.Add(key, (id, value));
-            NotifyObserversOrEnqueue(x => x.OnAdd(id, new KeyValuePair<TKey, TValue>(key, value)));
+            _context.EnqueueAction(() => NotifyObservers(x => x.OnAdd(id, new KeyValuePair<TKey, TValue>(key, value))));
         }
 
         public bool Remove(TKey key)
@@ -136,7 +122,7 @@ namespace ObserveThing
                 return false;
 
             _dictionary.Remove(key);
-            NotifyObserversOrEnqueue(x => x.OnRemove(data.id, new KeyValuePair<TKey, TValue>(key, data.value)));
+            _context.EnqueueAction(() => NotifyObservers(x => x.OnRemove(data.id, new KeyValuePair<TKey, TValue>(key, data.value))));
 
             return true;
         }

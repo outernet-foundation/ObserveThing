@@ -14,12 +14,12 @@ namespace ObserveThing
                     return;
 
                 _value = value;
-                NotifyObserversOrEnqueue(value);
+                _context.EnqueueAction(() => NotifyObservers(value));
             }
         }
 
         private T _value = default;
-        private Queue<T> _pendingNotifies = new Queue<T>();
+        private SynchronizationContext _context;
         private List<ObserverData> _observers = new List<ObserverData>();
         private List<ObserverData> _disposedObservers = new List<ObserverData>();
         private bool _notifyingObservers;
@@ -42,46 +42,32 @@ namespace ObserveThing
             }
         }
 
-        public ValueObservable() : this(default) { }
-        public ValueObservable(T startValue)
+        public ValueObservable(SynchronizationContext context = default) : this(default, context) { }
+        public ValueObservable(T startValue, SynchronizationContext context = default)
         {
             _value = startValue;
+            _context = context ?? SynchronizationContext.Default;
         }
 
-        private void NotifyObserversOrEnqueue(T value)
+        private void NotifyObservers(T value)
         {
-            _pendingNotifies.Enqueue(value);
-
-            if (_notifyingObservers)
-                return;
-
             _notifyingObservers = true;
 
-            while (_pendingNotifies.TryDequeue(out var nextValue))
+            int count = _observers.Count;
+            for (int i = 0; i < count; i++)
             {
-                int count = _observers.Count;
-                for (int i = 0; i < count; i++)
-                {
-                    var instance = _observers[i];
+                var instance = _observers[i];
 
-                    if (instance.disposed)
-                        continue;
+                if (instance.disposed)
+                    continue;
 
-                    try
-                    {
-                        instance.observer.OnNext(nextValue);
-                    }
-                    catch (Exception exc)
-                    {
-                        instance.observer.OnError(exc);
-                    }
-                }
-
-                foreach (var disposed in _disposedObservers)
-                    _observers.Remove(disposed);
-
-                _disposedObservers.Clear();
+                instance.observer.OnNext(value);
             }
+
+            foreach (var disposed in _disposedObservers)
+                _observers.Remove(disposed);
+
+            _disposedObservers.Clear();
 
             _notifyingObservers = false;
         }

@@ -3,6 +3,11 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
+    public static class Observers
+    {
+        public static Action<Exception> DefaultExceptionHandler;
+    }
+
     public interface IObserver
     {
         void OnChange();
@@ -23,15 +28,20 @@ namespace ObserveThing
             _onDispose = onDispose;
         }
 
-        public void OnChange() => _onChange?.Invoke();
-        public void OnDispose() => _onDispose?.Invoke();
-        public void OnError(Exception error)
+        public void OnChange()
         {
-            if (_onError == null)
-                UnityEngine.Debug.LogException(error);
-
-            _onError.Invoke(error);
+            try
+            {
+                _onChange?.Invoke();
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
         }
+
+        public void OnDispose() => _onDispose?.Invoke();
+        public void OnError(Exception error) => (_onError ?? Observers.DefaultExceptionHandler)?.Invoke(error);
     }
 
     public interface IValueObserver<in T>
@@ -50,13 +60,24 @@ namespace ObserveThing
         public ValueObserver(Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default)
         {
             _onNext = onNext;
-            _onError = onError ?? UnityEngine.Debug.LogException;
+            _onError = onError;
             _onDispose = onDispose;
         }
 
-        public void OnNext(T value) => _onNext?.Invoke(value);
+        public void OnNext(T value)
+        {
+            try
+            {
+                _onNext?.Invoke(value);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
         public void OnDispose() => _onDispose?.Invoke();
-        public void OnError(Exception error) => _onError(error);
+        public void OnError(Exception error) => (_onError ?? Observers.DefaultExceptionHandler)?.Invoke(error);
     }
 
     public interface ICollectionObserver<in T>
@@ -78,13 +99,35 @@ namespace ObserveThing
         {
             _onAdd = onAdd;
             _onRemove = onRemove;
-            _onError = onError ?? UnityEngine.Debug.LogException;
+            _onError = onError;
             _onDispose = onDispose;
         }
 
-        public void OnAdd(uint id, T value) => _onAdd?.Invoke(id, value);
-        public void OnRemove(uint id, T value) => _onRemove?.Invoke(id, value);
-        public void OnError(Exception error) => _onError(error);
+        public void OnAdd(uint id, T value)
+        {
+            try
+            {
+                _onAdd?.Invoke(id, value);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
+        public void OnRemove(uint id, T value)
+        {
+            try
+            {
+                _onRemove?.Invoke(id, value);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
+        public void OnError(Exception error) => (_onError ?? Observers.DefaultExceptionHandler)?.Invoke(error);
         public void OnDispose() => _onDispose?.Invoke();
     }
 
@@ -107,13 +150,35 @@ namespace ObserveThing
         {
             _onAdd = onAdd;
             _onRemove = onRemove;
-            _onError = onError ?? UnityEngine.Debug.LogException;
+            _onError = onError;
             _onDispose = onDispose;
         }
 
-        public void OnAdd(uint id, int index, T value) => _onAdd?.Invoke(id, index, value);
-        public void OnRemove(uint id, int index, T value) => _onRemove?.Invoke(id, index, value);
-        public void OnError(Exception error) => _onError(error);
+        public void OnAdd(uint id, int index, T value)
+        {
+            try
+            {
+                _onAdd?.Invoke(id, index, value);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
+        public void OnRemove(uint id, int index, T value)
+        {
+            try
+            {
+                _onRemove?.Invoke(id, index, value);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
+        public void OnError(Exception error) => (_onError ?? Observers.DefaultExceptionHandler)?.Invoke(error);
         public void OnDispose() => _onDispose?.Invoke();
     }
 
@@ -136,13 +201,35 @@ namespace ObserveThing
         {
             _onAdd = onAdd;
             _onRemove = onRemove;
-            _onError = onError ?? UnityEngine.Debug.LogException;
+            _onError = onError;
             _onDispose = onDispose;
         }
 
-        public void OnAdd(uint id, KeyValuePair<TKey, TValue> keyValuePair) => _onAdd?.Invoke(id, keyValuePair);
-        public void OnRemove(uint id, KeyValuePair<TKey, TValue> keyValuePair) => _onRemove?.Invoke(id, keyValuePair);
-        public void OnError(Exception error) => _onError(error);
+        public void OnAdd(uint id, KeyValuePair<TKey, TValue> keyValuePair)
+        {
+            try
+            {
+                _onAdd?.Invoke(id, keyValuePair);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
+        public void OnRemove(uint id, KeyValuePair<TKey, TValue> keyValuePair)
+        {
+            try
+            {
+                _onRemove?.Invoke(id, keyValuePair);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
+        public void OnError(Exception error) => (_onError ?? Observers.DefaultExceptionHandler)?.Invoke(error);
         public void OnDispose() => _onDispose?.Invoke();
     }
 }

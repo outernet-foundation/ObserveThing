@@ -6,6 +6,12 @@ namespace ObserveThing.Tests
 {
     public class ValueObservableTests
     {
+        [SetUp]
+        public void SetUp()
+        {
+            Observers.DefaultExceptionHandler = UnityEngine.Debug.LogException;
+        }
+
         [Test]
         public void TestErrorLogging()
         {

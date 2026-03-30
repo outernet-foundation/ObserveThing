@@ -7,6 +7,12 @@ namespace ObserveThing.Tests
 {
     public class ListObservableTests
     {
+        [SetUp]
+        public void SetUp()
+        {
+            Observers.DefaultExceptionHandler = UnityEngine.Debug.LogException;
+        }
+
         [Test]
         public void TestSelect()
         {
