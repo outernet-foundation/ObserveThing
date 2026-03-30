@@ -25,6 +25,7 @@ namespace ObserveThing
         }
 
         private List<(uint id, T value)> _list = new List<(uint id, T value)>();
+        private Queue<Action<IListObserver<T>>> _pendingNotifies = new Queue<Action<IListObserver<T>>>();
         private List<ObserverData> _observers = new List<ObserverData>();
         private List<ObserverData> _disposedObservers = new List<ObserverData>();
         private bool _notifyingObservers;
@@ -35,7 +36,7 @@ namespace ObserveThing
         private class ObserverData : IDisposable
         {
             public IListObserver<T> observer;
-            public Action<ObserverData> onDispose;
+            public Action<ObserverData> handleDispose;
             public bool disposed { get; private set; }
 
             public void Dispose()
@@ -44,7 +45,7 @@ namespace ObserveThing
                     return;
 
                 disposed = true;
-                onDispose?.Invoke(this);
+                handleDispose?.Invoke(this);
                 observer.OnDispose();
             }
         }
@@ -62,35 +63,42 @@ namespace ObserveThing
             _idProvider = new CollectionIdProvider(x => _list.Any(item => item.id == x));
         }
 
-        private void NotifyObservers(Action<IListObserver<T>> notify)
+        private void NotifyObserversOrEnqueue(Action<IListObserver<T>> notify)
         {
+            _pendingNotifies.Enqueue(notify);
+
             if (_notifyingObservers)
-                throw new Exception("Cannot notify observers while already notifying observers.");
+                return;
 
             _notifyingObservers = true;
 
-            int count = _observers.Count;
-            for (int i = 0; i < count; i++)
+            while (_pendingNotifies.TryDequeue(out var nextNotify))
             {
-                var instance = _observers[i];
-
-                if (instance.disposed)
-                    continue;
-
-                try
+                int count = _observers.Count;
+                for (int i = 0; i < count; i++)
                 {
-                    notify(instance.observer);
+                    var instance = _observers[i];
+
+                    if (instance.disposed)
+                        continue;
+
+                    try
+                    {
+                        nextNotify(instance.observer);
+                    }
+                    catch (Exception exc)
+                    {
+                        instance.observer.OnError(exc);
+                    }
                 }
-                catch (Exception exc)
-                {
-                    instance.observer.OnError(exc);
-                }
+
+                foreach (var disposed in _disposedObservers)
+                    _observers.Remove(disposed);
+
+                _disposedObservers.Clear();
             }
 
             _notifyingObservers = false;
-
-            foreach (var disposed in _disposedObservers)
-                _observers.Remove(disposed);
         }
 
         private void HandleObserverDisposed(ObserverData observer)
@@ -131,14 +139,14 @@ namespace ObserveThing
         {
             var removed = _list[index];
             _list.RemoveAt(index);
-            NotifyObservers(x => x.OnRemove(removed.id, index, removed.value));
+            NotifyObserversOrEnqueue(x => x.OnRemove(removed.id, index, removed.value));
         }
 
         public void Insert(int index, T inserted)
         {
             var id = _idProvider.GetUnusedId();
             _list.Insert(index, new(id, inserted));
-            NotifyObservers(x => x.OnAdd(id, index, inserted));
+            NotifyObserversOrEnqueue(x => x.OnAdd(id, index, inserted));
         }
 
         public void Clear()
@@ -155,7 +163,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IListObserver<T> observer)
         {
-            var data = new ObserverData() { observer = observer, onDispose = HandleObserverDisposed };
+            var data = new ObserverData() { observer = observer, handleDispose = HandleObserverDisposed };
 
             _observers.Add(data);
 
