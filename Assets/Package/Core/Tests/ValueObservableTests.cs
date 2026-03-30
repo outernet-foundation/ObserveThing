@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine.TestTools;
 
@@ -215,6 +216,240 @@ namespace ObserveThing.Tests
             source.value.value = 100;
             Assert.IsFalse(receivedCall);
             Assert.AreEqual(2, result);
+        }
+
+        [Test]
+        public void TestThen()
+        {
+            var source = new ValueObservable<int>();
+
+            var thenValue = default(int);
+            var thenExc = default(Exception);
+            var thenDisposed = default(bool);
+
+            var subValue = default(int);
+            var subExc = default(Exception);
+            var subDisposed = default(bool);
+
+            var thenObserver = new ValueObserver<int>(
+                onNext: x => thenValue = x,
+                onError: x => thenExc = x,
+                onDispose: () => thenDisposed = true
+            );
+
+            var subObserver = new ValueObserver<int>(
+                onNext: x => subValue = x,
+                onError: x => subExc = x,
+                onDispose: () => subDisposed = true
+            );
+
+            var observable = source.ObservableThen(thenObserver);
+            var stream = observable.Subscribe(subObserver);
+
+            Assert.AreEqual(default(int), thenValue);
+            Assert.IsNull(thenExc);
+            Assert.IsFalse(thenDisposed);
+
+            Assert.AreEqual(default(int), subValue);
+            Assert.IsNull(subExc);
+            Assert.IsFalse(subDisposed);
+
+            stream.Dispose();
+
+            Assert.AreEqual(default(int), thenValue);
+            Assert.IsNull(thenExc);
+            Assert.IsTrue(thenDisposed);
+
+            Assert.AreEqual(default(int), subValue);
+            Assert.IsNull(subExc);
+            Assert.IsTrue(subDisposed);
+
+            thenDisposed = false;
+            subDisposed = false;
+            source.value = 3;
+
+            Assert.AreEqual(default(int), thenValue);
+            Assert.IsNull(thenExc);
+            Assert.IsFalse(thenDisposed);
+
+            Assert.AreEqual(default(int), subValue);
+            Assert.IsNull(subExc);
+            Assert.IsFalse(subDisposed);
+
+            stream = observable.Subscribe(subObserver);
+
+            Assert.AreEqual(3, thenValue);
+            Assert.IsNull(thenExc);
+            Assert.IsFalse(thenDisposed);
+
+            Assert.AreEqual(3, subValue);
+            Assert.IsNull(subExc);
+            Assert.IsFalse(subDisposed);
+
+            source.value = 10;
+
+            Assert.AreEqual(10, thenValue);
+            Assert.IsNull(thenExc);
+            Assert.IsFalse(thenDisposed);
+
+            Assert.AreEqual(10, subValue);
+            Assert.IsNull(subExc);
+            Assert.IsFalse(subDisposed);
+
+            stream.Dispose();
+
+            var thenExcToThrow = new Exception("Then Exc To Throw");
+            var subExcToThrow = new Exception("Sub Exc To Throw");
+
+            observable = source
+                .ObservableThen(
+                    onNext: x =>
+                    {
+                        if (x == 1)
+                            throw thenExcToThrow;
+                    },
+                    onError: exc => thenExc = exc
+                );
+
+            stream = observable.Subscribe(
+                onNext: x =>
+                {
+                    if (x == 2)
+                        throw subExcToThrow;
+                },
+                onError: exc => subExc = exc
+            );
+
+            Assert.IsNull(thenExc);
+            Assert.IsNull(subExc);
+
+            source.value = 1;
+
+            Assert.AreEqual(thenExcToThrow, thenExc);
+            Assert.IsNull(subExc);
+
+            thenExc = null;
+            subExc = null;
+
+            source.value = 2;
+
+            Assert.IsNull(thenExc);
+            Assert.AreEqual(subExcToThrow, subExc);
+        }
+
+        [Test]
+        public void TestShare()
+        {
+            var source = new ValueObservable<int>();
+
+            var preShareCallCount = default(int);
+            var preShareValue = default(int);
+
+            var stream1CallCount = default(int);
+            var stream1Value = default(int);
+
+            var stream2CallCount = default(int);
+            var stream2Value = default(int);
+
+            var observable = source
+                .ObservableThen(x =>
+                {
+                    preShareValue = x;
+                    preShareCallCount++;
+                })
+                .ObservableShare();
+
+            IDisposable stream1 = default;
+            IDisposable stream2 = default;
+
+            stream1 = observable.Subscribe(
+                onNext: x =>
+                {
+                    stream1Value = x;
+                    stream1CallCount++;
+
+                    if (x == 2)
+                        stream2.Dispose();
+                }
+            );
+
+            stream2 = observable.Subscribe(
+                onNext: x =>
+                {
+                    stream2Value = x;
+                    stream2CallCount++;
+                }
+            );
+
+            Assert.AreEqual(1, preShareCallCount);
+            Assert.AreEqual(0, preShareValue);
+
+            Assert.AreEqual(1, stream1CallCount);
+            Assert.AreEqual(0, stream1Value);
+
+            Assert.AreEqual(1, stream2CallCount);
+            Assert.AreEqual(0, stream2Value);
+
+            source.value = 1;
+
+            Assert.AreEqual(2, preShareCallCount);
+            Assert.AreEqual(1, preShareValue);
+
+            Assert.AreEqual(2, stream1CallCount);
+            Assert.AreEqual(1, stream1Value);
+
+            Assert.AreEqual(2, stream2CallCount);
+            Assert.AreEqual(1, stream2Value);
+
+            // Test dispose while notifying
+            source.value = 2;
+
+            Assert.AreEqual(3, preShareCallCount);
+            Assert.AreEqual(2, preShareValue);
+
+            Assert.AreEqual(3, stream1CallCount);
+            Assert.AreEqual(2, stream1Value);
+
+            Assert.AreEqual(2, stream2CallCount);
+            Assert.AreEqual(1, stream2Value);
+
+
+            // Test event with no subscriptions
+            stream1.Dispose();
+
+            source.value = 3;
+
+            Assert.AreEqual(3, preShareCallCount);
+            Assert.AreEqual(2, preShareValue);
+
+            Assert.AreEqual(3, stream1CallCount);
+            Assert.AreEqual(2, stream1Value);
+
+            Assert.AreEqual(2, stream2CallCount);
+            Assert.AreEqual(1, stream2Value);
+
+            // Test set value during notifications
+
+            var stream1Values = new List<int>();
+            var stream2Values = new List<int>();
+
+            stream1 = observable.Subscribe(onNext: x =>
+            {
+                stream1Values.Add(x);
+
+                if (x == 4)
+                    source.value = 5;
+            });
+
+            stream2 = observable.Subscribe(onNext: x =>
+            {
+                stream2Values.Add(x);
+            });
+
+            source.value = 4;
+
+            Assert.That(stream1Values, Is.EqualTo(new int[] { 3, 4, 5 }));
+            Assert.That(stream2Values, Is.EqualTo(new int[] { 3, 4, 5 }));
         }
     }
 }
