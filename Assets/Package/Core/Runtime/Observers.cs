@@ -8,11 +8,15 @@ namespace ObserveThing
         public static Action<Exception> DefaultExceptionHandler;
     }
 
-    public interface IObserver
+    public interface IObserverBase
+    {
+        void OnError(Exception exc);
+        void OnDispose();
+    }
+
+    public interface IObserver : IObserverBase
     {
         void OnChange();
-        void OnError(Exception error);
-        void OnDispose();
     }
 
     public class Observer : IObserver
@@ -44,11 +48,9 @@ namespace ObserveThing
         public void OnError(Exception error) => (_onError ?? Observers.DefaultExceptionHandler)?.Invoke(error);
     }
 
-    public interface IValueObserver<in T>
+    public interface IValueObserver<in T> : IObserverBase
     {
         void OnNext(T value);
-        void OnError(Exception error);
-        void OnDispose();
     }
 
     public class ValueObserver<T> : IValueObserver<T>
@@ -80,12 +82,10 @@ namespace ObserveThing
         public void OnError(Exception error) => (_onError ?? Observers.DefaultExceptionHandler)?.Invoke(error);
     }
 
-    public interface ICollectionObserver<in T>
+    public interface ICollectionObserver<in T> : IObserverBase
     {
         public void OnAdd(uint id, T value);
         public void OnRemove(uint id, T value);
-        public void OnError(Exception error);
-        public void OnDispose();
     }
 
     public class CollectionObserver<T> : ICollectionObserver<T>
@@ -131,12 +131,59 @@ namespace ObserveThing
         public void OnDispose() => _onDispose?.Invoke();
     }
 
-    public interface IListObserver<in T>
+    public interface ISetObserver<in T> : IObserverBase
+    {
+        public void OnAdd(uint id, T value);
+        public void OnRemove(uint id, T value);
+    }
+
+    public class SetObserver<T> : ISetObserver<T>
+    {
+        private Action<uint, T> _onAdd;
+        private Action<uint, T> _onRemove;
+        private Action<Exception> _onError;
+        private Action _onDispose;
+
+        public SetObserver(Action<uint, T> onAdd = default, Action<uint, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+        {
+            _onAdd = onAdd;
+            _onRemove = onRemove;
+            _onError = onError;
+            _onDispose = onDispose;
+        }
+
+        public void OnAdd(uint id, T value)
+        {
+            try
+            {
+                _onAdd?.Invoke(id, value);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
+        public void OnRemove(uint id, T value)
+        {
+            try
+            {
+                _onRemove?.Invoke(id, value);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
+        public void OnError(Exception error) => (_onError ?? Observers.DefaultExceptionHandler)?.Invoke(error);
+        public void OnDispose() => _onDispose?.Invoke();
+    }
+
+    public interface IListObserver<in T> : IObserverBase
     {
         public void OnAdd(uint id, int index, T value);
         public void OnRemove(uint id, int index, T value);
-        public void OnError(Exception error);
-        public void OnDispose();
     }
 
     public class ListObserver<T> : IListObserver<T>
@@ -182,12 +229,10 @@ namespace ObserveThing
         public void OnDispose() => _onDispose?.Invoke();
     }
 
-    public interface IDictionaryObserver<TKey, TValue>
+    public interface IDictionaryObserver<TKey, TValue> : IObserverBase
     {
         public void OnAdd(uint id, KeyValuePair<TKey, TValue> keyValuePair);
         public void OnRemove(uint id, KeyValuePair<TKey, TValue> keyValuePair);
-        public void OnError(Exception error);
-        public void OnDispose();
     }
 
     public class DictionaryObserver<TKey, TValue> : IDictionaryObserver<TKey, TValue>

@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class ListObservable<T> : IListObservable<T>, IEnumerable<T>
+    public class ListObservable<T> : ObservableBase<IListObserver<T>>, IListObservable<T>, IEnumerable<T>
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
@@ -24,31 +24,8 @@ namespace ObserveThing
             }
         }
 
-        private SynchronizationContext _context;
         private List<(uint id, T value)> _list = new List<(uint id, T value)>();
-        private List<ObserverData> _observers = new List<ObserverData>();
-        private List<ObserverData> _disposedObservers = new List<ObserverData>();
-        private bool _notifyingObservers;
-        private bool _disposed;
-
         private CollectionIdProvider _idProvider;
-
-        private class ObserverData : IDisposable
-        {
-            public IListObserver<T> observer;
-            public Action<ObserverData> handleDispose;
-            public bool disposed { get; private set; }
-
-            public void Dispose()
-            {
-                if (disposed)
-                    return;
-
-                disposed = true;
-                handleDispose?.Invoke(this);
-                observer.OnDispose();
-            }
-        }
 
         public ListObservable(params T[] source) : this(source, default) { }
         public ListObservable(SynchronizationContext context, params T[] source) : this(source, context) { }
@@ -58,47 +35,9 @@ namespace ObserveThing
                 _list.Add(new(_idProvider.GetUnusedId(), element));
         }
 
-        public ListObservable(SynchronizationContext context = default)
+        public ListObservable(SynchronizationContext context = default) : base(context)
         {
-            _context = context ?? SynchronizationContext.Default;
             _idProvider = new CollectionIdProvider(x => _list.Any(item => item.id == x));
-        }
-
-        private void NotifyObservers(Action<IListObserver<T>> notifyObserver)
-        {
-            _notifyingObservers = true;
-
-            int count = _observers.Count;
-            for (int i = 0; i < count; i++)
-            {
-                var instance = _observers[i];
-
-                if (instance.disposed)
-                    continue;
-
-                notifyObserver(instance.observer);
-            }
-
-            foreach (var disposed in _disposedObservers)
-                _observers.Remove(disposed);
-
-            _disposedObservers.Clear();
-
-            _notifyingObservers = false;
-        }
-
-        private void HandleObserverDisposed(ObserverData observer)
-        {
-            if (_disposed)
-                return;
-
-            if (_notifyingObservers)
-            {
-                _disposedObservers.Add(observer);
-                return;
-            }
-
-            _observers.Remove(observer);
         }
 
         public void Add(T added)
@@ -125,14 +64,14 @@ namespace ObserveThing
         {
             var removed = _list[index];
             _list.RemoveAt(index);
-            _context.EnqueueAction(() => NotifyObservers(x => x.OnRemove(removed.id, index, removed.value)));
+            EnqueueNotify(x => x.OnRemove(removed.id, index, removed.value));
         }
 
         public void Insert(int index, T inserted)
         {
             var id = _idProvider.GetUnusedId();
             _list.Insert(index, new(id, inserted));
-            _context.EnqueueAction(() => NotifyObservers(x => x.OnAdd(id, index, inserted)));
+            EnqueueNotify(x => x.OnAdd(id, index, inserted));
         }
 
         public void Clear()
@@ -149,17 +88,14 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IListObserver<T> observer)
         {
-            var data = new ObserverData() { observer = observer, handleDispose = HandleObserverDisposed };
-
-            _observers.Add(data);
-
+            var subscription = AddObserver(observer);
             for (int i = 0; i < _list.Count; i++)
             {
                 var element = _list[i];
-                data.observer.OnAdd(element.id, i, element.value);
+                observer.OnAdd(element.id, i, element.value);
             }
 
-            return data;
+            return subscription;
         }
 
         public IDisposable Subscribe(ICollectionObserver<T> observer)
@@ -177,18 +113,5 @@ namespace ObserveThing
                 onError: observer.OnError,
                 onDispose: observer.OnDispose
             ));
-
-        public void Dispose()
-        {
-            if (_disposed)
-                return;
-
-            _disposed = true;
-
-            foreach (var instance in _observers)
-                instance.Dispose();
-
-            _observers.Clear();
-        }
     }
 }

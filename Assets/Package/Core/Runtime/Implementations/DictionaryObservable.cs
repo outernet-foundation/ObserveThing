@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class DictionaryObservable<TKey, TValue> : IDictionaryObservable<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>
+    public class DictionaryObservable<TKey, TValue> : ObservableBase<IDictionaryObserver<TKey, TValue>>, IDictionaryObservable<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>
     {
         public TValue this[TKey key]
         {
@@ -28,73 +28,12 @@ namespace ObserveThing
 
         public int count => _dictionary.Count;
 
-        private SynchronizationContext _context;
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
-        private List<ObserverData> _observers = new List<ObserverData>();
-        private List<ObserverData> _disposedObservers = new List<ObserverData>();
-        private bool _notifyingObservers;
-        private bool _disposed;
-
         private CollectionIdProvider _idProvider;
 
-        private class ObserverData : IDisposable
+        public DictionaryObservable(SynchronizationContext context = default) : base(context)
         {
-            public IDictionaryObserver<TKey, TValue> observer;
-            public Action<ObserverData> handleDispose;
-            public bool disposed { get; private set; }
-
-            public void Dispose()
-            {
-                if (disposed)
-                    return;
-
-                disposed = true;
-                handleDispose?.Invoke(this);
-                observer.OnDispose();
-            }
-        }
-
-        public DictionaryObservable(SynchronizationContext context = default)
-        {
-            _context = context ?? SynchronizationContext.Default;
             _idProvider = new CollectionIdProvider(x => _dictionary.Values.Any(y => y.id == x));
-        }
-
-        private void NotifyObservers(Action<IDictionaryObserver<TKey, TValue>> notifyObserver)
-        {
-            _notifyingObservers = true;
-
-            int count = _observers.Count;
-            for (int i = 0; i < count; i++)
-            {
-                var instance = _observers[i];
-
-                if (instance.disposed)
-                    continue;
-
-                notifyObserver(instance.observer);
-            }
-
-            foreach (var disposed in _disposedObservers)
-                _observers.Remove(disposed);
-
-            _disposedObservers.Clear();
-
-            _notifyingObservers = false;
-        }
-
-        private void HandleObserverDisposed(ObserverData observer)
-        {
-            if (_disposed)
-                return;
-
-            if (_notifyingObservers)
-            {
-                _disposedObservers.Add(observer);
-                return;
-            }
-
-            _observers.Remove(observer);
         }
 
         public bool TryGetValue(TKey key, out TValue value)
@@ -113,7 +52,7 @@ namespace ObserveThing
         {
             var id = _idProvider.GetUnusedId();
             _dictionary.Add(key, (id, value));
-            _context.EnqueueAction(() => NotifyObservers(x => x.OnAdd(id, new KeyValuePair<TKey, TValue>(key, value))));
+            EnqueueNotify(x => x.OnAdd(id, new KeyValuePair<TKey, TValue>(key, value)));
         }
 
         public bool Remove(TKey key)
@@ -122,15 +61,18 @@ namespace ObserveThing
                 return false;
 
             _dictionary.Remove(key);
-            _context.EnqueueAction(() => NotifyObservers(x => x.OnRemove(data.id, new KeyValuePair<TKey, TValue>(key, data.value))));
+            EnqueueNotify(x => x.OnRemove(data.id, new KeyValuePair<TKey, TValue>(key, data.value)));
 
             return true;
         }
 
         public void Clear()
         {
-            foreach (var key in _dictionary.Keys.ToArray())
-                Remove(key);
+            foreach (var kvp in _dictionary.ToArray())
+            {
+                _dictionary.Remove(kvp.Key);
+                EnqueueNotify(x => x.OnRemove(kvp.Value.id, new KeyValuePair<TKey, TValue>(kvp.Key, kvp.Value.value)));
+            }
         }
 
         public bool ContainsKey(TKey key)
@@ -141,14 +83,12 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer)
         {
-            var data = new ObserverData() { observer = observer, handleDispose = HandleObserverDisposed };
-
-            _observers.Add(data);
+            var subscription = AddObserver(observer);
 
             foreach (var kvp in _dictionary)
-                data.observer.OnAdd(kvp.Value.id, new KeyValuePair<TKey, TValue>(kvp.Key, kvp.Value.value));
+                observer.OnAdd(kvp.Value.id, new KeyValuePair<TKey, TValue>(kvp.Key, kvp.Value.value));
 
-            return data;
+            return subscription;
         }
 
         public IDisposable Subscribe(ICollectionObserver<KeyValuePair<TKey, TValue>> observer)
@@ -166,18 +106,5 @@ namespace ObserveThing
                 onError: observer.OnError,
                 onDispose: observer.OnDispose
             ));
-
-        public void Dispose()
-        {
-            if (_disposed)
-                return;
-
-            _disposed = true;
-
-            foreach (var instance in _observers)
-                instance.Dispose();
-
-            _observers.Clear();
-        }
     }
 }

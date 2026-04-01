@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class ReadonlyCollectionObservable<T> : ICollectionObservable<T>, IEnumerable<T>
+    public class ReadonlyCollectionObservable<T> : ObservableBase<ICollectionObserver<T>>, ICollectionObservable<T>, IEnumerable<T>
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => _collection.Select(x => x.value).GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _collection.Select(x => x.value).GetEnumerator();
@@ -13,12 +13,11 @@ namespace ObserveThing
         public int count => _collection.Count;
 
         private List<(uint id, T value)> _collection = new List<(uint id, T value)>();
-        private List<ICollectionObserver<T>> _observers;
-        private bool _disposed;
 
         public ReadonlyCollectionObservable(params T[] source) : this((IEnumerable<T>)source) { }
+        public ReadonlyCollectionObservable(SynchronizationContext context, params T[] source) : this(source, context) { }
 
-        public ReadonlyCollectionObservable(IEnumerable<T> source)
+        public ReadonlyCollectionObservable(IEnumerable<T> source, SynchronizationContext context = default) : base(context)
         {
             uint nextId = 0;
             foreach (var element in source)
@@ -33,7 +32,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(ICollectionObserver<T> observer)
         {
-            _observers.Add(observer);
+            var subscription = AddObserver(observer);
 
             for (int i = 0; i < _collection.Count; i++)
             {
@@ -41,7 +40,7 @@ namespace ObserveThing
                 observer.OnAdd(element.id, element.value);
             }
 
-            return new Disposable(() => _observers.Remove(observer));
+            return subscription;
         }
 
         public IDisposable Subscribe(IObserver observer)
@@ -51,18 +50,5 @@ namespace ObserveThing
                 onError: observer.OnError,
                 onDispose: observer.OnDispose
             ));
-
-        public void Dispose()
-        {
-            if (_disposed)
-                return;
-
-            _disposed = true;
-
-            foreach (var observer in _observers)
-                observer.OnDispose();
-
-            _observers.Clear();
-        }
     }
 }

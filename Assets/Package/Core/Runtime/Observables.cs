@@ -19,6 +19,11 @@ namespace ObserveThing
         IDisposable Subscribe(ICollectionObserver<T> observer);
     }
 
+    public interface ISetObservable<out T> : IObservable
+    {
+        IDisposable Subscribe(ISetObserver<T> observer);
+    }
+
     public interface IDictionaryObservable<TKey, TValue> : ICollectionObservable<KeyValuePair<TKey, TValue>>
     {
         IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer);
@@ -225,6 +230,14 @@ namespace ObserveThing
                 onDispose: onDispose
             ));
 
+        public static IDisposable Subscribe<T>(this ISetObservable<T> source, Action<T> onAdd = default, Action<T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.Subscribe(new SetObserver<T>(
+                onAdd: onAdd == null ? null : (_, value) => onAdd?.Invoke(value),
+                onRemove: onRemove == null ? null : (_, value) => onRemove?.Invoke(value),
+                onError: onError,
+                onDispose: onDispose
+            ));
+
         public static IDisposable Subscribe<T>(this ICollectionObservable<T> source, Action<T> onAdd = default, Action<T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
             => source.Subscribe(new CollectionObserver<T>(
                 onAdd: onAdd == null ? null : (_, value) => onAdd?.Invoke(value),
@@ -243,6 +256,14 @@ namespace ObserveThing
 
         public static IDisposable SubscribeWithId<T>(this IListObservable<T> source, Action<uint, int, T> onAdd = default, Action<uint, int, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
             => source.Subscribe(new ListObserver<T>(
+                onAdd: onAdd,
+                onRemove: onRemove,
+                onError: onError,
+                onDispose: onDispose
+            ));
+
+        public static IDisposable SubscribeWithId<T>(this ISetObservable<T> source, Action<uint, T> onAdd = default, Action<uint, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.Subscribe(new SetObserver<T>(
                 onAdd: onAdd,
                 onRemove: onRemove,
                 onError: onError,
