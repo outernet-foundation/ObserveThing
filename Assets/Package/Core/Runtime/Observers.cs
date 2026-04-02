@@ -10,6 +10,7 @@ namespace ObserveThing
 
     public interface IObserverBase
     {
+        bool immediate { get; }
         void OnError(Exception exc);
         void OnDispose();
     }
@@ -21,15 +22,17 @@ namespace ObserveThing
 
     public class Observer : IObserver
     {
+        public bool immediate { get; }
         private Action _onChange;
         private Action<Exception> _onError;
         private Action _onDispose;
 
-        public Observer(Action onChange = default, Action<Exception> onError = default, Action onDispose = default)
+        public Observer(Action onChange = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
         {
             _onChange = onChange;
             _onError = onError;
             _onDispose = onDispose;
+            this.immediate = immediate;
         }
 
         public void OnChange()
@@ -55,15 +58,17 @@ namespace ObserveThing
 
     public class ValueObserver<T> : IValueObserver<T>
     {
+        public bool immediate { get; }
         private Action<T> _onNext;
         private Action<Exception> _onError;
         private Action _onDispose;
 
-        public ValueObserver(Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default)
+        public ValueObserver(Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
         {
             _onNext = onNext;
             _onError = onError;
             _onDispose = onDispose;
+            this.immediate = immediate;
         }
 
         public void OnNext(T value)
@@ -90,17 +95,19 @@ namespace ObserveThing
 
     public class CollectionObserver<T> : ICollectionObserver<T>
     {
+        public bool immediate { get; }
         private Action<uint, T> _onAdd;
         private Action<uint, T> _onRemove;
         private Action<Exception> _onError;
         private Action _onDispose;
 
-        public CollectionObserver(Action<uint, T> onAdd = default, Action<uint, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+        public CollectionObserver(Action<uint, T> onAdd = default, Action<uint, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
         {
             _onAdd = onAdd;
             _onRemove = onRemove;
             _onError = onError;
             _onDispose = onDispose;
+            this.immediate = immediate;
         }
 
         public void OnAdd(uint id, T value)
@@ -139,17 +146,19 @@ namespace ObserveThing
 
     public class SetObserver<T> : ISetObserver<T>
     {
+        public bool immediate { get; }
         private Action<uint, T> _onAdd;
         private Action<uint, T> _onRemove;
         private Action<Exception> _onError;
         private Action _onDispose;
 
-        public SetObserver(Action<uint, T> onAdd = default, Action<uint, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+        public SetObserver(Action<uint, T> onAdd = default, Action<uint, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
         {
             _onAdd = onAdd;
             _onRemove = onRemove;
             _onError = onError;
             _onDispose = onDispose;
+            this.immediate = immediate;
         }
 
         public void OnAdd(uint id, T value)
@@ -188,17 +197,19 @@ namespace ObserveThing
 
     public class ListObserver<T> : IListObserver<T>
     {
+        public bool immediate { get; }
         private Action<uint, int, T> _onAdd;
         private Action<uint, int, T> _onRemove;
         private Action<Exception> _onError;
         private Action _onDispose;
 
-        public ListObserver(Action<uint, int, T> onAdd = default, Action<uint, int, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+        public ListObserver(Action<uint, int, T> onAdd = default, Action<uint, int, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
         {
             _onAdd = onAdd;
             _onRemove = onRemove;
             _onError = onError;
             _onDispose = onDispose;
+            this.immediate = immediate;
         }
 
         public void OnAdd(uint id, int index, T value)
@@ -237,17 +248,19 @@ namespace ObserveThing
 
     public class DictionaryObserver<TKey, TValue> : IDictionaryObserver<TKey, TValue>
     {
+        public bool immediate { get; }
         private Action<uint, KeyValuePair<TKey, TValue>> _onAdd;
         private Action<uint, KeyValuePair<TKey, TValue>> _onRemove;
         private Action<Exception> _onError;
         private Action _onDispose;
 
-        public DictionaryObserver(Action<uint, KeyValuePair<TKey, TValue>> onAdd = default, Action<uint, KeyValuePair<TKey, TValue>> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+        public DictionaryObserver(Action<uint, KeyValuePair<TKey, TValue>> onAdd = default, Action<uint, KeyValuePair<TKey, TValue>> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
         {
             _onAdd = onAdd;
             _onRemove = onRemove;
             _onError = onError;
             _onDispose = onDispose;
+            this.immediate = immediate;
         }
 
         public void OnAdd(uint id, KeyValuePair<TKey, TValue> keyValuePair)

@@ -1,17 +1,20 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace ObserveThing
 {
-    public abstract class ObservableBase<TObserver, TData> : IDisposable where TObserver : IObserverBase
+    public abstract class ObservableBase<TObserver, TNotification> : IDisposable where TObserver : IObserverBase
     {
         private SynchronizationContext _context;
         private List<ObserverData> _observers = new List<ObserverData>();
+        private List<ObserverData> _immediateObservers = new List<ObserverData>();
         private List<ObserverData> _disposedObservers = new List<ObserverData>();
         private bool _notifyingObservers;
         private bool _disposed;
 
-        private Queue<TData> _pendingNotifications = new Queue<TData>();
+        private int _immediateNotificationIndex = 0;
+        private Queue<TNotification> _pendingNotifications = new Queue<TNotification>();
 
         private class ObserverData : IDisposable
         {
@@ -34,38 +37,52 @@ namespace ObserveThing
             _context = context ?? SynchronizationContext.Default;
         }
 
-        protected void EnqueueNotify(TData notifyData)
+        protected void EnqueueNotify(TNotification notifyData)
         {
             _pendingNotifications.Enqueue(notifyData);
+            _context.EnqueueActionImmediate(NotifyNextImmediate);
             _context.EnqueueAction(NotifyNext);
         }
 
-        public void NotifyNext()
+        private void NotifyNext()
+        {
+            var notification = _pendingNotifications.Dequeue();
+            _immediateNotificationIndex--;
+            NotifyInternal(notification, _observers);
+        }
+
+        private void NotifyNextImmediate()
+        {
+            var notification = _pendingNotifications.Skip(_immediateNotificationIndex).First();
+            _immediateNotificationIndex++;
+            NotifyInternal(notification, _immediateObservers);
+        }
+
+        private void NotifyInternal(TNotification notification, List<ObserverData> observers)
         {
             _notifyingObservers = true;
 
-            int count = _observers.Count;
-            TData data = _pendingNotifications.Dequeue();
+            int count = observers.Count;
 
             for (int i = 0; i < count; i++)
             {
-                var instance = _observers[i];
+                var instance = observers[i];
 
                 if (instance.disposed)
                     continue;
 
-                NotifyObserver(instance.observer, data);
+                NotifyObserver(instance.observer, notification);
             }
 
             foreach (var disposed in _disposedObservers)
-                _observers.Remove(disposed);
+                observers.Remove(disposed);
 
             _disposedObservers.Clear();
 
             _notifyingObservers = false;
         }
 
-        protected abstract void NotifyObserver(TObserver observer, TData data);
+        protected abstract void NotifyObserver(TObserver observer, TNotification data);
 
         private void HandleObserverDisposed(ObserverData observerData)
         {
@@ -75,6 +92,10 @@ namespace ObserveThing
             if (_notifyingObservers)
             {
                 _disposedObservers.Add(observerData);
+            }
+            else if (observerData.observer.immediate)
+            {
+                _immediateObservers.Remove(observerData);
             }
             else
             {
@@ -87,7 +108,16 @@ namespace ObserveThing
         protected IDisposable AddObserver(TObserver observer)
         {
             var data = new ObserverData() { observer = observer, handleDispose = HandleObserverDisposed };
-            _observers.Add(data);
+
+            if (observer.immediate)
+            {
+                _immediateObservers.Add(data);
+            }
+            else
+            {
+                _observers.Add(data);
+            }
+
             return data;
         }
 
