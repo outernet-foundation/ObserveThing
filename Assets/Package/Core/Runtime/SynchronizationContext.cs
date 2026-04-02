@@ -54,7 +54,7 @@ namespace ObserveThing
 
             int nestedEnqueues = 0;
 
-            while (_actionQueue.TryDequeue(out var nextAction))
+            while (_actionQueue.TryDequeue(out var action))
             {
                 if (nestedEnqueues >= MAX_NESTED_ENQUEUES)
                 {
@@ -62,7 +62,7 @@ namespace ObserveThing
                     throw new Exception("Max nested enqueues exceeded. Could this be an infinite loop?");
                 }
 
-                nextAction?.Invoke();
+                action.Invoke();
 
                 if (_enqueuedDuringExecute)
                 {

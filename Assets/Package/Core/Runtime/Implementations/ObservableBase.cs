@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ObservableBase<T> : IDisposable where T : IObserverBase
+    public abstract class ObservableBase<TObserver, TData> : IDisposable where TObserver : IObserverBase
     {
         private SynchronizationContext _context;
         private List<ObserverData> _observers = new List<ObserverData>();
@@ -11,9 +11,11 @@ namespace ObserveThing
         private bool _notifyingObservers;
         private bool _disposed;
 
+        private Queue<TData> _pendingNotifications = new Queue<TData>();
+
         private class ObserverData : IDisposable
         {
-            public T observer;
+            public TObserver observer;
             public Action<ObserverData> handleDispose;
             public bool disposed { get; private set; }
 
@@ -32,16 +34,19 @@ namespace ObserveThing
             _context = context ?? SynchronizationContext.Default;
         }
 
-        protected void EnqueueNotify(Action<T> notifyObserver)
+        protected void EnqueueNotify(TData notifyData)
         {
-            _context.EnqueueAction(() => NotifyInternal(notifyObserver));
+            _pendingNotifications.Enqueue(notifyData);
+            _context.EnqueueAction(NotifyNext);
         }
 
-        private void NotifyInternal(Action<T> notifyObserver)
+        public void NotifyNext()
         {
             _notifyingObservers = true;
 
             int count = _observers.Count;
+            TData data = _pendingNotifications.Dequeue();
+
             for (int i = 0; i < count; i++)
             {
                 var instance = _observers[i];
@@ -49,7 +54,7 @@ namespace ObserveThing
                 if (instance.disposed)
                     continue;
 
-                notifyObserver(instance.observer);
+                NotifyObserver(instance.observer, data);
             }
 
             foreach (var disposed in _disposedObservers)
@@ -59,6 +64,8 @@ namespace ObserveThing
 
             _notifyingObservers = false;
         }
+
+        protected abstract void NotifyObserver(TObserver observer, TData data);
 
         private void HandleObserverDisposed(ObserverData observerData)
         {
@@ -77,7 +84,7 @@ namespace ObserveThing
             observerData.observer.OnDispose();
         }
 
-        protected IDisposable AddObserver(T observer)
+        protected IDisposable AddObserver(TObserver observer)
         {
             var data = new ObserverData() { observer = observer, handleDispose = HandleObserverDisposed };
             _observers.Add(data);

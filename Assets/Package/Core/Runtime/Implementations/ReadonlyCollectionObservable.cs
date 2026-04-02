@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class ReadonlyCollectionObservable<T> : ObservableBase<ICollectionObserver<T>>, ICollectionObservable<T>, IEnumerable<T>
+    public class ReadonlyCollectionObservable<T> : ObservableBase<ICollectionObserver<T>, bool>, ICollectionObservable<T>, IEnumerable<T>
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => _collection.Select(x => x.value).GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _collection.Select(x => x.value).GetEnumerator();
@@ -26,6 +26,8 @@ namespace ObserveThing
                 nextId++;
             }
         }
+
+        protected override void NotifyObserver(ICollectionObserver<T> observer, bool data) { }
 
         public bool Contains(T element)
             => _collection.Select(x => x.value).Contains(element);

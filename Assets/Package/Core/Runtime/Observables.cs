@@ -189,6 +189,9 @@ namespace ObserveThing
         public static IValueObservable<int> ObservableIndexOf<T>(this IListObservable<T> source, IValueObservable<T> value)
             => new FactoryValueObservable<int>(receiver => new IndexOfObservable<T>(source, value, receiver));
 
+        public static ISetObservable<T> ObservableShare<T>(this ISetObservable<T> source)
+            => new ShareSetObservable<T>(source);
+
         public static IValueObservable<T> AsObservable<T>(this IValueObservable<T> observable)
             => observable;
 

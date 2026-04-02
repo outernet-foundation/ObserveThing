@@ -5,7 +5,14 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class ListObservable<T> : ObservableBase<IListObserver<T>>, IListObservable<T>, IEnumerable<T>
+    public struct ListOpData<T>
+    {
+        public (uint id, T element) element;
+        public int index;
+        public bool isRemove;
+    }
+
+    public class ListObservable<T> : ObservableBase<IListObserver<T>, ListOpData<T>>, IListObservable<T>, IEnumerable<T>
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
@@ -40,6 +47,18 @@ namespace ObserveThing
             _idProvider = new CollectionIdProvider(x => _list.Any(item => item.id == x));
         }
 
+        protected override void NotifyObserver(IListObserver<T> observer, ListOpData<T> data)
+        {
+            if (data.isRemove)
+            {
+                observer.OnRemove(data.element.id, data.index, data.element.element);
+            }
+            else
+            {
+                observer.OnAdd(data.element.id, data.index, data.element.element);
+            }
+        }
+
         public void Add(T added)
             => Insert(_list.Count, added);
 
@@ -64,14 +83,14 @@ namespace ObserveThing
         {
             var removed = _list[index];
             _list.RemoveAt(index);
-            EnqueueNotify(x => x.OnRemove(removed.id, index, removed.value));
+            EnqueueNotify(new ListOpData<T>() { index = index, element = removed, isRemove = true });
         }
 
-        public void Insert(int index, T inserted)
+        public void Insert(int index, T item)
         {
-            var id = _idProvider.GetUnusedId();
-            _list.Insert(index, new(id, inserted));
-            EnqueueNotify(x => x.OnAdd(id, index, inserted));
+            (uint id, T value) inserted = new(_idProvider.GetUnusedId(), item);
+            _list.Insert(index, inserted);
+            EnqueueNotify(new ListOpData<T>() { index = index, element = inserted, isRemove = false });
         }
 
         public void Clear()

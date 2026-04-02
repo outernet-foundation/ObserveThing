@@ -5,7 +5,14 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class DictionaryObservable<TKey, TValue> : ObservableBase<IDictionaryObserver<TKey, TValue>>, IDictionaryObservable<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>
+    public struct DictionaryOpData<TKey, TValue>
+    {
+        public uint id;
+        public KeyValuePair<TKey, TValue> kvp;
+        public bool isRemove;
+    }
+
+    public class DictionaryObservable<TKey, TValue> : ObservableBase<IDictionaryObserver<TKey, TValue>, DictionaryOpData<TKey, TValue>>, IDictionaryObservable<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>
     {
         public TValue this[TKey key]
         {
@@ -31,9 +38,29 @@ namespace ObserveThing
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
         private CollectionIdProvider _idProvider;
 
+        public DictionaryObservable(params KeyValuePair<TKey, TValue>[] source) : this(source, default) { }
+        public DictionaryObservable(SynchronizationContext context, params KeyValuePair<TKey, TValue>[] source) : this(source, context) { }
+        public DictionaryObservable(IEnumerable<KeyValuePair<TKey, TValue>> source, SynchronizationContext context = default) : this(context)
+        {
+            foreach (var kvp in source)
+                _dictionary.Add(kvp.Key, new(_idProvider.GetUnusedId(), kvp.Value));
+        }
+
         public DictionaryObservable(SynchronizationContext context = default) : base(context)
         {
             _idProvider = new CollectionIdProvider(x => _dictionary.Values.Any(y => y.id == x));
+        }
+
+        protected override void NotifyObserver(IDictionaryObserver<TKey, TValue> observer, DictionaryOpData<TKey, TValue> data)
+        {
+            if (data.isRemove)
+            {
+                observer.OnRemove(data.id, data.kvp);
+            }
+            else
+            {
+                observer.OnAdd(data.id, data.kvp);
+            }
         }
 
         public bool TryGetValue(TKey key, out TValue value)
@@ -52,7 +79,7 @@ namespace ObserveThing
         {
             var id = _idProvider.GetUnusedId();
             _dictionary.Add(key, (id, value));
-            EnqueueNotify(x => x.OnAdd(id, new KeyValuePair<TKey, TValue>(key, value)));
+            EnqueueNotify(new() { id = id, kvp = new(key, value), isRemove = false });
         }
 
         public bool Remove(TKey key)
@@ -61,7 +88,7 @@ namespace ObserveThing
                 return false;
 
             _dictionary.Remove(key);
-            EnqueueNotify(x => x.OnRemove(data.id, new KeyValuePair<TKey, TValue>(key, data.value)));
+            EnqueueNotify(new() { id = data.id, kvp = new(key, data.value), isRemove = true });
 
             return true;
         }
@@ -71,7 +98,7 @@ namespace ObserveThing
             foreach (var kvp in _dictionary.ToArray())
             {
                 _dictionary.Remove(kvp.Key);
-                EnqueueNotify(x => x.OnRemove(kvp.Value.id, new KeyValuePair<TKey, TValue>(kvp.Key, kvp.Value.value)));
+                EnqueueNotify(new() { id = kvp.Value.id, kvp = new(kvp.Key, kvp.Value.value), isRemove = true });
             }
         }
 

@@ -2,7 +2,7 @@ using System;
 
 namespace ObserveThing
 {
-    public class ValueObservable<T> : ObservableBase<IValueObserver<T>>, IValueObservable<T>
+    public class ValueObservable<T> : ObservableBase<IValueObserver<T>, T>, IValueObservable<T>
     {
         public T value
         {
@@ -13,7 +13,7 @@ namespace ObserveThing
                     return;
 
                 _value = value;
-                EnqueueNotify(x => x.OnNext(value));
+                EnqueueNotify(value);
             }
         }
 
@@ -23,6 +23,11 @@ namespace ObserveThing
         public ValueObservable(T startValue, SynchronizationContext context = default) : base(context)
         {
             _value = startValue;
+        }
+
+        protected override void NotifyObserver(IValueObserver<T> observer, T data)
+        {
+            observer.OnNext(data);
         }
 
         public IDisposable Subscribe(IValueObserver<T> observer)

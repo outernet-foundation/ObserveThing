@@ -5,7 +5,14 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class SetObservable<T> : ObservableBase<ISetObserver<T>>, ISetObservable<T>, IEnumerable<T>
+    public struct SetOpData<T>
+    {
+        public uint id;
+        public T element;
+        public bool isRemove;
+    }
+
+    public class SetObservable<T> : ObservableBase<ISetObserver<T>, SetOpData<T>>, ISetObservable<T>, IEnumerable<T>
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator()
             => _set.Keys.GetEnumerator();
@@ -31,6 +38,18 @@ namespace ObserveThing
             _idProvider = new CollectionIdProvider(x => _set.ContainsValue(x));
         }
 
+        protected override void NotifyObserver(ISetObserver<T> observer, SetOpData<T> data)
+        {
+            if (data.isRemove)
+            {
+                observer.OnRemove(data.id, data.element);
+            }
+            else
+            {
+                observer.OnAdd(data.id, data.element);
+            }
+        }
+
         public bool Add(T element)
         {
             if (_set.ContainsKey(element))
@@ -38,8 +57,14 @@ namespace ObserveThing
 
             var id = _idProvider.GetUnusedId();
             _set.Add(element, id);
-            EnqueueNotify(x => x.OnAdd(id, element));
+            EnqueueNotify(new SetOpData<T>() { id = id, element = element, isRemove = false });
             return true;
+        }
+
+        public void AddRange(IEnumerable<T> elements)
+        {
+            foreach (var element in elements)
+                Add(element);
         }
 
         public bool Remove(T element)
@@ -48,7 +73,7 @@ namespace ObserveThing
                 return false;
 
             _set.Remove(element);
-            EnqueueNotify(x => x.OnRemove(id, element));
+            EnqueueNotify(new SetOpData<T>() { id = id, element = element, isRemove = true });
 
             return true;
         }
@@ -58,7 +83,7 @@ namespace ObserveThing
             foreach (var kvp in _set.ToArray())
             {
                 _set.Remove(kvp.Key);
-                EnqueueNotify(x => x.OnRemove(kvp.Value, kvp.Key));
+                EnqueueNotify(new SetOpData<T>() { id = kvp.Value, element = kvp.Key, isRemove = false });
             }
         }
 
