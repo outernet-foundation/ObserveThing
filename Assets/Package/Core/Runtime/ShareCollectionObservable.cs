@@ -3,136 +3,81 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
+    public struct CollectionOpData<T>
+    {
+        public T value;
+        public uint id;
+        public bool isRemove;
+    }
+
     public class ShareCollectionObservable<T> : ICollectionObservable<T>
     {
         private ICollectionObservable<T> _source;
         private IDisposable _sourceStream;
-        private List<(uint id, T value)> _collection = new List<(uint id, T value)>();
-        private Queue<Action<ICollectionObserver<T>>> _pendingNotifications = new Queue<Action<ICollectionObserver<T>>>();
-        private List<ObserverData> _observers = new List<ObserverData>();
-        private List<ObserverData> _disposedObservers = new List<ObserverData>();
-        private bool _notifyingObservers;
+        private Dictionary<uint, T> _collection = new Dictionary<uint, T>();
+        private SynchronizedNotificationQueue<ICollectionObserver<T>, CollectionOpData<T>> _notificationQueue;
+        private int _observerCount;
         private bool _disposed;
 
-        private class ObserverData : IDisposable
-        {
-            public ICollectionObserver<T> observer;
-            public Action<ObserverData> handleDispose;
-            public bool disposed { get; private set; }
-
-            public void Dispose()
-            {
-                if (disposed)
-                    return;
-
-                disposed = true;
-                handleDispose?.Invoke(this);
-                observer.OnDispose();
-            }
-        }
-
-        public ShareCollectionObservable(ICollectionObservable<T> source)
+        public ShareCollectionObservable(ICollectionObservable<T> source, SynchronizationContext context = default)
         {
             _source = source;
+            _notificationQueue = new SynchronizedNotificationQueue<ICollectionObserver<T>, CollectionOpData<T>>(NotifyObserver, context);
         }
 
-        private void NotifyObserversOrEnqueue(Action<ICollectionObserver<T>> notify)
+        private void NotifyObserver(ICollectionObserver<T> observer, CollectionOpData<T> notification)
         {
-            _pendingNotifications.Enqueue(notify);
-
-            if (_notifyingObservers)
-                return;
-
-            _notifyingObservers = true;
-
-            while (_pendingNotifications.TryDequeue(out var nextNotify))
+            if (notification.isRemove)
             {
-                int count = _observers.Count;
-                for (int i = 0; i < count; i++)
-                {
-                    var instance = _observers[i];
-
-                    if (instance.disposed)
-                        continue;
-
-                    nextNotify(instance.observer);
-                }
-
-                foreach (var disposed in _disposedObservers)
-                    _observers.Remove(disposed);
-
-                _disposedObservers.Clear();
-
-                if (_observers.Count == 0)
-                {
-                    _sourceStream?.Dispose();
-                    _sourceStream = null;
-                }
+                observer.OnRemove(notification.id, notification.value);
             }
-
-            _notifyingObservers = false;
-        }
-
-        private void HandleObserverDisposed(ObserverData observer)
-        {
-            if (_disposed)
-                return;
-
-            if (_notifyingObservers)
+            else
             {
-                _disposedObservers.Add(observer);
-                return;
-            }
-
-            _observers.Remove(observer);
-
-            if (_observers.Count == 0)
-            {
-                _sourceStream?.Dispose();
-                _sourceStream = null;
+                observer.OnAdd(notification.id, notification.value);
             }
         }
 
         public IDisposable Subscribe(ICollectionObserver<T> observer)
         {
-            var data = new ObserverData() { observer = observer, handleDispose = HandleObserverDisposed };
-            _observers.Add(data);
+            _observerCount++;
 
-            if (_observers.Count == 1)
+            if (_observerCount == 1)
             {
                 _sourceStream = _source.SubscribeWithId(
-                    onAdd: (id, x) =>
+                    immediate: true,
+                    onAdd: (id, item) =>
                     {
-                        _collection.Add(new(id, x));
-                        NotifyObserversOrEnqueue(observer => observer.OnAdd(id, x));
+                        _collection.Add(id, item);
+                        _notificationQueue.EnqueueNotify(new() { id = id, value = item, isRemove = false });
                     },
-                    onRemove: (id, x) =>
+                    onRemove: (id, item) =>
                     {
-                        for (int i = 0; i < _collection.Count; i++)
-                        {
-                            if (_collection[i].id == id)
-                            {
-                                _collection.RemoveAt(i);
-                                break;
-                            }
-                        }
-
-                        NotifyObserversOrEnqueue(observer => observer.OnRemove(id, x));
-                    },
-                    onError: x => NotifyObserversOrEnqueue(observer => observer.OnError(x)),
-                    onDispose: Dispose
+                        _collection.Remove(id);
+                        _notificationQueue.EnqueueNotify(new() { id = id, value = item, isRemove = true });
+                    }
                 );
             }
-            else
-            {
-                for (int i = 0; i < _collection.Count; i++)
-                {
-                    var element = _collection[i];
-                    data.observer.OnAdd(element.id, element.value);
-                }
-            }
 
-            return data;
+            foreach (var kvp in _collection)
+                observer.OnAdd(kvp.Key, kvp.Value);
+
+            return _notificationQueue.AddObserver(new CollectionObserver<T>(
+                immediate: observer.immediate,
+                onAdd: observer.OnAdd,
+                onRemove: observer.OnRemove,
+                onError: observer.OnError,
+                onDispose: () =>
+                {
+                    observer.OnDispose();
+
+                    _observerCount--;
+                    if (_observerCount == 0)
+                    {
+                        _sourceStream.Dispose();
+                        _sourceStream = null;
+                    }
+                }
+            ));
         }
 
         public IDisposable Subscribe(IObserver observer)
@@ -150,10 +95,8 @@ namespace ObserveThing
 
             _disposed = true;
 
-            foreach (var instance in _observers)
-                instance.Dispose();
-
-            _observers.Clear();
+            _sourceStream?.Dispose();
+            _notificationQueue.Dispose();
         }
     }
 }

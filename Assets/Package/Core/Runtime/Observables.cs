@@ -60,8 +60,8 @@ namespace ObserveThing
         public static IValueObservable<T> ObservableThen<T>(this IValueObservable<T> source, IValueObserver<T> thenObserver)
             => new FactoryValueObservable<T>(receiver => new ThenObservable<T>(source, thenObserver, receiver));
 
-        public static IValueObservable<T> ObservableShare<T>(this IValueObservable<T> source)
-            => new ShareValueObservable<T>(source);
+        public static IValueObservable<T> ObservableShare<T>(this IValueObservable<T> source, SynchronizationContext context = default)
+            => new ShareValueObservable<T>(source, context);
 
         public static IValueObservable<U> ObservableSelect<T, U>(this IValueObservable<T> source, Func<T, U> select)
             => new FactoryValueObservable<U>(receiver => new SelectValueObservable<T, U>(source, select, receiver));
@@ -84,8 +84,8 @@ namespace ObserveThing
         public static ICollectionObservable<T> ObservableForEach<T>(this ICollectionObservable<T> source, ICollectionObserver<T> forEachObserver)
             => new FactoryCollectionObservable<T>(receiver => new ForEachCollectionObservable<T>(source, forEachObserver, receiver));
 
-        public static ICollectionObservable<T> ObservableShare<T>(this ICollectionObservable<T> source)
-            => new ShareCollectionObservable<T>(source);
+        public static ICollectionObservable<T> ObservableShare<T>(this ICollectionObservable<T> source, SynchronizationContext context = default)
+            => new ShareCollectionObservable<T>(source, context);
 
         public static ICollectionObservable<U> ObservableSelect<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> select)
             => source.ObservableSelect<T, IValueObservable<U>>(select).ObservableShallowCopy();
@@ -150,8 +150,8 @@ namespace ObserveThing
         public static IDictionaryObservable<TKey, TValue> ObservableForEach<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, IDictionaryObserver<TKey, TValue> forEachObserver)
             => new FactoryDictionaryObservable<TKey, TValue>(receiver => new ForEachDictionaryObservable<TKey, TValue>(source, forEachObserver, receiver));
 
-        public static IDictionaryObservable<TKey, TValue> ObservableShare<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source)
-            => new ShareDictionaryObservable<TKey, TValue>(source);
+        public static IDictionaryObservable<TKey, TValue> ObservableShare<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, SynchronizationContext context = default)
+            => new ShareDictionaryObservable<TKey, TValue>(source, context);
 
         public static IValueObservable<(bool keyPresent, TValue value)> ObservableTrack<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, TKey key)
             => source.ObservableTrack(new ValueObservable<TKey>(key));
@@ -174,8 +174,8 @@ namespace ObserveThing
         public static IListObservable<T> ObservableForEach<T>(this IListObservable<T> source, IListObserver<T> forEachObserver)
             => new FactoryListObservable<T>(receiver => new ForEachListObservable<T>(source, forEachObserver, receiver));
 
-        public static IListObservable<T> ObservableShare<T>(this IListObservable<T> source)
-            => new ShareListObservable<T>(source);
+        public static IListObservable<T> ObservableShare<T>(this IListObservable<T> source, SynchronizationContext context = default)
+            => new ShareListObservable<T>(source, context);
 
         public static IListObservable<U> ObservableSelect<T, U>(this IListObservable<T> source, Func<T, U> select)
             => new FactoryListObservable<U>(receiver => new SelectListObservable<T, U>(source, select, receiver));
@@ -189,8 +189,8 @@ namespace ObserveThing
         public static IValueObservable<int> ObservableIndexOf<T>(this IListObservable<T> source, IValueObservable<T> value)
             => new FactoryValueObservable<int>(receiver => new IndexOfObservable<T>(source, value, receiver));
 
-        public static ISetObservable<T> ObservableShare<T>(this ISetObservable<T> source)
-            => new ShareSetObservable<T>(source);
+        public static ISetObservable<T> ObservableShare<T>(this ISetObservable<T> source, SynchronizationContext context = default)
+            => new ShareSetObservable<T>(source, context);
 
         public static IValueObservable<T> AsObservable<T>(this IValueObservable<T> observable)
             => observable;

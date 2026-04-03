@@ -451,5 +451,56 @@ namespace ObserveThing.Tests
             Assert.That(stream1Values, Is.EqualTo(new int[] { 3, 4, 5 }));
             Assert.That(stream2Values, Is.EqualTo(new int[] { 3, 4, 5 }));
         }
+
+        [Test]
+        public void TestImmediateObserverOrder()
+        {
+            ValueObservable<int> observable = new ValueObservable<int>();
+            bool streamCalledFirst = false;
+            bool immediateStreamCalledFirst = false;
+
+            var stream = observable.ObservableSelect(x => x * 2).Subscribe(
+                onNext: x =>
+                {
+                    if (!immediateStreamCalledFirst)
+                        streamCalledFirst = true;
+                },
+                onDispose: () =>
+                {
+                    if (!immediateStreamCalledFirst)
+                        streamCalledFirst = true;
+                }
+            );
+
+            var immediateStream = observable.ObservableSelect(x => x * 2).Subscribe(
+                immediate: true,
+                onNext: x =>
+                {
+                    if (!streamCalledFirst)
+                        immediateStreamCalledFirst = true;
+                },
+                onDispose: () =>
+                {
+                    if (!streamCalledFirst)
+                        immediateStreamCalledFirst = true;
+                }
+            );
+
+            streamCalledFirst = false;
+            immediateStreamCalledFirst = false;
+
+            observable.value++;
+
+            Assert.IsTrue(immediateStreamCalledFirst);
+            Assert.IsFalse(streamCalledFirst);
+
+            streamCalledFirst = false;
+            immediateStreamCalledFirst = false;
+
+            observable.Dispose();
+
+            Assert.IsTrue(immediateStreamCalledFirst);
+            Assert.IsFalse(streamCalledFirst);
+        }
     }
 }

@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class ReadonlyCollectionObservable<T> : ObservableBase<ICollectionObserver<T>, bool>, ICollectionObservable<T>, IEnumerable<T>
+    public class ReadonlyCollectionObservable<T> : ICollectionObservable<T>, IEnumerable<T>, IDisposable
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => _collection.Select(x => x.value).GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _collection.Select(x => x.value).GetEnumerator();
@@ -13,12 +13,15 @@ namespace ObserveThing
         public int count => _collection.Count;
 
         private List<(uint id, T value)> _collection = new List<(uint id, T value)>();
+        private SynchronizedNotificationQueue<ICollectionObserver<T>, bool> _notificationQueue;
 
         public ReadonlyCollectionObservable(params T[] source) : this((IEnumerable<T>)source) { }
         public ReadonlyCollectionObservable(SynchronizationContext context, params T[] source) : this(source, context) { }
 
-        public ReadonlyCollectionObservable(IEnumerable<T> source, SynchronizationContext context = default) : base(context)
+        public ReadonlyCollectionObservable(IEnumerable<T> source, SynchronizationContext context = default)
         {
+            _notificationQueue = new SynchronizedNotificationQueue<ICollectionObserver<T>, bool>((_, _) => { }, context);
+
             uint nextId = 0;
             foreach (var element in source)
             {
@@ -27,14 +30,12 @@ namespace ObserveThing
             }
         }
 
-        protected override void NotifyObserver(ICollectionObserver<T> observer, bool data) { }
-
         public bool Contains(T element)
             => _collection.Select(x => x.value).Contains(element);
 
         public IDisposable Subscribe(ICollectionObserver<T> observer)
         {
-            var subscription = AddObserver(observer);
+            var subscription = _notificationQueue.AddObserver(observer);
 
             for (int i = 0; i < _collection.Count; i++)
             {
@@ -52,5 +53,10 @@ namespace ObserveThing
                 onError: observer.OnError,
                 onDispose: observer.OnDispose
             ));
+
+        public void Dispose()
+        {
+            _notificationQueue.Dispose();
+        }
     }
 }

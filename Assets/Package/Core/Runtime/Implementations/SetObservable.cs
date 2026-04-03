@@ -12,7 +12,7 @@ namespace ObserveThing
         public bool isRemove;
     }
 
-    public class SetObservable<T> : ObservableBase<ISetObserver<T>, SetOpData<T>>, ISetObservable<T>, IEnumerable<T>
+    public class SetObservable<T> : ISetObservable<T>, IEnumerable<T>, IDisposable
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator()
             => _set.Keys.GetEnumerator();
@@ -23,6 +23,7 @@ namespace ObserveThing
         public int count => _set.Count;
 
         private Dictionary<T, uint> _set = new Dictionary<T, uint>();
+        private SynchronizedNotificationQueue<ISetObserver<T>, SetOpData<T>> _notificationQueue;
         private CollectionIdProvider _idProvider;
 
         public SetObservable(params T[] source) : this(source, default) { }
@@ -33,12 +34,13 @@ namespace ObserveThing
                 _set.Add(value, _idProvider.GetUnusedId());
         }
 
-        public SetObservable(SynchronizationContext context = default) : base(context)
+        public SetObservable(SynchronizationContext context = default)
         {
+            _notificationQueue = new SynchronizedNotificationQueue<ISetObserver<T>, SetOpData<T>>(NotifyObserver, context);
             _idProvider = new CollectionIdProvider(x => _set.ContainsValue(x));
         }
 
-        protected override void NotifyObserver(ISetObserver<T> observer, SetOpData<T> data)
+        private void NotifyObserver(ISetObserver<T> observer, SetOpData<T> data)
         {
             if (data.isRemove)
             {
@@ -57,7 +59,7 @@ namespace ObserveThing
 
             var id = _idProvider.GetUnusedId();
             _set.Add(element, id);
-            EnqueueNotify(new SetOpData<T>() { id = id, element = element, isRemove = false });
+            _notificationQueue.EnqueueNotify(new SetOpData<T>() { id = id, element = element, isRemove = false });
             return true;
         }
 
@@ -73,7 +75,7 @@ namespace ObserveThing
                 return false;
 
             _set.Remove(element);
-            EnqueueNotify(new SetOpData<T>() { id = id, element = element, isRemove = true });
+            _notificationQueue.EnqueueNotify(new SetOpData<T>() { id = id, element = element, isRemove = true });
 
             return true;
         }
@@ -83,7 +85,7 @@ namespace ObserveThing
             foreach (var kvp in _set.ToArray())
             {
                 _set.Remove(kvp.Key);
-                EnqueueNotify(new SetOpData<T>() { id = kvp.Value, element = kvp.Key, isRemove = false });
+                _notificationQueue.EnqueueNotify(new SetOpData<T>() { id = kvp.Value, element = kvp.Key, isRemove = false });
             }
         }
 
@@ -92,7 +94,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(ISetObserver<T> observer)
         {
-            var subscription = AddObserver(observer);
+            var subscription = _notificationQueue.AddObserver(observer);
 
             foreach (var kvp in _set)
                 observer.OnAdd(kvp.Value, kvp.Key);
@@ -115,5 +117,10 @@ namespace ObserveThing
                 onError: observer.OnError,
                 onDispose: observer.OnDispose
             ));
+
+        public void Dispose()
+        {
+            _notificationQueue.Dispose();
+        }
     }
 }

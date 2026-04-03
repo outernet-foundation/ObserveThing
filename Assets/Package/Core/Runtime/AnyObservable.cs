@@ -15,7 +15,8 @@ namespace ObserveThing
             _receiver = receiver;
             _subscription = new ComposedDisposable(observables.Select(x => x.Subscribe(
                 onChange: OnChange,
-                onError: receiver.OnError
+                onError: receiver.OnError,
+                immediate: receiver.immediate
             )).ToArray());
 
             if (!_updated)

@@ -23,14 +23,16 @@ namespace ObserveThing
                 onAdd: Source1HandleAdd,
                 onRemove: Source1HandleRemove,
                 onError: _receiver.OnError,
-                onDispose: Dispose
+                onDispose: Dispose,
+                immediate: receiver.immediate
             );
 
             _source2Stream = source2.SubscribeWithId(
                 onAdd: Source2HandleAdd,
                 onRemove: Source2HandleRemove,
                 onError: _receiver.OnError,
-                onDispose: Dispose
+                onDispose: Dispose,
+                immediate: receiver.immediate
             );
         }
 

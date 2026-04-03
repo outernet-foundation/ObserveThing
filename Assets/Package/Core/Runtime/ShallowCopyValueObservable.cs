@@ -24,13 +24,15 @@ namespace ObserveThing
                         _receiver.OnNext(x);
                     }
                 },
-                onError: _receiver.OnError
+                onError: _receiver.OnError,
+                immediate: receiver.immediate
             );
 
             _sourceStream = source.Subscribe(
                 onNext: HandleNext,
                 onError: _receiver.OnError,
-                onDispose: Dispose
+                onDispose: Dispose,
+                immediate: receiver.immediate
             );
 
             if (Equals(_latest, default(T)))

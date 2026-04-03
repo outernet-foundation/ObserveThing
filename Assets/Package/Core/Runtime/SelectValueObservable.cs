@@ -17,7 +17,8 @@ namespace ObserveThing
             _sourceStream = source.Subscribe(
                 onNext: HandleNext,
                 onError: _receiver.OnError,
-                onDispose: Dispose
+                onDispose: Dispose,
+                immediate: receiver.immediate
             );
 
             // Always send init call

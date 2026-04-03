@@ -27,7 +27,8 @@ namespace ObserveThing
                     NotifyReceiverIfNecessary();
                 },
                 onError: _receiver.OnError,
-                onDispose: Dispose
+                onDispose: Dispose,
+                immediate: receiver.immediate
             );
 
             // Always send init call

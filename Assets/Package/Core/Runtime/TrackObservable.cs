@@ -37,7 +37,8 @@ namespace ObserveThing
                     }
                 },
                 onError: _receiver.OnError,
-                onDispose: Dispose
+                onDispose: Dispose,
+                immediate: receiver.immediate
             );
 
             _keyStream = key.Subscribe(
@@ -57,7 +58,8 @@ namespace ObserveThing
                     }
                 },
                 onError: _receiver.OnError,
-                onDispose: Dispose
+                onDispose: Dispose,
+                immediate: receiver.immediate
             );
 
             // always send an init call

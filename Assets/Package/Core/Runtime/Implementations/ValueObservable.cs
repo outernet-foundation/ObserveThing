@@ -2,7 +2,7 @@ using System;
 
 namespace ObserveThing
 {
-    public class ValueObservable<T> : ObservableBase<IValueObserver<T>, T>, IValueObservable<T>
+    public class ValueObservable<T> : IValueObservable<T>, IDisposable
     {
         public T value
         {
@@ -13,26 +13,28 @@ namespace ObserveThing
                     return;
 
                 _value = value;
-                EnqueueNotify(value);
+                _notificationQueue.EnqueueNotify(value);
             }
         }
 
         private T _value = default;
+        private SynchronizedNotificationQueue<IValueObserver<T>, T> _notificationQueue;
 
         public ValueObservable(SynchronizationContext context = default) : this(default, context) { }
-        public ValueObservable(T startValue, SynchronizationContext context = default) : base(context)
+        public ValueObservable(T startValue, SynchronizationContext context = default)
         {
+            _notificationQueue = new SynchronizedNotificationQueue<IValueObserver<T>, T>(NotifyObserver, context);
             _value = startValue;
         }
 
-        protected override void NotifyObserver(IValueObserver<T> observer, T data)
+        private void NotifyObserver(IValueObserver<T> observer, T data)
         {
             observer.OnNext(data);
         }
 
         public IDisposable Subscribe(IValueObserver<T> observer)
         {
-            var subscription = AddObserver(observer);
+            var subscription = _notificationQueue.AddObserver(observer);
             observer.OnNext(value);
             return subscription;
         }
@@ -43,5 +45,10 @@ namespace ObserveThing
                 onError: observer.OnError,
                 onDispose: observer.OnDispose
             ));
+
+        public void Dispose()
+        {
+            _notificationQueue.Dispose();
+        }
     }
 }

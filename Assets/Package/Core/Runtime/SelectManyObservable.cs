@@ -28,7 +28,8 @@ namespace ObserveThing
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
                 onError: receiver.OnError,
-                onDispose: Dispose
+                onDispose: Dispose,
+                immediate: receiver.immediate
             );
         }
 
@@ -49,7 +50,8 @@ namespace ObserveThing
                     data.elements.Remove(subId);
                     _receiver.OnRemove(subData.id, subData.element);
                 },
-                onError: _receiver.OnError
+                onError: _receiver.OnError,
+                immediate: _receiver.immediate
             );
         }
 

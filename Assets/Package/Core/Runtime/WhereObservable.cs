@@ -30,7 +30,8 @@ namespace ObserveThing
                 HandleAdd,
                 HandleRemove,
                 _receiver.OnError,
-                Dispose
+                Dispose,
+                immediate: receiver.immediate
             );
         }
 
@@ -60,7 +61,8 @@ namespace ObserveThing
                         _receiver.OnRemove(id, data.value);
                     }
                 },
-                onError: _receiver.OnError
+                onError: _receiver.OnError,
+                immediate: _receiver.immediate
             );
         }
 

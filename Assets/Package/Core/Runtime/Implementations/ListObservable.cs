@@ -12,7 +12,7 @@ namespace ObserveThing
         public bool isRemove;
     }
 
-    public class ListObservable<T> : ObservableBase<IListObserver<T>, ListOpData<T>>, IListObservable<T>, IEnumerable<T>
+    public class ListObservable<T> : IListObservable<T>, IEnumerable<T>, IDisposable
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
@@ -32,6 +32,7 @@ namespace ObserveThing
         }
 
         private List<(uint id, T value)> _list = new List<(uint id, T value)>();
+        private SynchronizedNotificationQueue<IListObserver<T>, ListOpData<T>> _notificationQueue;
         private CollectionIdProvider _idProvider;
 
         public ListObservable(params T[] source) : this(source, default) { }
@@ -42,12 +43,13 @@ namespace ObserveThing
                 _list.Add(new(_idProvider.GetUnusedId(), element));
         }
 
-        public ListObservable(SynchronizationContext context = default) : base(context)
+        public ListObservable(SynchronizationContext context = default)
         {
+            _notificationQueue = new SynchronizedNotificationQueue<IListObserver<T>, ListOpData<T>>(NotifyObserver, context);
             _idProvider = new CollectionIdProvider(x => _list.Any(item => item.id == x));
         }
 
-        protected override void NotifyObserver(IListObserver<T> observer, ListOpData<T> data)
+        private void NotifyObserver(IListObserver<T> observer, ListOpData<T> data)
         {
             if (data.isRemove)
             {
@@ -83,14 +85,14 @@ namespace ObserveThing
         {
             var removed = _list[index];
             _list.RemoveAt(index);
-            EnqueueNotify(new ListOpData<T>() { index = index, element = removed, isRemove = true });
+            _notificationQueue.EnqueueNotify(new ListOpData<T>() { index = index, element = removed, isRemove = true });
         }
 
         public void Insert(int index, T item)
         {
             (uint id, T value) inserted = new(_idProvider.GetUnusedId(), item);
             _list.Insert(index, inserted);
-            EnqueueNotify(new ListOpData<T>() { index = index, element = inserted, isRemove = false });
+            _notificationQueue.EnqueueNotify(new ListOpData<T>() { index = index, element = inserted, isRemove = false });
         }
 
         public void Clear()
@@ -107,7 +109,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IListObserver<T> observer)
         {
-            var subscription = AddObserver(observer);
+            var subscription = _notificationQueue.AddObserver(observer);
             for (int i = 0; i < _list.Count; i++)
             {
                 var element = _list[i];
@@ -132,5 +134,10 @@ namespace ObserveThing
                 onError: observer.OnError,
                 onDispose: observer.OnDispose
             ));
+
+        public void Dispose()
+        {
+            _notificationQueue.Dispose();
+        }
     }
 }

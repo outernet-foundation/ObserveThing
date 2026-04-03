@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace ObserveThing
 {
@@ -7,124 +6,47 @@ namespace ObserveThing
     {
         private IListObservable<T> _source;
         private IDisposable _sourceStream;
-        private List<(uint id, T value)> _list = new List<(uint id, T value)>();
-        private Queue<Action<IListObserver<T>>> _pendingNotifications = new Queue<Action<IListObserver<T>>>();
-        private List<ObserverData> _observers = new List<ObserverData>();
-        private List<ObserverData> _disposedObservers = new List<ObserverData>();
-        private bool _notifyingObservers;
+        private ListObservable<T> _shared;
+        private int _observerCount;
         private bool _disposed;
 
-        private class ObserverData : IDisposable
-        {
-            public IListObserver<T> observer;
-            public Action<ObserverData> handleDispose;
-            public bool disposed { get; private set; }
-
-            public void Dispose()
-            {
-                if (disposed)
-                    return;
-
-                disposed = true;
-                handleDispose?.Invoke(this);
-                observer.OnDispose();
-            }
-        }
-
-        public ShareListObservable(IListObservable<T> source)
+        public ShareListObservable(IListObservable<T> source, SynchronizationContext context = default)
         {
             _source = source;
-        }
-
-        private void NotifyObserversOrEnqueue(Action<IListObserver<T>> notify)
-        {
-            _pendingNotifications.Enqueue(notify);
-
-            if (_notifyingObservers)
-                return;
-
-            _notifyingObservers = true;
-
-            while (_pendingNotifications.TryDequeue(out var nextNotify))
-            {
-                int count = _observers.Count;
-                for (int i = 0; i < count; i++)
-                {
-                    var instance = _observers[i];
-
-                    if (instance.disposed)
-                        continue;
-
-                    nextNotify(instance.observer);
-                }
-
-                foreach (var disposed in _disposedObservers)
-                    _observers.Remove(disposed);
-
-                _disposedObservers.Clear();
-
-                if (_observers.Count == 0)
-                {
-                    _sourceStream?.Dispose();
-                    _sourceStream = null;
-                }
-            }
-
-            _notifyingObservers = false;
-        }
-
-        private void HandleObserverDisposed(ObserverData observer)
-        {
-            if (_disposed)
-                return;
-
-            if (_notifyingObservers)
-            {
-                _disposedObservers.Add(observer);
-                return;
-            }
-
-            _observers.Remove(observer);
-
-            if (_observers.Count == 0)
-            {
-                _sourceStream?.Dispose();
-                _sourceStream = null;
-            }
+            _shared = new ListObservable<T>(context);
         }
 
         public IDisposable Subscribe(IListObserver<T> observer)
         {
-            var data = new ObserverData() { observer = observer, handleDispose = HandleObserverDisposed };
-            _observers.Add(data);
+            _observerCount++;
 
-            if (_observers.Count == 1)
+            if (_observerCount == 1)
             {
-                _sourceStream = _source.SubscribeWithId(
-                    onAdd: (id, index, x) =>
-                    {
-                        _list.Insert(index, new(id, x));
-                        NotifyObserversOrEnqueue(observer => observer.OnAdd(id, index, x));
-                    },
-                    onRemove: (id, index, x) =>
-                    {
-                        _list.RemoveAt(index);
-                        NotifyObserversOrEnqueue(observer => observer.OnRemove(id, index, x));
-                    },
-                    onError: x => NotifyObserversOrEnqueue(observer => observer.OnError(x)),
-                    onDispose: Dispose
+                _sourceStream = _source.Subscribe(
+                    immediate: true,
+                    onAdd: (index, item) => _shared.Insert(index, item),
+                    onRemove: (index, item) => _shared.RemoveAt(index)
                 );
             }
-            else
-            {
-                for (int i = 0; i < _list.Count; i++)
-                {
-                    var element = _list[i];
-                    data.observer.OnAdd(element.id, i, element.value);
-                }
-            }
 
-            return data;
+            return _shared.SubscribeWithId(
+                immediate: observer.immediate,
+                onAdd: observer.OnAdd,
+                onRemove: observer.OnRemove,
+                onError: observer.OnError,
+                onDispose: () =>
+                {
+                    observer.OnDispose();
+
+                    _observerCount--;
+                    if (_observerCount == 0)
+                    {
+                        _sourceStream.Dispose();
+                        _sourceStream = null;
+                        _shared.Clear();
+                    }
+                }
+            );
         }
 
         public IDisposable Subscribe(ICollectionObserver<T> observer)
@@ -150,10 +72,8 @@ namespace ObserveThing
 
             _disposed = true;
 
-            foreach (var instance in _observers)
-                instance.Dispose();
-
-            _observers.Clear();
+            _sourceStream?.Dispose();
+            _shared.Dispose();
         }
     }
 }

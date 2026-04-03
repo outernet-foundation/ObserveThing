@@ -12,7 +12,7 @@ namespace ObserveThing
         public bool isRemove;
     }
 
-    public class DictionaryObservable<TKey, TValue> : ObservableBase<IDictionaryObserver<TKey, TValue>, DictionaryOpData<TKey, TValue>>, IDictionaryObservable<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>
+    public class DictionaryObservable<TKey, TValue> : IDictionaryObservable<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>, IDisposable
     {
         public TValue this[TKey key]
         {
@@ -36,6 +36,7 @@ namespace ObserveThing
         public int count => _dictionary.Count;
 
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
+        private SynchronizedNotificationQueue<IDictionaryObserver<TKey, TValue>, DictionaryOpData<TKey, TValue>> _notificationQueue;
         private CollectionIdProvider _idProvider;
 
         public DictionaryObservable(params KeyValuePair<TKey, TValue>[] source) : this(source, default) { }
@@ -46,12 +47,13 @@ namespace ObserveThing
                 _dictionary.Add(kvp.Key, new(_idProvider.GetUnusedId(), kvp.Value));
         }
 
-        public DictionaryObservable(SynchronizationContext context = default) : base(context)
+        public DictionaryObservable(SynchronizationContext context = default)
         {
+            _notificationQueue = new SynchronizedNotificationQueue<IDictionaryObserver<TKey, TValue>, DictionaryOpData<TKey, TValue>>(NotifyObserver, context);
             _idProvider = new CollectionIdProvider(x => _dictionary.Values.Any(y => y.id == x));
         }
 
-        protected override void NotifyObserver(IDictionaryObserver<TKey, TValue> observer, DictionaryOpData<TKey, TValue> data)
+        private void NotifyObserver(IDictionaryObserver<TKey, TValue> observer, DictionaryOpData<TKey, TValue> data)
         {
             if (data.isRemove)
             {
@@ -79,7 +81,7 @@ namespace ObserveThing
         {
             var id = _idProvider.GetUnusedId();
             _dictionary.Add(key, (id, value));
-            EnqueueNotify(new() { id = id, kvp = new(key, value), isRemove = false });
+            _notificationQueue.EnqueueNotify(new() { id = id, kvp = new(key, value), isRemove = false });
         }
 
         public bool Remove(TKey key)
@@ -88,7 +90,7 @@ namespace ObserveThing
                 return false;
 
             _dictionary.Remove(key);
-            EnqueueNotify(new() { id = data.id, kvp = new(key, data.value), isRemove = true });
+            _notificationQueue.EnqueueNotify(new() { id = data.id, kvp = new(key, data.value), isRemove = true });
 
             return true;
         }
@@ -98,7 +100,7 @@ namespace ObserveThing
             foreach (var kvp in _dictionary.ToArray())
             {
                 _dictionary.Remove(kvp.Key);
-                EnqueueNotify(new() { id = kvp.Value.id, kvp = new(kvp.Key, kvp.Value.value), isRemove = true });
+                _notificationQueue.EnqueueNotify(new() { id = kvp.Value.id, kvp = new(kvp.Key, kvp.Value.value), isRemove = true });
             }
         }
 
@@ -110,7 +112,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer)
         {
-            var subscription = AddObserver(observer);
+            var subscription = _notificationQueue.AddObserver(observer);
 
             foreach (var kvp in _dictionary)
                 observer.OnAdd(kvp.Value.id, new KeyValuePair<TKey, TValue>(kvp.Key, kvp.Value.value));
@@ -133,5 +135,10 @@ namespace ObserveThing
                 onError: observer.OnError,
                 onDispose: observer.OnDispose
             ));
+
+        public void Dispose()
+        {
+            _notificationQueue.Dispose();
+        }
     }
 }

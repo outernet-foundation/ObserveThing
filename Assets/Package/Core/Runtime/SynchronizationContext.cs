@@ -8,7 +8,8 @@ namespace ObserveThing
     {
         public static SynchronizationContext Default = new DefaultSynchronizationContext();
         public abstract void EnqueueAction(Action action);
-        public abstract void EnqueueActionImmediate(Action action);
+        public abstract void PauseExecution();
+        public abstract void ResumeExecution();
     }
 
     public class DefaultSynchronizationContext : SynchronizationContext
@@ -16,21 +17,20 @@ namespace ObserveThing
         private const int MAX_NESTED_ENQUEUES = 100;
 
         private Queue<Action> _actionQueue = new Queue<Action>();
-        private Queue<Action> _immediateActionQueue = new Queue<Action>();
         private bool _executingActions = false;
         private bool _enqueuedDuringExecute = false;
         private int _executionPauses = 0;
 
-        public void PauseExecution()
+        public override void PauseExecution()
         {
             _executionPauses++;
         }
 
-        public void ResumeExecution()
+        public override void ResumeExecution()
         {
             bool wasPaused = _executionPauses > 0;
             _executionPauses = Mathf.Max(0, _executionPauses - 1);
-            if (_executionPauses == 0 && wasPaused)
+            if (_executionPauses == 0 && wasPaused && !_executingActions) // if we pause and resume during a single callback, _excecutingActions will still be true at this
                 ExecutePendingActions();
         }
 
@@ -38,36 +38,17 @@ namespace ObserveThing
         {
             _actionQueue.Enqueue(action);
 
-            if (_executingActions)
-            {
-                _enqueuedDuringExecute = true;
-                return;
-            }
-
             if (_executionPauses > 0)
                 return;
 
             ExecutePendingActions();
         }
 
-        public override void EnqueueActionImmediate(Action action)
+        public void ExecutePendingActions()
         {
-            _immediateActionQueue.Enqueue(action);
-
             if (_executingActions)
-            {
-                _enqueuedDuringExecute = true;
-                return;
-            }
+                throw new Exception("Cannot execute pending actions while already executing.");
 
-            if (_executionPauses > 0)
-                return;
-
-            ExecutePendingImmediateActions();
-        }
-
-        private void ExecutePendingActions()
-        {
             _executingActions = true;
 
             int nestedEnqueues = 0;
@@ -80,15 +61,20 @@ namespace ObserveThing
                     throw new Exception("Max nested enqueues exceeded. Could this be an infinite loop?");
                 }
 
-                action.Invoke();
+                try
+                {
+                    action.Invoke();
+                }
+                catch(Exception exc)
+                {
+                    Debug.LogException(exc);
+                }
 
                 if (_enqueuedDuringExecute)
                 {
                     nestedEnqueues++;
                     _enqueuedDuringExecute = false;
                 }
-
-                ExecutePendingImmediateActions();
 
                 if (_executionPauses > 0)
                 {
@@ -98,39 +84,6 @@ namespace ObserveThing
             }
 
             _executingActions = false;
-        }
-
-        private void ExecutePendingImmediateActions()
-        {
-            bool wasExecuting = _executingActions;
-            _executingActions = true;
-
-            int nestedEnqueues = 0;
-
-            while (_immediateActionQueue.TryDequeue(out var immediateAction))
-            {
-                if (nestedEnqueues >= MAX_NESTED_ENQUEUES)
-                {
-                    _executingActions = false;
-                    throw new Exception("Max nested enqueues exceeded. Could this be an infinite loop?");
-                }
-
-                immediateAction.Invoke();
-
-                if (_enqueuedDuringExecute)
-                {
-                    nestedEnqueues++;
-                    _enqueuedDuringExecute = false;
-                }
-
-                if (_executionPauses > 0)
-                {
-                    _executingActions = false;
-                    break;
-                }
-            }
-
-            _executingActions = wasExecuting;
         }
     }
 }

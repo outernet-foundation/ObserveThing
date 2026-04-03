@@ -19,14 +19,16 @@ namespace ObserveThing
             _valueStream = value.Subscribe(
                 onNext: HandleNext,
                 onError: receiver.OnError,
-                onDispose: Dispose
+                onDispose: Dispose,
+                immediate: receiver.immediate
             );
 
             _sourceStream = source.Subscribe(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
                 onError: receiver.OnError,
-                onDispose: Dispose
+                onDispose: Dispose,
+                immediate: receiver.immediate
             );
 
             if (_index == -1)

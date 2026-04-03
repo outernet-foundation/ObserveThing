@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace ObserveThing
 {
-    public abstract class ObservableBase<TObserver, TNotification> : IDisposable where TObserver : IObserverBase
+    public delegate void NotifyObserverDelegate<TObserver, TNotification>(TObserver observer, TNotification notification);
+
+    public class SynchronizedNotificationQueue<TObserver, TNotification> : IDisposable where TObserver : IObserverBase
     {
+        private NotifyObserverDelegate<TObserver, TNotification> _notifyObserver;
         private SynchronizationContext _context;
         private List<ObserverData> _observers = new List<ObserverData>();
         private List<ObserverData> _immediateObservers = new List<ObserverData>();
@@ -13,7 +15,6 @@ namespace ObserveThing
         private bool _notifyingObservers;
         private bool _disposed;
 
-        private int _immediateNotificationIndex = 0;
         private Queue<TNotification> _pendingNotifications = new Queue<TNotification>();
 
         private class ObserverData : IDisposable
@@ -32,30 +33,15 @@ namespace ObserveThing
             }
         }
 
-        public ObservableBase(SynchronizationContext context = default)
+        public SynchronizedNotificationQueue(NotifyObserverDelegate<TObserver, TNotification> notifyObserver, SynchronizationContext context = default)
         {
+            _notifyObserver = notifyObserver;
             _context = context ?? SynchronizationContext.Default;
-        }
-
-        protected void EnqueueNotify(TNotification notifyData)
-        {
-            _pendingNotifications.Enqueue(notifyData);
-            _context.EnqueueActionImmediate(NotifyNextImmediate);
-            _context.EnqueueAction(NotifyNext);
         }
 
         private void NotifyNext()
         {
-            var notification = _pendingNotifications.Dequeue();
-            _immediateNotificationIndex--;
-            NotifyInternal(notification, _observers);
-        }
-
-        private void NotifyNextImmediate()
-        {
-            var notification = _pendingNotifications.Skip(_immediateNotificationIndex).First();
-            _immediateNotificationIndex++;
-            NotifyInternal(notification, _immediateObservers);
+            NotifyInternal(_pendingNotifications.Dequeue(), _observers);
         }
 
         private void NotifyInternal(TNotification notification, List<ObserverData> observers)
@@ -71,7 +57,7 @@ namespace ObserveThing
                 if (instance.disposed)
                     continue;
 
-                NotifyObserver(instance.observer, notification);
+                _notifyObserver(instance.observer, notification);
             }
 
             foreach (var disposed in _disposedObservers)
@@ -82,7 +68,22 @@ namespace ObserveThing
             _notifyingObservers = false;
         }
 
-        protected abstract void NotifyObserver(TObserver observer, TNotification data);
+        private void NotifyDisposeInternal(List<ObserverData> observers)
+        {
+            _notifyingObservers = true;
+
+            for (int i = 0; i < observers.Count; i++)
+            {
+                var instance = observers[i];
+
+                if (instance.disposed)
+                    continue;
+
+                instance.observer.OnDispose();
+            }
+
+            _notifyingObservers = false;
+        }
 
         private void HandleObserverDisposed(ObserverData observerData)
         {
@@ -105,7 +106,31 @@ namespace ObserveThing
             observerData.observer.OnDispose();
         }
 
-        protected IDisposable AddObserver(TObserver observer)
+        private void NotifyDispose()
+        {
+            NotifyDisposeInternal(_observers);
+        }
+
+        public void EnqueueNotify(TNotification notifyData)
+        {
+            _pendingNotifications.Enqueue(notifyData);
+
+            _context.PauseExecution();
+            _context.EnqueueAction(NotifyNext);
+
+            try
+            {
+                NotifyInternal(notifyData, _immediateObservers);
+            }
+            catch (Exception exc)
+            {
+                UnityEngine.Debug.LogException(exc);
+            }
+
+            _context.ResumeExecution();
+        }
+
+        public IDisposable AddObserver(TObserver observer)
         {
             var data = new ObserverData() { observer = observer, handleDispose = HandleObserverDisposed };
 
@@ -128,10 +153,19 @@ namespace ObserveThing
 
             _disposed = true;
 
-            foreach (var observerData in _observers)
-                observerData.observer.OnDispose();
+            _context.PauseExecution();
+            _context.EnqueueAction(NotifyDispose);
 
-            _observers.Clear();
+            try
+            {
+                NotifyDisposeInternal(_immediateObservers);
+            }
+            catch (Exception exc)
+            {
+                UnityEngine.Debug.LogException(exc);
+            }
+
+            _context.ResumeExecution();
         }
     }
 }

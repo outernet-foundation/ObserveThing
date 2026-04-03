@@ -29,7 +29,8 @@ namespace ObserveThing
                 HandleAdd,
                 HandleRemove,
                 _receiver.OnError,
-                Dispose
+                Dispose,
+                immediate: receiver.immediate
             );
         }
 
@@ -48,7 +49,8 @@ namespace ObserveThing
                     data.orderBy = x;
                     Resort(data);
                 },
-                onError: _receiver.OnError
+                onError: _receiver.OnError,
+                immediate: _receiver.immediate
             );
         }
 
