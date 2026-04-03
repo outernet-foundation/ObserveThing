@@ -33,6 +33,9 @@ namespace ObserveThing
         IEnumerator IEnumerable.GetEnumerator()
             => _dictionary.Select(x => new KeyValuePair<TKey, TValue>(x.Key, x.Value.value)).GetEnumerator();
 
+        public IEnumerable<TKey> keys => _dictionary.Keys;
+        public IEnumerable<TValue> values => _dictionary.Values.Select(x => x.value);
+
         public int count => _dictionary.Count;
 
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
