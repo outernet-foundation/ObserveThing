@@ -16,11 +16,13 @@ namespace ObserveThing
         private bool _disposed;
 
         private Queue<TNotification> _pendingNotifications = new Queue<TNotification>();
+        private Queue<ObserverData> _uninitializedObservers = new Queue<ObserverData>();
 
         private class ObserverData : IDisposable
         {
             public TObserver observer;
             public Action<ObserverData> handleDispose;
+            public bool initialized;
             public bool disposed { get; private set; }
 
             public void Dispose()
@@ -39,12 +41,17 @@ namespace ObserveThing
             _context = context ?? SynchronizationContext.Default;
         }
 
-        private void NotifyNext()
+        private void InitializeNextObserver()
         {
-            NotifyInternal(_pendingNotifications.Dequeue(), _observers);
+            _uninitializedObservers.Dequeue().initialized = true;
         }
 
-        private void NotifyInternal(TNotification notification, List<ObserverData> observers)
+        private void NotifyNext()
+        {
+            NotifyInternal(_pendingNotifications.Dequeue(), _observers, false);
+        }
+
+        private void NotifyInternal(TNotification notification, List<ObserverData> observers, bool notifyUninitializedObservers)
         {
             _notifyingObservers = true;
 
@@ -54,7 +61,7 @@ namespace ObserveThing
             {
                 var instance = observers[i];
 
-                if (instance.disposed)
+                if ((!notifyUninitializedObservers && !instance.initialized) || instance.disposed)
                     continue;
 
                 _notifyObserver(instance.observer, notification);
@@ -120,7 +127,7 @@ namespace ObserveThing
 
             try
             {
-                NotifyInternal(notifyData, _immediateObservers);
+                NotifyInternal(notifyData, _immediateObservers, true);
             }
             catch (Exception exc)
             {
@@ -142,6 +149,9 @@ namespace ObserveThing
             {
                 _observers.Add(data);
             }
+
+            _uninitializedObservers.Enqueue(data);
+            _context.EnqueueAction(InitializeNextObserver);
 
             return data;
         }

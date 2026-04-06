@@ -502,5 +502,97 @@ namespace ObserveThing.Tests
             Assert.IsTrue(immediateStreamCalledFirst);
             Assert.IsFalse(streamCalledFirst);
         }
+
+        [Test]
+        public void TestImmediateSubscription()
+        {
+            ValueObservable<int> observable = new ValueObservable<int>();
+
+            bool standardFired = false;
+            bool immediateFired = false;
+
+            bool standardFiredFirst = false;
+            bool immediateFiredFirst = false;
+
+            var standardStream = observable.Subscribe(x =>
+            {
+                standardFired = true;
+
+                if (!immediateFiredFirst)
+                    standardFiredFirst = true;
+            });
+
+            var immediateStream = observable.Subscribe(
+                immediate: true,
+                onNext: x =>
+                {
+                    immediateFired = true;
+
+                    if (!standardFiredFirst)
+                        immediateFiredFirst = true;
+                }
+            );
+
+            standardFired = false;
+            immediateFired = false;
+
+            standardFiredFirst = false;
+            immediateFiredFirst = false;
+
+            observable.value = 1;
+
+            Assert.IsTrue(standardFired);
+            Assert.IsTrue(immediateFired);
+            Assert.IsTrue(immediateFiredFirst);
+            Assert.IsFalse(standardFiredFirst);
+        }
+
+        [Test]
+        public void TestObserverInitializiation()
+        {
+            SynchronizationContext context = new DefaultSynchronizationContext();
+            ValueObservable<int> observable = new ValueObservable<int>(context);
+
+            int standardCallCount = 0;
+            var standardStream = observable.Subscribe(
+                x => standardCallCount++
+            );
+
+            context.PauseExecution();
+
+            observable.value = 1;
+            observable.value = 2;
+            observable.value = 3;
+
+            int initTesterCallCount = 0;
+            int initTesterValue = 0;
+
+            var initTesterStream = observable.Subscribe(
+                x =>
+                {
+                    initTesterCallCount++;
+                    initTesterValue = x;
+                }
+            );
+
+            // Value should be initialized correctly, and we should only receive the single init call
+            Assert.AreEqual(1, initTesterCallCount);
+            Assert.AreEqual(3, initTesterValue);
+            Assert.AreEqual(1, standardCallCount); // counterStream should only have been updated once so far
+
+            context.ResumeExecution();
+
+            // Nothing should change after resuming- the observer initialized after the third change call
+            Assert.AreEqual(1, initTesterCallCount);
+            Assert.AreEqual(3, initTesterValue);
+            Assert.AreEqual(4, standardCallCount); // counterStream should be called three times after resuming the stream
+
+            observable.value = 4;
+
+            // Now both observers are initialized, everything should work normally
+            Assert.AreEqual(2, initTesterCallCount);
+            Assert.AreEqual(4, initTesterValue);
+            Assert.AreEqual(5, standardCallCount);
+        }
     }
 }

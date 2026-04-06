@@ -19,7 +19,7 @@ namespace ObserveThing
         IDisposable Subscribe(ICollectionObserver<T> observer);
     }
 
-    public interface ISetObservable<out T> : IObservable
+    public interface ISetObservable<out T> : ICollectionObservable<T>
     {
         IDisposable Subscribe(ISetObserver<T> observer);
     }
