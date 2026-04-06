@@ -100,6 +100,9 @@ namespace ObserveThing
         public static IValueObservable<(T current, T previous)> ObservableWithPrevious<T>(this IValueObservable<T> source)
             => new FactoryValueObservable<(T current, T previous)>(receiver => new WithPreviousObservable<T>(source, receiver));
 
+        public static IValueObservable<T> ObservableSkipWhile<T>(this IValueObservable<T> source, Func<bool> skipWhile)
+            => new FactoryValueObservable<T>(receiver => new SkipWhileObservable<T>(source, skipWhile, receiver));
+
         public static ICollectionObservable<T> ObservableShallowCopy<T>(this ICollectionObservable<IValueObservable<T>> source)
             => new FactoryCollectionObservable<T>(receiver => new ShallowCopyCollectionObservable<T>(source, receiver));
 
