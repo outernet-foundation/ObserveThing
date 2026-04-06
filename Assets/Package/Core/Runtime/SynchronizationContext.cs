@@ -38,6 +38,9 @@ namespace ObserveThing
         {
             _actionQueue.Enqueue(action);
 
+            if (_executingActions)
+                return;
+
             if (_executionPauses > 0)
                 return;
 
@@ -65,7 +68,7 @@ namespace ObserveThing
                 {
                     action.Invoke();
                 }
-                catch(Exception exc)
+                catch (Exception exc)
                 {
                     Debug.LogException(exc);
                 }
