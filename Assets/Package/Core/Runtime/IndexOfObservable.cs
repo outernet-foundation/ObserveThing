@@ -55,7 +55,16 @@ namespace ObserveThing
 
         private void UpdateIndexIfNecessary()
         {
-            var newIndex = _list.IndexOf(_latest);
+            var newIndex = -1;
+
+            for (int i = 0; i < _list.Count; i++)
+            {
+                if (Equals(_latest, _list[i]))
+                {
+                    newIndex = i;
+                    break;
+                }
+            }
 
             if (_index == newIndex)
                 return;
