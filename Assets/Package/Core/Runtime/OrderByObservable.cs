@@ -7,6 +7,7 @@ namespace ObserveThing
     {
         private IDisposable _collectionStream;
         private Func<T, IValueObservable<U>> _orderBy;
+        private Func<U, U, int> _compare;
         private IListObserver<T> _receiver;
         private Dictionary<uint, EntryData> _dataById = new Dictionary<uint, EntryData>();
         private List<EntryData> _order = new List<EntryData>();
@@ -20,9 +21,10 @@ namespace ObserveThing
             public IDisposable subscription;
         }
 
-        public OrderByObservable(ICollectionObservable<T> collection, Func<T, IValueObservable<U>> orderBy, IListObserver<T> receiver)
+        public OrderByObservable(ICollectionObservable<T> collection, Func<T, IValueObservable<U>> orderBy, bool descending, IListObserver<T> receiver)
         {
             _orderBy = orderBy;
+            _compare = descending ? DescendingCompare : AscendingCompare;
             _receiver = receiver;
 
             _collectionStream = collection.SubscribeWithId(
@@ -33,6 +35,12 @@ namespace ObserveThing
                 immediate: receiver.immediate
             );
         }
+
+        private int DescendingCompare(U v1, U v2)
+            => Comparer<U>.Default.Compare(v2, v1);
+
+        private int AscendingCompare(U v1, U v2)
+            => Comparer<U>.Default.Compare(v1, v2);
 
         private void HandleAdd(uint id, T element)
         {
@@ -80,7 +88,7 @@ namespace ObserveThing
             {
                 var compareTo = _order[i];
 
-                if (Comparer<U>.Default.Compare(data.orderBy, compareTo.orderBy) > 0)
+                if (_compare(data.orderBy, compareTo.orderBy) > 0)
                     continue;
 
                 newIndex = i;

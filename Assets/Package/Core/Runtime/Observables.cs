@@ -167,7 +167,13 @@ namespace ObserveThing
             => source.ObservableOrderBy<T, U>(x => new ValueObservable<U>(orderBy(x)));
 
         public static IListObservable<T> ObservableOrderBy<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> orderBy)
-            => new FactoryListObservable<T>(receiver => new OrderByObservable<T, U>(source, orderBy, receiver));
+            => new FactoryListObservable<T>(receiver => new OrderByObservable<T, U>(source, orderBy, false, receiver));
+
+        public static IListObservable<T> ObservableOrderByDescending<T, U>(this ICollectionObservable<T> source, Func<T, U> orderBy)
+            => source.ObservableOrderByDescending<T, U>(x => new ValueObservable<U>(orderBy(x)));
+
+        public static IListObservable<T> ObservableOrderByDescending<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> orderBy)
+            => new FactoryListObservable<T>(receiver => new OrderByObservable<T, U>(source, orderBy, true, receiver));
 
         public static IValueObservable<int> ObservableCount<T>(this ICollectionObservable<T> source)
             => new FactoryValueObservable<int>(receiver => new CountObserverable<T>(source, receiver));
