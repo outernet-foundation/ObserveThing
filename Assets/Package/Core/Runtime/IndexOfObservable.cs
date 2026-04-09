@@ -13,7 +13,7 @@ namespace ObserveThing
         private int _index = -1;
         private bool _disposed;
 
-        public IndexOfObservable(ICollectionObservable<T> source, IValueObservable<T> value, IValueObserver<int> receiver)
+        public IndexOfObservable(IListObservable<T> source, IValueObservable<T> value, IValueObserver<int> receiver)
         {
             _receiver = receiver;
             _valueStream = value.Subscribe(
@@ -35,15 +35,15 @@ namespace ObserveThing
                 _receiver.OnNext(-1);
         }
 
-        private void HandleAdd(T element)
+        private void HandleAdd(int index, T element)
         {
-            _list.Add(element);
+            _list.Insert(index, element);
             UpdateIndexIfNecessary();
         }
 
-        private void HandleRemove(T element)
+        private void HandleRemove(int index, T element)
         {
-            _list.Remove(element);
+            _list.RemoveAt(index);
             UpdateIndexIfNecessary();
         }
 
