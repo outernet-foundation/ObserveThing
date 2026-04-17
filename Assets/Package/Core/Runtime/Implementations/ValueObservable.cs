@@ -28,20 +28,12 @@ namespace ObserveThing
 
         private T _value = default;
         private ObservationContext _context;
-        private List<ObservableOperation<T>> _initOpList = new List<ObservableOperation<T>>();
 
         public ValueObservable(ObservationContext context = default) : this(default, context) { }
         public ValueObservable(T startValue, ObservationContext context = default)
         {
             _context = context ?? ObservationContext.Default;
             _value = startValue;
-            _initOpList.Add(new ObservableOperation<T>() { source = this });
-        }
-
-        void IObservable.InitializeObserver(IObserver observer)
-        {
-            _initOpList[0].value = value;
-            observer.OnNext(_initOpList);
         }
 
         IDisposable IValueOperator<T>.Subscribe(IValueObserver<T> observer)
@@ -49,6 +41,13 @@ namespace ObserveThing
                 new Observer(
                     onNext: ops =>
                     {
+                        // init
+                        if (ops == null)
+                        {
+                            observer.OnNext(value);
+                            return;
+                        }
+
                         foreach (var op in ops.Cast<IObservableOperation<T>>())
                             observer.OnNext(op.value);
                     },

@@ -23,13 +23,13 @@ namespace ObserveThing
 
     public class ReadonlyCollectionObservable<T> : IObservable, ICollectionOperator<T>, IEnumerable<T>, IDisposable
     {
-        IEnumerator<T> IEnumerable<T>.GetEnumerator() => _initOperations.Select(x => x.value.element).GetEnumerator();
-        IEnumerator IEnumerable.GetEnumerator() => _initOperations.Select(x => x.value.element).GetEnumerator();
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() => _collection.Select(x => x.element).GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => _collection.Select(x => x.element).GetEnumerator();
 
-        public int count => _initOperations.Count;
+        public int count => _collection.Count;
 
         private ObservationContext _context;
-        private List<ObservableOperation<CollectionOp<T>>> _initOperations = new List<ObservableOperation<CollectionOp<T>>>();
+        private List<(uint id, T element)> _collection = new List<(uint id, T element)>();
 
         public ReadonlyCollectionObservable(params T[] source) : this((IEnumerable<T>)source) { }
         public ReadonlyCollectionObservable(ObservationContext context, params T[] source) : this(source, context) { }
@@ -42,14 +42,9 @@ namespace ObserveThing
 
             foreach (var element in source)
             {
-                _initOperations.Add(new ObservableOperation<CollectionOp<T>>() { source = this, value = new CollectionOp<T>(nextId, -1, element, false) });
+                _collection.Add(new(nextId, element));
                 nextId++;
             }
-        }
-
-        void IObservable.InitializeObserver(IObserver observer)
-        {
-            observer.OnNext(_initOperations);
         }
 
         IDisposable ICollectionOperator<T>.Subscribe(ICollectionObserver<T> observer)
@@ -57,6 +52,13 @@ namespace ObserveThing
                 new Observer(
                     onNext: ops =>
                     {
+                        //init
+                        if (ops == null)
+                        {
+                            foreach (var element in _collection)
+                                observer.OnAdd(element.id, element.element);
+                        }
+
                         foreach (var op in ops.Cast<IObservableOperation<CollectionOp<T>>>())
                         {
                             if (op.value.isRemove)
@@ -77,7 +79,7 @@ namespace ObserveThing
             );
 
         public bool Contains(T element)
-            => _initOperations.Select(x => x.value.element).Contains(element);
+            => _collection.Select(x => x.element).Contains(element);
 
         public void Dispose()
         {

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
-using UnityEngine;
 using UnityEngine.TestTools;
 
 namespace ObserveThing.Tests
@@ -547,105 +546,6 @@ namespace ObserveThing.Tests
             Assert.IsTrue(immediateFired);
             Assert.IsTrue(immediateFiredFirst);
             Assert.IsFalse(standardFiredFirst);
-        }
-
-        [Test]
-        public void TestOperationOrder()
-        {
-            var context = new ObservationContext();
-
-            ValueObservable<int> intObservable = new ValueObservable<int>(context);
-            ValueObservable<string> stringObservable = new ValueObservable<string>(context);
-            List<(IObservable source, object value)> operations = new List<(IObservable source, object value)>();
-            int callCount = 0;
-
-            context.RegisterObserver(
-                new Observer(
-                    onNext: ops =>
-                    {
-                        callCount++;
-                        operations.AddRange(ops.Select<IObservableOperation, (IObservable source, object value)>(x => new(x.source, x.value)));
-                    }
-                ),
-                intObservable,
-                stringObservable
-            );
-
-            Assert.AreEqual(2, callCount);
-            AssertValueOp(operations[0], intObservable, default(int));
-            AssertValueOp(operations[1], stringObservable, default(string));
-
-            operations.Clear();
-
-            context.ExecuteBatchOperation(() =>
-            {
-                intObservable.value = 1;
-                stringObservable.value = "2";
-                intObservable.value = 3;
-                intObservable.value = 4;
-                stringObservable.value = "5";
-            });
-
-            Debug.Log(string.Join(", ", operations.Select(x => x.value)));
-
-            AssertValueOp(operations[0], intObservable, 1);
-            AssertValueOp(operations[1], stringObservable, "2");
-            AssertValueOp(operations[2], intObservable, 3);
-            AssertValueOp(operations[3], intObservable, 4);
-            AssertValueOp(operations[4], stringObservable, "5");
-        }
-
-        private void AssertValueOp<T>((IObservable source, object value) op, IObservable source, T value)
-        {
-            Assert.AreEqual(source, op.source);
-            Assert.AreEqual(value, op.value);
-        }
-
-        [Test]
-        public void TestObserverInitializiation()
-        {
-            // ValueObservable<int> observable = new ValueObservable<int>(new ObservationContext());
-
-            // int standardCallCount = 0;
-            // var standardStream = observable.Subscribe(
-            //     x => standardCallCount++
-            // );
-
-            // context.PauseExecution();
-
-            // observable.value = 1;
-            // observable.value = 2;
-            // observable.value = 3;
-
-            // int initTesterCallCount = 0;
-            // int initTesterValue = 0;
-
-            // var initTesterStream = observable.Subscribe(
-            //     x =>
-            //     {
-            //         initTesterCallCount++;
-            //         initTesterValue = x;
-            //     }
-            // );
-
-            // // Value should be initialized correctly, and we should only receive the single init call
-            // Assert.AreEqual(1, initTesterCallCount);
-            // Assert.AreEqual(3, initTesterValue);
-            // Assert.AreEqual(1, standardCallCount); // counterStream should only have been updated once so far
-
-            // context.ResumeExecution();
-
-            // // Nothing should change after resuming- the observer initialized after the third change call
-            // Assert.AreEqual(1, initTesterCallCount);
-            // Assert.AreEqual(3, initTesterValue);
-            // Assert.AreEqual(4, standardCallCount); // counterStream should be called three times after resuming the stream
-
-            // observable.value = 4;
-
-            // // Now both observers are initialized, everything should work normally
-            // Assert.AreEqual(2, initTesterCallCount);
-            // Assert.AreEqual(4, initTesterValue);
-            // Assert.AreEqual(5, standardCallCount);
         }
     }
 }

@@ -43,7 +43,6 @@ namespace ObserveThing
         private List<(uint id, T value)> _list = new List<(uint id, T value)>();
         private ObservationContext _context;
         private CollectionIdProvider _idProvider;
-        private List<ObservableOperation<ListOpArgs<T>>> _initOperations = new List<ObservableOperation<ListOpArgs<T>>>();
 
         public ListObservable(params T[] source) : this(source, default) { }
         public ListObservable(ObservationContext context, params T[] source) : this(source, context) { }
@@ -59,28 +58,23 @@ namespace ObserveThing
             _idProvider = new CollectionIdProvider(x => _list.Any(item => item.id == x));
         }
 
-        void IObservable.InitializeObserver(IObserver observer)
-        {
-            while (_initOperations.Count > _list.Count)
-                _initOperations.RemoveAt(_initOperations.Count - 1);
-
-            while (_initOperations.Count < _list.Count)
-                _initOperations.Add(new ObservableOperation<ListOpArgs<T>>() { source = this });
-
-            for (int i = 0; i < _initOperations.Count; i++)
-            {
-                var element = _list[i];
-                _initOperations[i].value = new ListOpArgs<T>(element.id, i, element.value, false);
-            }
-
-            observer.OnNext(_initOperations);
-        }
-
         IDisposable IListOperator<T>.Subscribe(IListObserver<T> observer)
             => _context.RegisterObserver(
                 new Observer(
                     onNext: ops =>
                     {
+                        //init
+                        if (ops == null)
+                        {
+                            for (int i = 0; i < _list.Count; i++)
+                            {
+                                var element = _list[i];
+                                observer.OnAdd(element.id, i, element.value);
+                            }
+
+                            return;
+                        }
+
                         foreach (var op in ops.Cast<IObservableOperation<ListOpArgs<T>>>())
                         {
                             if (op.value.isRemove)
@@ -105,6 +99,15 @@ namespace ObserveThing
                 new Observer(
                     onNext: ops =>
                     {
+                        //init
+                        if (ops == null)
+                        {
+                            foreach (var element in _list)
+                                observer.OnAdd(element.id, element.value);
+
+                            return;
+                        }
+
                         foreach (var op in ops.Cast<IObservableOperation<ListOpArgs<T>>>())
                         {
                             if (op.value.isRemove)

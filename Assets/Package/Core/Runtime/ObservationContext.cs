@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 
 namespace ObserveThing
 {
@@ -197,6 +196,8 @@ namespace ObserveThing
             var observerData = new ObserverData(observer, _nextObserverOrder++, HandleObserverDisposed);
             observerData.observed.AddRange(observables);
 
+            _observers.Add(observer, observerData);
+
             foreach (var observable in observables)
             {
                 if (!_observersByObservables.TryGetValue(observable, out var observers))
@@ -208,10 +209,32 @@ namespace ObserveThing
                 observers.Add(observerData);
             }
 
-            foreach (var observable in observables)
-                observable.InitializeObserver(observer);
+            if (observer.prewarm)
+                observer.OnNext(null);
 
             return observerData;
+        }
+
+        private IPooledOperation AllocateOperationInternal<T>(IObservable source, T value)
+        {
+            OperationPool<T> operationPool;
+
+            if (_operationPools.TryGetValue(typeof(T), out var poolObject))
+            {
+                operationPool = (OperationPool<T>)poolObject;
+            }
+            else
+            {
+                operationPool = new OperationPool<T>();
+                _operationPools.Add(typeof(T), operationPool);
+            }
+
+            var operation = operationPool.Allocate();
+
+            operation.source = source;
+            operation.value = value;
+
+            return operation;
         }
 
         public void DeregisterObserver(IObserver observer)
@@ -271,10 +294,7 @@ namespace ObserveThing
                 _operationPools.Add(typeof(T), operationPool);
             }
 
-            var operation = operationPool.Allocate();
-
-            operation.source = observable;
-            operation.value = value;
+            var operation = AllocateOperationInternal(observable, value);
 
             foreach (var observer in observers.Where(x => x.observer.immediate))
             {

@@ -179,20 +179,13 @@ namespace ObserveThing.Tests
             source.Add(new TestStruct() { value = 2 });
             source.Add(new TestStruct() { value = 3 });
 
-            UnityEngine.Debug.Log("EP: " + string.Join(", ", destination.Select(x => x.value)));
-
             Assert.That(destination, Is.EqualTo(source));
-
-            UnityEngine.Debug.Log("EP: " + string.Join(", ", source.Select(x => x.value)));
 
             source.Remove(new TestStruct() { value = 2 });
             source.Add(new TestStruct() { value = 4 });
             source.Insert(0, new TestStruct() { value = 10 });
 
             Assert.That(destination, Is.EqualTo(source));
-
-            UnityEngine.Debug.Log("EP: " + string.Join(", ", destination.Select(x => x.value)));
-            UnityEngine.Debug.Log("EP: " + string.Join(", ", source.Select(x => x.value)));
         }
 
         [Test]

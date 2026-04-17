@@ -32,7 +32,6 @@ namespace ObserveThing
         private Dictionary<T, uint> _set = new Dictionary<T, uint>();
         private ObservationContext _context;
         private CollectionIdProvider _idProvider;
-        private List<ObservableOperation<SetOpArgs<T>>> _initOperations = new List<ObservableOperation<SetOpArgs<T>>>();
 
         public SetObservable(params T[] source) : this(source, default) { }
         public SetObservable(ObservationContext context, params T[] source) : this(source, context) { }
@@ -48,29 +47,18 @@ namespace ObserveThing
             _idProvider = new CollectionIdProvider(x => _set.ContainsValue(x));
         }
 
-        void IObservable.InitializeObserver(IObserver observer)
-        {
-            while (_initOperations.Count > _set.Count)
-                _initOperations.RemoveAt(_initOperations.Count - 1);
-
-            while (_initOperations.Count < _set.Count)
-                _initOperations.Add(new ObservableOperation<SetOpArgs<T>>() { source = this });
-
-            var index = 0;
-            foreach (var kvp in _set)
-            {
-                _initOperations[index].value = new SetOpArgs<T>(kvp.Value, kvp.Key, false);
-                index++;
-            }
-
-            observer.OnNext(_initOperations);
-        }
-
         IDisposable ISetOperator<T>.Subscribe(ISetObserver<T> observer)
             => _context.RegisterObserver(
                 new Observer(
                     onNext: ops =>
                     {
+                        //init
+                        if (ops == null)
+                        {
+                            foreach (var element in _set)
+                                observer.OnAdd(element.Value, element.Key);
+                        }
+
                         foreach (var op in ops.Cast<IObservableOperation<SetOpArgs<T>>>())
                         {
                             if (op.value.isRemove)
@@ -95,6 +83,13 @@ namespace ObserveThing
                 new Observer(
                     onNext: ops =>
                     {
+                        //init
+                        if (ops == null)
+                        {
+                            foreach (var element in _set)
+                                observer.OnAdd(element.Value, element.Key);
+                        }
+
                         foreach (var op in ops.Cast<IObservableOperation<SetOpArgs<T>>>())
                         {
                             if (op.value.isRemove)

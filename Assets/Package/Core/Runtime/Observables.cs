@@ -1,13 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace ObserveThing
 {
-    public interface IObservable
-    {
-        void InitializeObserver(IObserver observer);
-    }
+    public interface IObservable { }
 
     public interface IValueOperator<out T>
     {

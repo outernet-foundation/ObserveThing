@@ -48,7 +48,6 @@ namespace ObserveThing
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
         private ObservationContext _context;
         private CollectionIdProvider _idProvider;
-        private List<ObservableOperation<DictionaryOpArgs<TKey, TValue>>> _initOperations = new List<ObservableOperation<DictionaryOpArgs<TKey, TValue>>>();
 
         public DictionaryObservable(params KeyValuePair<TKey, TValue>[] source) : this(source, default) { }
         public DictionaryObservable(ObservationContext context, params KeyValuePair<TKey, TValue>[] source) : this(source, context) { }
@@ -64,29 +63,20 @@ namespace ObserveThing
             _idProvider = new CollectionIdProvider(x => _dictionary.Values.Any(y => y.id == x));
         }
 
-        void IObservable.InitializeObserver(IObserver observer)
-        {
-            while (_initOperations.Count > _dictionary.Count)
-                _initOperations.RemoveAt(_initOperations.Count - 1);
-
-            while (_initOperations.Count < _dictionary.Count)
-                _initOperations.Add(new ObservableOperation<DictionaryOpArgs<TKey, TValue>>() { source = this });
-
-            var index = 0;
-            foreach (var kvp in _dictionary)
-            {
-                _initOperations[index].value = new DictionaryOpArgs<TKey, TValue>(kvp.Value.id, new(kvp.Key, kvp.Value.value), false);
-                index++;
-            }
-
-            observer.OnNext(_initOperations);
-        }
-
         IDisposable IDictionaryOperator<TKey, TValue>.Subscribe(IDictionaryObserver<TKey, TValue> observer)
             => _context.RegisterObserver(
                 new Observer(
                     onNext: ops =>
                     {
+                        //init
+                        if (ops == null)
+                        {
+                            foreach (var kvp in _dictionary)
+                                observer.OnAdd(kvp.Value.id, new(kvp.Key, kvp.Value.value));
+
+                            return;
+                        }
+
                         foreach (var op in ops.Cast<IObservableOperation<DictionaryOpArgs<TKey, TValue>>>())
                         {
                             if (op.value.isRemove)
@@ -111,6 +101,15 @@ namespace ObserveThing
                 new Observer(
                     onNext: ops =>
                     {
+                        //init
+                        if (ops == null)
+                        {
+                            foreach (var kvp in _dictionary)
+                                observer.OnAdd(kvp.Value.id, new(kvp.Key, kvp.Value.value));
+
+                            return;
+                        }
+
                         foreach (var op in ops.Cast<IObservableOperation<DictionaryOpArgs<TKey, TValue>>>())
                         {
                             if (op.value.isRemove)
