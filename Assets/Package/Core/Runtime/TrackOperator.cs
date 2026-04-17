@@ -1,0 +1,83 @@
+using System;
+using System.Collections.Generic;
+
+namespace ObserveThing
+{
+    public class TrackOperator<TKey, TValue> : IDisposable
+    {
+        private IDisposable _sourceStream;
+        private IDisposable _keyStream;
+        private IValueObserver<(bool present, TValue value)> _receiver;
+
+        private Dictionary<TKey, TValue> _dict = new Dictionary<TKey, TValue>();
+        private TKey _key = default;
+        private bool _present = false;
+
+        private bool _disposed;
+
+        public TrackOperator(IDictionaryOperator<TKey, TValue> source, IValueOperator<TKey> key, IValueObserver<(bool present, TValue value)> receiver)
+        {
+            _receiver = receiver;
+            _sourceStream = source.Subscribe(
+                onAdd: kvp =>
+                {
+                    _dict.Add(kvp.Key, kvp.Value);
+                    if (Equals(kvp.Key, _key))
+                    {
+                        _present = true;
+                        _receiver.OnNext(new(_present, kvp.Value));
+                    }
+                },
+                onRemove: kvp =>
+                {
+                    if (_dict.Remove(kvp.Key) && Equals(kvp.Key, _key))
+                    {
+                        _present = false;
+                        _receiver.OnNext(new(_present, default));
+                    }
+                },
+                onError: _receiver.OnError,
+                onDispose: Dispose,
+                immediate: receiver.immediate
+            );
+
+            _keyStream = key.Subscribe(
+                onNext: key =>
+                {
+                    _key = key;
+
+                    if (_dict.TryGetValue(key, out var value))
+                    {
+                        _present = true;
+                        _receiver.OnNext(new(_present, value));
+                    }
+                    else if (_present)
+                    {
+                        _present = false;
+                        _receiver.OnNext(new(_present, default));
+                    }
+                },
+                onError: _receiver.OnError,
+                onDispose: Dispose,
+                immediate: receiver.immediate
+            );
+
+            // always send an init call
+            if (!_present)
+                _receiver.OnNext(new(_present, default));
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+
+            _sourceStream.Dispose();
+            _keyStream.Dispose();
+
+            _receiver.OnDispose();
+        }
+    }
+}

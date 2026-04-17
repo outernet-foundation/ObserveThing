@@ -551,7 +551,7 @@ namespace ObserveThing.Tests
                 new ValueObservable<float>(3)
             );
 
-            var stream = new ShallowCopyCollectionObservable<float>(
+            var stream = new ShallowCopyCollectionOperator<float>(
                 source,
                 new CollectionObserver<float>(
                     onAdd: (_, x) =>

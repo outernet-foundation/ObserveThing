@@ -11,7 +11,6 @@ namespace ObserveThing
     public interface IObserver
     {
         bool immediate { get; }
-        bool prewarm { get; }
         void OnNext(IReadOnlyList<IObservableOperation> operations);
         void OnError(Exception exc);
         void OnDispose();
@@ -20,18 +19,16 @@ namespace ObserveThing
     public class Observer : IObserver
     {
         public bool immediate { get; }
-        public bool prewarm { get; }
         private Action<IReadOnlyList<IObservableOperation>> _onNext;
         private Action<Exception> _onError;
         private Action _onDispose;
 
-        public Observer(Action<IReadOnlyList<IObservableOperation>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false, bool prewarm = true)
+        public Observer(Action<IReadOnlyList<IObservableOperation>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
         {
             _onNext = onNext;
             _onError = onError;
             _onDispose = onDispose;
             this.immediate = immediate;
-            this.prewarm = prewarm;
         }
 
         public void OnNext(IReadOnlyList<IObservableOperation> operations)

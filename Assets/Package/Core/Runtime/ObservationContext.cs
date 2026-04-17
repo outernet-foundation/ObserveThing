@@ -209,8 +209,8 @@ namespace ObserveThing
                 observers.Add(observerData);
             }
 
-            if (observer.prewarm)
-                observer.OnNext(null);
+            // Init
+            observer.OnNext(null);
 
             return observerData;
         }

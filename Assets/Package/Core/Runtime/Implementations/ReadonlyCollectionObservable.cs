@@ -21,7 +21,7 @@ namespace ObserveThing
         }
     }
 
-    public class ReadonlyCollectionObservable<T> : IObservable, ICollectionOperator<T>, IEnumerable<T>, IDisposable
+    public class ReadonlyCollectionOperator<T> : IObservable, ICollectionOperator<T>, IEnumerable<T>, IDisposable
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => _collection.Select(x => x.element).GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _collection.Select(x => x.element).GetEnumerator();
@@ -31,10 +31,10 @@ namespace ObserveThing
         private ObservationContext _context;
         private List<(uint id, T element)> _collection = new List<(uint id, T element)>();
 
-        public ReadonlyCollectionObservable(params T[] source) : this((IEnumerable<T>)source) { }
-        public ReadonlyCollectionObservable(ObservationContext context, params T[] source) : this(source, context) { }
+        public ReadonlyCollectionOperator(params T[] source) : this((IEnumerable<T>)source) { }
+        public ReadonlyCollectionOperator(ObservationContext context, params T[] source) : this(source, context) { }
 
-        public ReadonlyCollectionObservable(IEnumerable<T> source, ObservationContext context = default)
+        public ReadonlyCollectionOperator(IEnumerable<T> source, ObservationContext context = default)
         {
             _context = context ?? ObservationContext.Default;
 
