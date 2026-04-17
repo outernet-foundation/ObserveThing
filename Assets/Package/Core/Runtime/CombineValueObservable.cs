@@ -9,7 +9,7 @@ namespace ObserveThing
         private (T1, T2) _value;
         private bool _disposed;
 
-        public CombineValueObservable(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObserver<(T1, T2)> receiver)
+        public CombineValueObservable(IValueOperator<T1> source1, IValueOperator<T2> source2, IValueObserver<(T1, T2)> receiver)
         {
             _receiver = receiver;
             _sourceStream = new ComposedDisposable(
@@ -66,7 +66,7 @@ namespace ObserveThing
         private (T1, T2, T3) _value;
         private bool _disposed;
 
-        public CombineValueObservable(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObserver<(T1, T2, T3)> receiver)
+        public CombineValueObservable(IValueOperator<T1> source1, IValueOperator<T2> source2, IValueOperator<T3> source3, IValueObserver<(T1, T2, T3)> receiver)
         {
             _receiver = receiver;
             _sourceStream = new ComposedDisposable(
@@ -130,7 +130,7 @@ namespace ObserveThing
         private (T1, T2, T3, T4) _value;
         private bool _disposed;
 
-        public CombineValueObservable(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObserver<(T1, T2, T3, T4)> receiver)
+        public CombineValueObservable(IValueOperator<T1> source1, IValueOperator<T2> source2, IValueOperator<T3> source3, IValueOperator<T4> source4, IValueObserver<(T1, T2, T3, T4)> receiver)
         {
             _receiver = receiver;
             _sourceStream = new ComposedDisposable(
@@ -201,7 +201,7 @@ namespace ObserveThing
         private (T1, T2, T3, T4, T5) _value;
         private bool _disposed;
 
-        public CombineValueObservable(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObserver<(T1, T2, T3, T4, T5)> receiver)
+        public CombineValueObservable(IValueOperator<T1> source1, IValueOperator<T2> source2, IValueOperator<T3> source3, IValueOperator<T4> source4, IValueOperator<T5> source5, IValueObserver<(T1, T2, T3, T4, T5)> receiver)
         {
             _receiver = receiver;
             _sourceStream = new ComposedDisposable(
@@ -278,7 +278,7 @@ namespace ObserveThing
         private (T1, T2, T3, T4, T5, T6) _value;
         private bool _disposed;
 
-        public CombineValueObservable(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, IValueObserver<(T1, T2, T3, T4, T5, T6)> receiver)
+        public CombineValueObservable(IValueOperator<T1> source1, IValueOperator<T2> source2, IValueOperator<T3> source3, IValueOperator<T4> source4, IValueOperator<T5> source5, IValueOperator<T6> source6, IValueObserver<(T1, T2, T3, T4, T5, T6)> receiver)
         {
             _receiver = receiver;
             _sourceStream = new ComposedDisposable(
@@ -362,7 +362,7 @@ namespace ObserveThing
         private (T1, T2, T3, T4, T5, T6, T7) _value;
         private bool _disposed;
 
-        public CombineValueObservable(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, IValueObservable<T7> source7, IValueObserver<(T1, T2, T3, T4, T5, T6, T7)> receiver)
+        public CombineValueObservable(IValueOperator<T1> source1, IValueOperator<T2> source2, IValueOperator<T3> source3, IValueOperator<T4> source4, IValueOperator<T5> source5, IValueOperator<T6> source6, IValueOperator<T7> source7, IValueObserver<(T1, T2, T3, T4, T5, T6, T7)> receiver)
         {
             _receiver = receiver;
             _sourceStream = new ComposedDisposable(

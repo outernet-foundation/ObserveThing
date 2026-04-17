@@ -2,15 +2,15 @@ using System;
 
 namespace ObserveThing
 {
-    public class ShareValueObservable<T> : IValueObservable<T>
+    public class ShareValueObservable<T> : IValueOperator<T>
     {
-        private IValueObservable<T> _source;
+        private IValueOperator<T> _source;
         private IDisposable _sourceStream;
         private ValueObservable<T> _shared;
         private int _observerCount;
         private bool _disposed;
 
-        public ShareValueObservable(IValueObservable<T> source, SynchronizationContext context = default)
+        public ShareValueObservable(IValueOperator<T> source, ObservationContext context = default)
         {
             _source = source;
             _shared = new ValueObservable<T>(context);
@@ -46,13 +46,6 @@ namespace ObserveThing
                 }
             );
         }
-
-        public IDisposable Subscribe(IObserver observer)
-            => Subscribe(new ValueObserver<T>(
-                onNext: _ => observer.OnChange(),
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
 
         public void Dispose()
         {

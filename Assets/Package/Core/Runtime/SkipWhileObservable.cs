@@ -9,7 +9,7 @@ namespace ObserveThing
         private Func<bool> _skipWhile;
         private bool _disposed;
 
-        public SkipWhileObservable(IValueObservable<T> source, Func<bool> skipWhile, IValueObserver<T> receiver)
+        public SkipWhileObservable(IValueOperator<T> source, Func<bool> skipWhile, IValueObserver<T> receiver)
         {
             _receiver = receiver;
             _skipWhile = skipWhile;

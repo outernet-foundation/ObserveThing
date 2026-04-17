@@ -1,17 +1,16 @@
 using System;
-using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ShareSetObservable<T> : ISetObservable<T>
+    public class ShareSetObservable<T> : ISetOperator<T>
     {
-        private ISetObservable<T> _source;
+        private ISetOperator<T> _source;
         private IDisposable _sourceStream;
         private SetObservable<T> _shared;
         private int _observerCount;
         private bool _disposed;
 
-        public ShareSetObservable(ISetObservable<T> source, SynchronizationContext context = default)
+        public ShareSetObservable(ISetOperator<T> source, ObservationContext context = default)
         {
             _source = source;
             _shared = new SetObservable<T>(context);
@@ -54,14 +53,6 @@ namespace ObserveThing
             => Subscribe(new SetObserver<T>(
                 onAdd: (id, value) => observer.OnAdd(id, value),
                 onRemove: (id, value) => observer.OnRemove(id, value),
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
-        public IDisposable Subscribe(IObserver observer)
-            => Subscribe(new SetObserver<T>(
-                onAdd: (_, _) => observer.OnChange(),
-                onRemove: (_, _) => observer.OnChange(),
                 onError: observer.OnError,
                 onDispose: observer.OnDispose
             ));

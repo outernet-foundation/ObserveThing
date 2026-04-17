@@ -11,7 +11,7 @@ namespace ObserveThing
         private (uint id, T value) _latest;
         private bool _disposed;
 
-        public FirstObservable(ICollectionObservable<T> source, Func<T, IValueObservable<bool>> validate, IValueObserver<(bool found, T value)> receiver)
+        public FirstObservable(ICollectionOperator<T> source, Func<T, IValueOperator<bool>> validate, IValueObserver<(bool found, T value)> receiver)
         {
             _receiver = receiver;
             _sourceStream = source.ObservableWhere(x => validate(x)).SubscribeWithId(

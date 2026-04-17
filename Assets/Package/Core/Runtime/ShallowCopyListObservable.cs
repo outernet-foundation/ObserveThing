@@ -17,7 +17,7 @@ namespace ObserveThing
             public bool initialized;
         }
 
-        public ShallowCopyListObservable(IListObservable<IValueObservable<T>> source, IListObserver<T> receiver)
+        public ShallowCopyListObservable(IListOperator<IValueOperator<T>> source, IListObserver<T> receiver)
         {
             _receiver = receiver;
             _sourceStream = source.SubscribeWithId(
@@ -29,7 +29,7 @@ namespace ObserveThing
             );
         }
 
-        private void HandleAdd(uint id, int index, IValueObservable<T> element)
+        private void HandleAdd(uint id, int index, IValueOperator<T> element)
         {
             var data = new EntryData();
             _data.Insert(index, data);
@@ -55,7 +55,7 @@ namespace ObserveThing
             );
         }
 
-        private void HandleRemove(uint id, int index, IValueObservable<T> element)
+        private void HandleRemove(uint id, int index, IValueOperator<T> element)
         {
             var data = _data[index];
             _data.RemoveAt(index);

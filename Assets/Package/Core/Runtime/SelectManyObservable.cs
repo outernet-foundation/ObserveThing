@@ -13,13 +13,13 @@ namespace ObserveThing
         }
 
         private IDisposable _sourceStream;
-        private Func<T, ICollectionObservable<U>> _select;
+        private Func<T, ICollectionOperator<U>> _select;
         private ICollectionObserver<U> _receiver;
         private Dictionary<uint, ElementData> _dataById = new Dictionary<uint, ElementData>();
         private CollectionIdProvider _idProvider;
         private bool _disposed;
 
-        public SelectManyObservable(ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> select, ICollectionObserver<U> receiver)
+        public SelectManyObservable(ICollectionOperator<T> source, Func<T, ICollectionOperator<U>> select, ICollectionObserver<U> receiver)
         {
             _receiver = receiver;
             _select = select;

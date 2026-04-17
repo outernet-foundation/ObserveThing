@@ -2,15 +2,15 @@ using System;
 
 namespace ObserveThing
 {
-    public class ShareListObservable<T> : IListObservable<T>
+    public class ShareListObservable<T> : IListOperator<T>
     {
-        private IListObservable<T> _source;
+        private IListOperator<T> _source;
         private IDisposable _sourceStream;
         private ListObservable<T> _shared;
         private int _observerCount;
         private bool _disposed;
 
-        public ShareListObservable(IListObservable<T> source, SynchronizationContext context = default)
+        public ShareListObservable(IListOperator<T> source, ObservationContext context = default)
         {
             _source = source;
             _shared = new ListObservable<T>(context);
@@ -53,14 +53,6 @@ namespace ObserveThing
             => Subscribe(new ListObserver<T>(
                 onAdd: (id, _, value) => observer.OnAdd(id, value),
                 onRemove: (id, _, value) => observer.OnRemove(id, value),
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
-        public IDisposable Subscribe(IObserver observer)
-            => Subscribe(new ListObserver<T>(
-                onAdd: (_, _, _) => observer.OnChange(),
-                onRemove: (_, _, _) => observer.OnChange(),
                 onError: observer.OnError,
                 onDispose: observer.OnDispose
             ));

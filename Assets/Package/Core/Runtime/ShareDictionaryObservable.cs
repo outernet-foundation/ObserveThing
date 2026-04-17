@@ -3,15 +3,15 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ShareDictionaryObservable<TKey, TValue> : IDictionaryObservable<TKey, TValue>
+    public class ShareDictionaryObservable<TKey, TValue> : IDictionaryOperator<TKey, TValue>
     {
-        private IDictionaryObservable<TKey, TValue> _source;
+        private IDictionaryOperator<TKey, TValue> _source;
         private IDisposable _sourceStream;
         private DictionaryObservable<TKey, TValue> _shared;
         private int _observerCount;
         private bool _disposed;
 
-        public ShareDictionaryObservable(IDictionaryObservable<TKey, TValue> source, SynchronizationContext context = default)
+        public ShareDictionaryObservable(IDictionaryOperator<TKey, TValue> source, ObservationContext context = default)
         {
             _source = source;
             _shared = new DictionaryObservable<TKey, TValue>(context);
@@ -54,14 +54,6 @@ namespace ObserveThing
             => Subscribe(new DictionaryObserver<TKey, TValue>(
                 onAdd: (id, value) => observer.OnAdd(id, value),
                 onRemove: (id, value) => observer.OnRemove(id, value),
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
-        public IDisposable Subscribe(IObserver observer)
-            => Subscribe(new DictionaryObserver<TKey, TValue>(
-                onAdd: (_, _) => observer.OnChange(),
-                onRemove: (_, _) => observer.OnChange(),
                 onError: observer.OnError,
                 onDispose: observer.OnDispose
             ));

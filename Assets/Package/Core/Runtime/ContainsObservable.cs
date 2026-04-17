@@ -13,7 +13,7 @@ namespace ObserveThing
         private bool _present = false;
         private bool _disposed;
 
-        public ContainsObservable(ICollectionObservable<T> source, IValueObservable<T> value, IValueObserver<bool> receiver)
+        public ContainsObservable(ICollectionOperator<T> source, IValueOperator<T> value, IValueObserver<bool> receiver)
         {
             _receiver = receiver;
             _sourceStream = source.Subscribe(

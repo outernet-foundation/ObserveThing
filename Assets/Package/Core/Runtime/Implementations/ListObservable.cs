@@ -5,14 +5,23 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public struct ListOpData<T>
+    public struct ListOpArgs<T>
     {
-        public (uint id, T element) element;
-        public int index;
-        public bool isRemove;
+        public uint id { get; }
+        public int index { get; }
+        public T element { get; }
+        public bool isRemove { get; }
+
+        public ListOpArgs(uint id, int index, T element, bool isRemove)
+        {
+            this.id = id;
+            this.index = index;
+            this.element = element;
+            this.isRemove = isRemove;
+        }
     }
 
-    public class ListObservable<T> : IListObservable<T>, IEnumerable<T>, IDisposable
+    public class ListObservable<T> : IObservable, IListOperator<T>, IEnumerable<T>, IDisposable
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
@@ -32,34 +41,88 @@ namespace ObserveThing
         }
 
         private List<(uint id, T value)> _list = new List<(uint id, T value)>();
-        private SynchronizedNotificationQueue<IListObserver<T>, ListOpData<T>> _notificationQueue;
+        private ObservationContext _context;
         private CollectionIdProvider _idProvider;
+        private List<ObservableOperation<ListOpArgs<T>>> _initOperations = new List<ObservableOperation<ListOpArgs<T>>>();
 
         public ListObservable(params T[] source) : this(source, default) { }
-        public ListObservable(SynchronizationContext context, params T[] source) : this(source, context) { }
-        public ListObservable(IEnumerable<T> source, SynchronizationContext context = default) : this(context)
+        public ListObservable(ObservationContext context, params T[] source) : this(source, context) { }
+        public ListObservable(IEnumerable<T> source, ObservationContext context = default) : this(context)
         {
             foreach (var element in source)
                 _list.Add(new(_idProvider.GetUnusedId(), element));
         }
 
-        public ListObservable(SynchronizationContext context = default)
+        public ListObservable(ObservationContext context = default)
         {
-            _notificationQueue = new SynchronizedNotificationQueue<IListObserver<T>, ListOpData<T>>(NotifyObserver, context);
+            _context = context ?? ObservationContext.Default;
             _idProvider = new CollectionIdProvider(x => _list.Any(item => item.id == x));
         }
 
-        private void NotifyObserver(IListObserver<T> observer, ListOpData<T> data)
+        void IObservable.InitializeObserver(IObserver observer)
         {
-            if (data.isRemove)
+            while (_initOperations.Count > _list.Count)
+                _initOperations.RemoveAt(_initOperations.Count - 1);
+
+            while (_initOperations.Count < _list.Count)
+                _initOperations.Add(new ObservableOperation<ListOpArgs<T>>() { source = this });
+
+            for (int i = 0; i < _initOperations.Count; i++)
             {
-                observer.OnRemove(data.element.id, data.index, data.element.element);
+                var element = _list[i];
+                _initOperations[i].value = new ListOpArgs<T>(element.id, i, element.value, false);
             }
-            else
-            {
-                observer.OnAdd(data.element.id, data.index, data.element.element);
-            }
+
+            observer.OnNext(_initOperations);
         }
+
+        IDisposable IListOperator<T>.Subscribe(IListObserver<T> observer)
+            => _context.RegisterObserver(
+                new Observer(
+                    onNext: ops =>
+                    {
+                        foreach (var op in ops.Cast<IObservableOperation<ListOpArgs<T>>>())
+                        {
+                            if (op.value.isRemove)
+                            {
+                                observer.OnRemove(op.value.id, op.value.index, op.value.element);
+                            }
+                            else
+                            {
+                                observer.OnAdd(op.value.id, op.value.index, op.value.element);
+                            }
+                        }
+                    },
+                    onError: observer.OnError,
+                    onDispose: observer.OnDispose,
+                    immediate: observer.immediate
+                ),
+                this
+            );
+
+        IDisposable ICollectionOperator<T>.Subscribe(ICollectionObserver<T> observer)
+            => _context.RegisterObserver(
+                new Observer(
+                    onNext: ops =>
+                    {
+                        foreach (var op in ops.Cast<IObservableOperation<ListOpArgs<T>>>())
+                        {
+                            if (op.value.isRemove)
+                            {
+                                observer.OnRemove(op.value.id, op.value.element);
+                            }
+                            else
+                            {
+                                observer.OnAdd(op.value.id, op.value.element);
+                            }
+                        }
+                    },
+                    onError: observer.OnError,
+                    onDispose: observer.OnDispose,
+                    immediate: observer.immediate
+                ),
+                this
+            );
 
         public void Add(T added)
             => Insert(_list.Count, added);
@@ -85,14 +148,14 @@ namespace ObserveThing
         {
             var removed = _list[index];
             _list.RemoveAt(index);
-            _notificationQueue.EnqueueNotify(new ListOpData<T>() { index = index, element = removed, isRemove = true });
+            _context.RegisterOperation(this, new ListOpArgs<T>(removed.id, index, removed.value, true));
         }
 
         public void Insert(int index, T item)
         {
             (uint id, T value) inserted = new(_idProvider.GetUnusedId(), item);
             _list.Insert(index, inserted);
-            _notificationQueue.EnqueueNotify(new ListOpData<T>() { index = index, element = inserted, isRemove = false });
+            _context.RegisterOperation(this, new ListOpArgs<T>(inserted.id, index, inserted.value, false));
         }
 
         public void Clear()
@@ -107,37 +170,9 @@ namespace ObserveThing
         public bool Contains(T item)
             => _list.Any(x => Equals(x.value, item));
 
-        public IDisposable Subscribe(IListObserver<T> observer)
-        {
-            var subscription = _notificationQueue.AddObserver(observer);
-            for (int i = 0; i < _list.Count; i++)
-            {
-                var element = _list[i];
-                observer.OnAdd(element.id, i, element.value);
-            }
-
-            return subscription;
-        }
-
-        public IDisposable Subscribe(ICollectionObserver<T> observer)
-            => Subscribe(new ListObserver<T>(
-                onAdd: (id, _, value) => observer.OnAdd(id, value),
-                onRemove: (id, _, value) => observer.OnRemove(id, value),
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
-        public IDisposable Subscribe(IObserver observer)
-            => Subscribe(new ListObserver<T>(
-                onAdd: (_, _, _) => observer.OnChange(),
-                onRemove: (_, _, _) => observer.OnChange(),
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
         public void Dispose()
         {
-            _notificationQueue.Dispose();
+            _context.HandleObservableDisposed(this);
         }
     }
 }

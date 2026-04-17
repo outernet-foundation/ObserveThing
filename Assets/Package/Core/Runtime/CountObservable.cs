@@ -10,7 +10,7 @@ namespace ObserveThing
         private IValueObserver<int> _receiver;
         private bool _disposed;
 
-        public CountObserverable(ICollectionObservable<T> source, IValueObserver<int> receiver)
+        public CountObserverable(ICollectionOperator<T> source, IValueObserver<int> receiver)
         {
             _receiver = receiver;
             _sourceStream = source.Subscribe(

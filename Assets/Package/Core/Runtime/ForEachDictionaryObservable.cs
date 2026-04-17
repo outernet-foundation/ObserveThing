@@ -10,7 +10,7 @@ namespace ObserveThing
         private IDictionaryObserver<TKey, TValue> _receiver;
         private bool _disposed;
 
-        public ForEachDictionaryObservable(IDictionaryObservable<TKey, TValue> source, IDictionaryObserver<TKey, TValue> forEachReceiver, IDictionaryObserver<TKey, TValue> receiver)
+        public ForEachDictionaryObservable(IDictionaryOperator<TKey, TValue> source, IDictionaryObserver<TKey, TValue> forEachReceiver, IDictionaryObserver<TKey, TValue> receiver)
         {
             _forEachReceiver = forEachReceiver;
             _receiver = receiver;

@@ -14,7 +14,7 @@ namespace ObserveThing
         private Dictionary<uint, uint> _source1IdMap = new Dictionary<uint, uint>();
         private Dictionary<uint, uint> _source2IdMap = new Dictionary<uint, uint>();
 
-        public ConcatObservable(ICollectionObservable<T> source1, ICollectionObservable<T> source2, ICollectionObserver<T> receiver)
+        public ConcatObservable(ICollectionOperator<T> source1, ICollectionOperator<T> source2, ICollectionObserver<T> receiver)
         {
             _receiver = receiver;
             _idProvider = new CollectionIdProvider(x => !_source1IdMap.ContainsValue(x) && !_source2IdMap.ContainsValue(x));

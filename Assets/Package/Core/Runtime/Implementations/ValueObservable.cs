@@ -1,8 +1,16 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ObserveThing
 {
-    public class ValueObservable<T> : IValueObservable<T>, IDisposable
+    public class ObservableOperation<T> : IObservableOperation<T>
+    {
+        public T value { get; set; }
+        public IObservable source { get; set; }
+    }
+
+    public class ValueObservable<T> : IObservable, IValueOperator<T>, IDisposable
     {
         public T value
         {
@@ -13,42 +21,47 @@ namespace ObserveThing
                     return;
 
                 _value = value;
-                _notificationQueue.EnqueueNotify(value);
+                _context.RegisterOperation(this, value);
             }
         }
 
+
         private T _value = default;
-        private SynchronizedNotificationQueue<IValueObserver<T>, T> _notificationQueue;
+        private ObservationContext _context;
+        private List<ObservableOperation<T>> _initOpList = new List<ObservableOperation<T>>();
 
-        public ValueObservable(SynchronizationContext context = default) : this(default, context) { }
-        public ValueObservable(T startValue, SynchronizationContext context = default)
+        public ValueObservable(ObservationContext context = default) : this(default, context) { }
+        public ValueObservable(T startValue, ObservationContext context = default)
         {
-            _notificationQueue = new SynchronizedNotificationQueue<IValueObserver<T>, T>(NotifyObserver, context);
+            _context = context ?? ObservationContext.Default;
             _value = startValue;
+            _initOpList.Add(new ObservableOperation<T>() { source = this });
         }
 
-        private void NotifyObserver(IValueObserver<T> observer, T data)
+        void IObservable.InitializeObserver(IObserver observer)
         {
-            observer.OnNext(data);
+            _initOpList[0].value = value;
+            observer.OnNext(_initOpList);
         }
 
-        public IDisposable Subscribe(IValueObserver<T> observer)
-        {
-            var subscription = _notificationQueue.AddObserver(observer);
-            observer.OnNext(value);
-            return subscription;
-        }
-
-        public IDisposable Subscribe(IObserver observer)
-            => Subscribe(new ValueObserver<T>(
-                onNext: _ => observer.OnChange(),
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
+        IDisposable IValueOperator<T>.Subscribe(IValueObserver<T> observer)
+            => _context.RegisterObserver(
+                new Observer(
+                    onNext: ops =>
+                    {
+                        foreach (var op in ops.Cast<IObservableOperation<T>>())
+                            observer.OnNext(op.value);
+                    },
+                    onError: observer.OnError,
+                    onDispose: observer.OnDispose,
+                    immediate: observer.immediate
+                ),
+                this
+            );
 
         public void Dispose()
         {
-            _notificationQueue.Dispose();
+            _context.HandleObservableDisposed(this);
         }
     }
 }

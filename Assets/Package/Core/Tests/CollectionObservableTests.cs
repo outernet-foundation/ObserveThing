@@ -14,7 +14,7 @@ namespace ObserveThing.Tests
             Observers.DefaultExceptionHandler = UnityEngine.Debug.LogException;
         }
 
-        private T Peek<T>(IValueObservable<T> observable)
+        private T Peek<T>(IValueOperator<T> observable)
         {
             T result = default;
             var observer = observable.Subscribe(x => result = x);
@@ -22,7 +22,7 @@ namespace ObserveThing.Tests
             return result;
         }
 
-        private List<T> Peek<T>(IListObservable<T> observable)
+        private List<T> Peek<T>(IListOperator<T> observable)
         {
             List<T> result = new List<T>();
             var observer = observable.Subscribe(x => result.Add(x));
@@ -30,13 +30,13 @@ namespace ObserveThing.Tests
             return result;
         }
 
-        private void AreEqual<T>(T expected, IValueObservable<T> observable)
+        private void AreEqual<T>(T expected, IValueOperator<T> observable)
             => Assert.AreEqual(expected, Peek(observable));
 
-        private void AreEqual<T>(IEnumerable<T> expected, IEnumerable<IValueObservable<T>> actual)
+        private void AreEqual<T>(IEnumerable<T> expected, IEnumerable<IValueOperator<T>> actual)
             => Assert.AreEqual(expected, actual.Select(x => Peek(x)));
 
-        private void AreEqual<T>(IEnumerable<T> expected, IListObservable<T> observable)
+        private void AreEqual<T>(IEnumerable<T> expected, IListOperator<T> observable)
             => Assert.AreEqual(expected, observable);
 
         [Test]
@@ -153,6 +153,46 @@ namespace ObserveThing.Tests
             source.Insert(0, "meee");
 
             Assert.That(destination, Is.EqualTo(source));
+        }
+
+        public struct TestStruct
+        {
+            public int value;
+        }
+
+        [Test]
+        public void TestOrderByExternalStructCollection()
+        {
+            ListObservable<TestStruct> source = new ListObservable<TestStruct>();
+            List<TestStruct> destination = new List<TestStruct>();
+
+            source
+                .ObservableSelect(x => x)
+                .ObservableWhere(x => true)
+                .ObservableOrderBy(x => source.ObservableIndexOf(x))
+                .Subscribe(
+                    onAdd: (index, value) => destination.Insert(index, value),
+                    onRemove: (index, value) => destination.RemoveAt(index)
+                );
+
+            source.Add(new TestStruct() { value = 1 });
+            source.Add(new TestStruct() { value = 2 });
+            source.Add(new TestStruct() { value = 3 });
+
+            UnityEngine.Debug.Log("EP: " + string.Join(", ", destination.Select(x => x.value)));
+
+            Assert.That(destination, Is.EqualTo(source));
+
+            UnityEngine.Debug.Log("EP: " + string.Join(", ", source.Select(x => x.value)));
+
+            source.Remove(new TestStruct() { value = 2 });
+            source.Add(new TestStruct() { value = 4 });
+            source.Insert(0, new TestStruct() { value = 10 });
+
+            Assert.That(destination, Is.EqualTo(source));
+
+            UnityEngine.Debug.Log("EP: " + string.Join(", ", destination.Select(x => x.value)));
+            UnityEngine.Debug.Log("EP: " + string.Join(", ", source.Select(x => x.value)));
         }
 
         [Test]
@@ -379,7 +419,7 @@ namespace ObserveThing.Tests
             bool disposed = false;
 
             var list = new ListObservable<ListObservable<int>>();
-            var selectMany = list.ObservableSelectMany(x => (ICollectionObservable<int>)x).Subscribe(
+            var selectMany = list.ObservableSelectMany(x => (ICollectionOperator<int>)x).Subscribe(
                 x =>
                 {
                     callCount++;
@@ -453,7 +493,7 @@ namespace ObserveThing.Tests
             bool disposed = false;
             bool receivedCall = false;
 
-            var select = ((ICollectionObservable<int>)list).ObservableSelect(x => x.ToString()).Subscribe(
+            var select = ((ICollectionOperator<int>)list).ObservableSelect(x => x.ToString()).Subscribe(
                 onAdd: x =>
                 {
                     result.Add(x);

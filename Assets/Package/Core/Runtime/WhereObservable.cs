@@ -8,7 +8,7 @@ namespace ObserveThing
     {
         private IDisposable _sourceStream;
         private ICollectionObserver<T> _receiver;
-        private Func<T, IValueObservable<bool>> _where;
+        private Func<T, IValueOperator<bool>> _where;
         private Dictionary<uint, EntryData> _dataById = new Dictionary<uint, EntryData>();
         public CollectionIdProvider _idProvider;
         private bool _disposed;
@@ -21,7 +21,7 @@ namespace ObserveThing
             public IDisposable subscription;
         }
 
-        public WhereObservable(ICollectionObservable<T> source, Func<T, IValueObservable<bool>> where, ICollectionObserver<T> receiver)
+        public WhereObservable(ICollectionOperator<T> source, Func<T, IValueOperator<bool>> where, ICollectionObserver<T> receiver)
         {
             _receiver = receiver;
             _where = where;

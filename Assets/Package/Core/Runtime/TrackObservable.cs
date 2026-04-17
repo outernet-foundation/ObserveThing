@@ -15,7 +15,7 @@ namespace ObserveThing
 
         private bool _disposed;
 
-        public TrackObservable(IDictionaryObservable<TKey, TValue> source, IValueObservable<TKey> key, IValueObserver<(bool present, TValue value)> receiver)
+        public TrackObservable(IDictionaryOperator<TKey, TValue> source, IValueOperator<TKey> key, IValueObserver<(bool present, TValue value)> receiver)
         {
             _receiver = receiver;
             _sourceStream = source.Subscribe(

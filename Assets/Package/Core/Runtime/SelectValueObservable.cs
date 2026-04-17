@@ -10,7 +10,7 @@ namespace ObserveThing
         private U _selected;
         private bool _disposed;
 
-        public SelectValueObservable(IValueObservable<T> source, Func<T, U> select, IValueObserver<U> receiver)
+        public SelectValueObservable(IValueOperator<T> source, Func<T, U> select, IValueObserver<U> receiver)
         {
             _receiver = receiver;
             _select = select;

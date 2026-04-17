@@ -11,7 +11,7 @@ namespace ObserveThing
         private Dictionary<uint, U> _selected = new Dictionary<uint, U>();
         private bool _disposed;
 
-        public SelectCollectionObservable(ICollectionObservable<T> source, Func<T, U> select, ICollectionObserver<U> receiver)
+        public SelectCollectionObservable(ICollectionOperator<T> source, Func<T, U> select, ICollectionObserver<U> receiver)
         {
             _receiver = receiver;
             _select = select;

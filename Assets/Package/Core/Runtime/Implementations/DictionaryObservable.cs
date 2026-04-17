@@ -5,14 +5,21 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public struct DictionaryOpData<TKey, TValue>
+    public struct DictionaryOpArgs<TKey, TValue>
     {
-        public uint id;
-        public KeyValuePair<TKey, TValue> kvp;
-        public bool isRemove;
+        public uint id { get; }
+        public KeyValuePair<TKey, TValue> kvp { get; }
+        public bool isRemove { get; }
+
+        public DictionaryOpArgs(uint id, KeyValuePair<TKey, TValue> kvp, bool isRemove)
+        {
+            this.id = id;
+            this.kvp = kvp;
+            this.isRemove = isRemove;
+        }
     }
 
-    public class DictionaryObservable<TKey, TValue> : IDictionaryObservable<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>, IDisposable
+    public class DictionaryObservable<TKey, TValue> : IObservable, IDictionaryOperator<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>, IDisposable
     {
         public TValue this[TKey key]
         {
@@ -39,34 +46,89 @@ namespace ObserveThing
         public int count => _dictionary.Count;
 
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
-        private SynchronizedNotificationQueue<IDictionaryObserver<TKey, TValue>, DictionaryOpData<TKey, TValue>> _notificationQueue;
+        private ObservationContext _context;
         private CollectionIdProvider _idProvider;
+        private List<ObservableOperation<DictionaryOpArgs<TKey, TValue>>> _initOperations = new List<ObservableOperation<DictionaryOpArgs<TKey, TValue>>>();
 
         public DictionaryObservable(params KeyValuePair<TKey, TValue>[] source) : this(source, default) { }
-        public DictionaryObservable(SynchronizationContext context, params KeyValuePair<TKey, TValue>[] source) : this(source, context) { }
-        public DictionaryObservable(IEnumerable<KeyValuePair<TKey, TValue>> source, SynchronizationContext context = default) : this(context)
+        public DictionaryObservable(ObservationContext context, params KeyValuePair<TKey, TValue>[] source) : this(source, context) { }
+        public DictionaryObservable(IEnumerable<KeyValuePair<TKey, TValue>> source, ObservationContext context = default) : this(context)
         {
             foreach (var kvp in source)
                 _dictionary.Add(kvp.Key, new(_idProvider.GetUnusedId(), kvp.Value));
         }
 
-        public DictionaryObservable(SynchronizationContext context = default)
+        public DictionaryObservable(ObservationContext context = default)
         {
-            _notificationQueue = new SynchronizedNotificationQueue<IDictionaryObserver<TKey, TValue>, DictionaryOpData<TKey, TValue>>(NotifyObserver, context);
+            _context = context ?? ObservationContext.Default;
             _idProvider = new CollectionIdProvider(x => _dictionary.Values.Any(y => y.id == x));
         }
 
-        private void NotifyObserver(IDictionaryObserver<TKey, TValue> observer, DictionaryOpData<TKey, TValue> data)
+        void IObservable.InitializeObserver(IObserver observer)
         {
-            if (data.isRemove)
+            while (_initOperations.Count > _dictionary.Count)
+                _initOperations.RemoveAt(_initOperations.Count - 1);
+
+            while (_initOperations.Count < _dictionary.Count)
+                _initOperations.Add(new ObservableOperation<DictionaryOpArgs<TKey, TValue>>() { source = this });
+
+            var index = 0;
+            foreach (var kvp in _dictionary)
             {
-                observer.OnRemove(data.id, data.kvp);
+                _initOperations[index].value = new DictionaryOpArgs<TKey, TValue>(kvp.Value.id, new(kvp.Key, kvp.Value.value), false);
+                index++;
             }
-            else
-            {
-                observer.OnAdd(data.id, data.kvp);
-            }
+
+            observer.OnNext(_initOperations);
         }
+
+        IDisposable IDictionaryOperator<TKey, TValue>.Subscribe(IDictionaryObserver<TKey, TValue> observer)
+            => _context.RegisterObserver(
+                new Observer(
+                    onNext: ops =>
+                    {
+                        foreach (var op in ops.Cast<IObservableOperation<DictionaryOpArgs<TKey, TValue>>>())
+                        {
+                            if (op.value.isRemove)
+                            {
+                                observer.OnRemove(op.value.id, op.value.kvp);
+                            }
+                            else
+                            {
+                                observer.OnAdd(op.value.id, op.value.kvp);
+                            }
+                        }
+                    },
+                    onError: observer.OnError,
+                    onDispose: observer.OnDispose,
+                    immediate: observer.immediate
+                ),
+                this
+            );
+
+        IDisposable ICollectionOperator<KeyValuePair<TKey, TValue>>.Subscribe(ICollectionObserver<KeyValuePair<TKey, TValue>> observer)
+            => _context.RegisterObserver(
+                new Observer(
+                    onNext: ops =>
+                    {
+                        foreach (var op in ops.Cast<IObservableOperation<DictionaryOpArgs<TKey, TValue>>>())
+                        {
+                            if (op.value.isRemove)
+                            {
+                                observer.OnRemove(op.value.id, op.value.kvp);
+                            }
+                            else
+                            {
+                                observer.OnAdd(op.value.id, op.value.kvp);
+                            }
+                        }
+                    },
+                    onError: observer.OnError,
+                    onDispose: observer.OnDispose,
+                    immediate: observer.immediate
+                ),
+                this
+            );
 
         public bool TryGetValue(TKey key, out TValue value)
         {
@@ -84,7 +146,7 @@ namespace ObserveThing
         {
             var id = _idProvider.GetUnusedId();
             _dictionary.Add(key, (id, value));
-            _notificationQueue.EnqueueNotify(new() { id = id, kvp = new(key, value), isRemove = false });
+            _context.RegisterOperation(this, new DictionaryOpArgs<TKey, TValue>(id, new(key, value), false));
         }
 
         public bool Remove(TKey key)
@@ -93,7 +155,7 @@ namespace ObserveThing
                 return false;
 
             _dictionary.Remove(key);
-            _notificationQueue.EnqueueNotify(new() { id = data.id, kvp = new(key, data.value), isRemove = true });
+            _context.RegisterOperation(this, new DictionaryOpArgs<TKey, TValue>(data.id, new(key, data.value), true));
 
             return true;
         }
@@ -103,7 +165,7 @@ namespace ObserveThing
             foreach (var kvp in _dictionary.ToArray())
             {
                 _dictionary.Remove(kvp.Key);
-                _notificationQueue.EnqueueNotify(new() { id = kvp.Value.id, kvp = new(kvp.Key, kvp.Value.value), isRemove = true });
+                _context.RegisterOperation(this, new DictionaryOpArgs<TKey, TValue>(kvp.Value.id, new(kvp.Key, kvp.Value.value), true));
             }
         }
 
@@ -113,35 +175,9 @@ namespace ObserveThing
         public bool ContainsValue(TValue value)
             => _dictionary.Values.Select(x => x.value).Contains(value);
 
-        public IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer)
-        {
-            var subscription = _notificationQueue.AddObserver(observer);
-
-            foreach (var kvp in _dictionary)
-                observer.OnAdd(kvp.Value.id, new KeyValuePair<TKey, TValue>(kvp.Key, kvp.Value.value));
-
-            return subscription;
-        }
-
-        public IDisposable Subscribe(ICollectionObserver<KeyValuePair<TKey, TValue>> observer)
-            => Subscribe(new DictionaryObserver<TKey, TValue>(
-                onAdd: observer.OnAdd,
-                onRemove: observer.OnRemove,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
-        public IDisposable Subscribe(IObserver observer)
-            => Subscribe(new DictionaryObserver<TKey, TValue>(
-                onAdd: (_, _) => observer.OnChange(),
-                onRemove: (_, _) => observer.OnChange(),
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
         public void Dispose()
         {
-            _notificationQueue.Dispose();
+            _context.HandleObservableDisposed(this);
         }
     }
 }

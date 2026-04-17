@@ -11,7 +11,7 @@ namespace ObserveThing
         private List<U> _selectedElements = new List<U>();
         private bool _disposed;
 
-        public SelectListObservable(IListObservable<T> source, Func<T, U> select, IListObserver<U> receiver)
+        public SelectListObservable(IListOperator<T> source, Func<T, U> select, IListObserver<U> receiver)
         {
             _receiver = receiver;
             _select = select;

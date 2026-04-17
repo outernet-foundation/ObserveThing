@@ -12,7 +12,7 @@ namespace ObserveThing
         private CollectionIdProvider _idProvider;
         private bool _disposed;
 
-        public DistinctObservable(ICollectionObservable<T> source, ICollectionObserver<T> receiver)
+        public DistinctObservable(ICollectionOperator<T> source, ICollectionObserver<T> receiver)
         {
             _receiver = receiver;
             _idProvider = new CollectionIdProvider(x => _dataByElement.Values.Any(y => y.id == x));

@@ -9,7 +9,7 @@ namespace ObserveThing
         private T _previousValue;
         private bool _disposed;
 
-        public WithPreviousObservable(IValueObservable<T> source, IValueObserver<(T current, T previous)> receiver)
+        public WithPreviousObservable(IValueOperator<T> source, IValueObserver<(T current, T previous)> receiver)
         {
             _receiver = receiver;
             _sourceStream = source.Subscribe(

@@ -5,14 +5,21 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public struct SetOpData<T>
+    public struct SetOpArgs<T>
     {
-        public uint id;
-        public T element;
-        public bool isRemove;
+        public uint id { get; }
+        public T element { get; }
+        public bool isRemove { get; }
+
+        public SetOpArgs(uint id, T element, bool isRemove)
+        {
+            this.id = id;
+            this.element = element;
+            this.isRemove = isRemove;
+        }
     }
 
-    public class SetObservable<T> : ISetObservable<T>, IEnumerable<T>, IDisposable
+    public class SetObservable<T> : IObservable, ISetOperator<T>, IEnumerable<T>, IDisposable
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator()
             => _set.Keys.GetEnumerator();
@@ -23,34 +30,89 @@ namespace ObserveThing
         public int count => _set.Count;
 
         private Dictionary<T, uint> _set = new Dictionary<T, uint>();
-        private SynchronizedNotificationQueue<ISetObserver<T>, SetOpData<T>> _notificationQueue;
+        private ObservationContext _context;
         private CollectionIdProvider _idProvider;
+        private List<ObservableOperation<SetOpArgs<T>>> _initOperations = new List<ObservableOperation<SetOpArgs<T>>>();
 
         public SetObservable(params T[] source) : this(source, default) { }
-        public SetObservable(SynchronizationContext context, params T[] source) : this(source, context) { }
-        public SetObservable(IEnumerable<T> values, SynchronizationContext context = default) : this(context)
+        public SetObservable(ObservationContext context, params T[] source) : this(source, context) { }
+        public SetObservable(IEnumerable<T> values, ObservationContext context = default) : this(context)
         {
             foreach (T value in values)
                 _set.Add(value, _idProvider.GetUnusedId());
         }
 
-        public SetObservable(SynchronizationContext context = default)
+        public SetObservable(ObservationContext context = default)
         {
-            _notificationQueue = new SynchronizedNotificationQueue<ISetObserver<T>, SetOpData<T>>(NotifyObserver, context);
+            _context = context ?? ObservationContext.Default;
             _idProvider = new CollectionIdProvider(x => _set.ContainsValue(x));
         }
 
-        private void NotifyObserver(ISetObserver<T> observer, SetOpData<T> data)
+        void IObservable.InitializeObserver(IObserver observer)
         {
-            if (data.isRemove)
+            while (_initOperations.Count > _set.Count)
+                _initOperations.RemoveAt(_initOperations.Count - 1);
+
+            while (_initOperations.Count < _set.Count)
+                _initOperations.Add(new ObservableOperation<SetOpArgs<T>>() { source = this });
+
+            var index = 0;
+            foreach (var kvp in _set)
             {
-                observer.OnRemove(data.id, data.element);
+                _initOperations[index].value = new SetOpArgs<T>(kvp.Value, kvp.Key, false);
+                index++;
             }
-            else
-            {
-                observer.OnAdd(data.id, data.element);
-            }
+
+            observer.OnNext(_initOperations);
         }
+
+        IDisposable ISetOperator<T>.Subscribe(ISetObserver<T> observer)
+            => _context.RegisterObserver(
+                new Observer(
+                    onNext: ops =>
+                    {
+                        foreach (var op in ops.Cast<IObservableOperation<SetOpArgs<T>>>())
+                        {
+                            if (op.value.isRemove)
+                            {
+                                observer.OnRemove(op.value.id, op.value.element);
+                            }
+                            else
+                            {
+                                observer.OnAdd(op.value.id, op.value.element);
+                            }
+                        }
+                    },
+                    onError: observer.OnError,
+                    onDispose: observer.OnDispose,
+                    immediate: observer.immediate
+                ),
+                this
+            );
+
+        IDisposable ICollectionOperator<T>.Subscribe(ICollectionObserver<T> observer)
+            => _context.RegisterObserver(
+                new Observer(
+                    onNext: ops =>
+                    {
+                        foreach (var op in ops.Cast<IObservableOperation<SetOpArgs<T>>>())
+                        {
+                            if (op.value.isRemove)
+                            {
+                                observer.OnRemove(op.value.id, op.value.element);
+                            }
+                            else
+                            {
+                                observer.OnAdd(op.value.id, op.value.element);
+                            }
+                        }
+                    },
+                    onError: observer.OnError,
+                    onDispose: observer.OnDispose,
+                    immediate: observer.immediate
+                ),
+                this
+            );
 
         public bool Add(T element)
         {
@@ -59,7 +121,7 @@ namespace ObserveThing
 
             var id = _idProvider.GetUnusedId();
             _set.Add(element, id);
-            _notificationQueue.EnqueueNotify(new SetOpData<T>() { id = id, element = element, isRemove = false });
+            _context.RegisterOperation(this, new SetOpArgs<T>(id, element, false));
             return true;
         }
 
@@ -75,7 +137,7 @@ namespace ObserveThing
                 return false;
 
             _set.Remove(element);
-            _notificationQueue.EnqueueNotify(new SetOpData<T>() { id = id, element = element, isRemove = true });
+            _context.RegisterOperation(this, new SetOpArgs<T>(id, element, true));
 
             return true;
         }
@@ -85,42 +147,16 @@ namespace ObserveThing
             foreach (var kvp in _set.ToArray())
             {
                 _set.Remove(kvp.Key);
-                _notificationQueue.EnqueueNotify(new SetOpData<T>() { id = kvp.Value, element = kvp.Key, isRemove = false });
+                _context.RegisterOperation(this, new SetOpArgs<T>(kvp.Value, kvp.Key, true));
             }
         }
 
         public bool Contains(T element)
             => _set.ContainsKey(element);
 
-        public IDisposable Subscribe(ISetObserver<T> observer)
-        {
-            var subscription = _notificationQueue.AddObserver(observer);
-
-            foreach (var kvp in _set)
-                observer.OnAdd(kvp.Value, kvp.Key);
-
-            return subscription;
-        }
-
-        public IDisposable Subscribe(ICollectionObserver<T> observer)
-            => Subscribe(new SetObserver<T>(
-                onAdd: observer.OnAdd,
-                onRemove: observer.OnRemove,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
-        public IDisposable Subscribe(IObserver observer)
-            => Subscribe(new SetObserver<T>(
-                onAdd: (_, _) => observer.OnChange(),
-                onRemove: (_, _) => observer.OnChange(),
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
         public void Dispose()
         {
-            _notificationQueue.Dispose();
+            _context.HandleObservableDisposed(this);
         }
     }
 }

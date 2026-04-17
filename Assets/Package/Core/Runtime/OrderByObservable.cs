@@ -6,7 +6,7 @@ namespace ObserveThing
     public class OrderByObservable<T, U> : IDisposable
     {
         private IDisposable _collectionStream;
-        private Func<T, IValueObservable<U>> _orderBy;
+        private Func<T, IValueOperator<U>> _orderBy;
         private Func<U, U, int> _compare;
         private IListObserver<T> _receiver;
         private Dictionary<uint, EntryData> _dataById = new Dictionary<uint, EntryData>();
@@ -21,7 +21,7 @@ namespace ObserveThing
             public IDisposable subscription;
         }
 
-        public OrderByObservable(ICollectionObservable<T> collection, Func<T, IValueObservable<U>> orderBy, bool descending, IListObserver<T> receiver)
+        public OrderByObservable(ICollectionOperator<T> collection, Func<T, IValueOperator<U>> orderBy, bool descending, IListObserver<T> receiver)
         {
             _orderBy = orderBy;
             _compare = descending ? DescendingCompare : AscendingCompare;

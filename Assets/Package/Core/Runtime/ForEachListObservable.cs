@@ -9,7 +9,7 @@ namespace ObserveThing
         private IListObserver<T> _receiver;
         private bool _disposed;
 
-        public ForEachListObservable(IListObservable<T> source, IListObserver<T> forEachReceiver, IListObserver<T> receiver)
+        public ForEachListObservable(IListOperator<T> source, IListObserver<T> forEachReceiver, IListObserver<T> receiver)
         {
             _forEachReceiver = forEachReceiver;
             _receiver = receiver;

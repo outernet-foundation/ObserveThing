@@ -7,8 +7,8 @@ namespace ObserveThing.StatefulExtensions
 {
     public static class Extensions
     {
-        public static ICollectionObservable<PrimitiveMapPair<TLeft, TRight>> ToObservable<TLeft, TRight>(this ObservablePrimitiveMap<TLeft, TRight> map)
-            => new FactoryCollectionObservable<PrimitiveMapPair<TLeft, TRight>>(receiver => new StatefulPrimitiveMapObservable<TLeft, TRight>(map, receiver));
+        public static ICollectionOperator<PrimitiveMapPair<TLeft, TRight>> ToObservable<TLeft, TRight>(this ObservablePrimitiveMap<TLeft, TRight> map)
+            => new CollectionOperatorFactory<PrimitiveMapPair<TLeft, TRight>>(receiver => new StatefulPrimitiveMapObservable<TLeft, TRight>(map, receiver));
 
         public class StatefulPrimitiveMapObservable<TLeft, TRight> : IDisposable
         {
@@ -76,8 +76,8 @@ namespace ObserveThing.StatefulExtensions
             }
         }
 
-        public static IValueObservable<IReadOnlyCollection<T>> ToObservable<T>(this ObservablePrimitiveArray<T> primitiveArray)
-            => new FactoryValueObservable<IReadOnlyCollection<T>>(receiver => new StatefulPrimitiveArrayObservable<T>(primitiveArray, receiver));
+        public static IValueOperator<IReadOnlyCollection<T>> ToObservable<T>(this ObservablePrimitiveArray<T> primitiveArray)
+            => new ValueOperatorFactory<IReadOnlyCollection<T>>(receiver => new StatefulPrimitiveArrayObservable<T>(primitiveArray, receiver));
 
         private class StatefulPrimitiveArrayObservable<T> : IDisposable
         {
@@ -127,8 +127,8 @@ namespace ObserveThing.StatefulExtensions
             }
         }
 
-        public static IDictionaryObservable<TKey, TValue> ToObservable<TKey, TValue>(this ObservableDictionary<TKey, TValue> dictionary)
-            where TValue : IObservableNode, new() => new FactoryDictionaryObservable<TKey, TValue>(receiver => new StatefulDictionaryObservable<TKey, TValue>(dictionary, receiver));
+        public static IDictionaryOperator<TKey, TValue> ToObservable<TKey, TValue>(this ObservableDictionary<TKey, TValue> dictionary)
+            where TValue : IObservableNode, new() => new DictionaryOperatorFactory<TKey, TValue>(receiver => new StatefulDictionaryObservable<TKey, TValue>(dictionary, receiver));
 
         public class StatefulDictionaryObservable<TKey, TValue> : IDisposable where TValue : IObservableNode, new()
         {
@@ -196,8 +196,8 @@ namespace ObserveThing.StatefulExtensions
             }
         }
 
-        public static IListObservable<T> ToObservable<T>(this ObservableList<T> list)
-            where T : IObservableNode, new() => new FactoryListObservable<T>(receiver => new StatefulListObservable<T>(list, receiver));
+        public static IListOperator<T> ToObservable<T>(this ObservableList<T> list)
+            where T : IObservableNode, new() => new ListOperatorFactory<T>(receiver => new StatefulListObservable<T>(list, receiver));
 
         public class StatefulListObservable<T> : IDisposable where T : IObservableNode, new()
         {
@@ -266,8 +266,8 @@ namespace ObserveThing.StatefulExtensions
             }
         }
 
-        public static IListObservable<object> ToObservable(this IObservableList list)
-            => new FactoryListObservable<object>(receiver => new StatefulListObservable(list, receiver));
+        public static IListOperator<object> ToObservable(this IObservableList list)
+            => new ListOperatorFactory<object>(receiver => new StatefulListObservable(list, receiver));
 
         public class StatefulListObservable : IDisposable
         {
@@ -334,8 +334,8 @@ namespace ObserveThing.StatefulExtensions
             }
         }
 
-        public static ICollectionObservable<T> ToObservable<T>(this ObservableSet<T> set)
-            => new FactoryCollectionObservable<T>(receiver => new StatefulSetObservable<T>(set, receiver));
+        public static ICollectionOperator<T> ToObservable<T>(this ObservableSet<T> set)
+            => new CollectionOperatorFactory<T>(receiver => new StatefulSetObservable<T>(set, receiver));
 
         public class StatefulSetObservable<T> : IDisposable
         {
@@ -403,8 +403,8 @@ namespace ObserveThing.StatefulExtensions
             }
         }
 
-        public static IValueObservable<T> ToObservable<T>(this ObservablePrimitive<T> primitive)
-            => new FactoryValueObservable<T>(receiver => new StatefulPrimitiveObservable<T>(primitive, receiver));
+        public static IValueOperator<T> ToObservable<T>(this ObservablePrimitive<T> primitive)
+            => new ValueOperatorFactory<T>(receiver => new StatefulPrimitiveObservable<T>(primitive, receiver));
 
         public class StatefulPrimitiveObservable<T> : IDisposable
         {
@@ -454,8 +454,8 @@ namespace ObserveThing.StatefulExtensions
             }
         }
 
-        public static IValueObservable<object> ToObservable(this IObservablePrimitive primitive)
-            => new FactoryValueObservable<object>(receiver => new StatefulPrimitiveObservable(primitive, receiver));
+        public static IValueOperator<object> ToObservable(this IObservablePrimitive primitive)
+            => new ValueOperatorFactory<object>(receiver => new StatefulPrimitiveObservable(primitive, receiver));
 
         public class StatefulPrimitiveObservable : IDisposable
         {

@@ -1,181 +1,202 @@
-using System;
-using System.Collections.Generic;
+// using System;
+// using System.Collections.Generic;
 
-namespace ObserveThing
-{
-    public delegate void NotifyObserverDelegate<TObserver, TNotification>(TObserver observer, TNotification notification);
+// namespace ObserveThing
+// {
+//     public interface ISynchronizedObserver
+//     {
+//         bool disposed { get; }
 
-    public class SynchronizedNotificationQueue<TObserver, TNotification> : IDisposable where TObserver : IObserverBase
-    {
-        private NotifyObserverDelegate<TObserver, TNotification> _notifyObserver;
-        private SynchronizationContext _context;
-        private List<ObserverData> _observers = new List<ObserverData>();
-        private List<ObserverData> _immediateObservers = new List<ObserverData>();
-        private List<ObserverData> _disposedObservers = new List<ObserverData>();
-        private bool _notifyingObservers;
-        private bool _disposed;
+//         void SendPendingNotifications();
+//         void SendDisposeNotification();
+//     }
 
-        private Queue<TNotification> _pendingNotifications = new Queue<TNotification>();
-        private Queue<ObserverData> _uninitializedObservers = new Queue<ObserverData>();
+//     public delegate void NotifyObserverDelegate<TObserver, TNotification>(TObserver observer, TNotification notification);
 
-        private class ObserverData : IDisposable
-        {
-            public TObserver observer;
-            public Action<ObserverData> handleDispose;
-            public bool initialized;
-            public bool disposed { get; private set; }
+//     public class SynchronizedNotificationQueue<TObserver, TNotification> : IDisposable where TObserver : IObserverBase
+//     {
+//         private NotifyObserverDelegate<TObserver, TNotification> _notifyObserver;
+//         private SynchronizationContext _context;
+//         private List<ObserverData> _observers = new List<ObserverData>();
+//         private List<ObserverData> _immediateObservers = new List<ObserverData>();
+//         private HashSet<ObserverData> _disposedImmediateObservers = new HashSet<ObserverData>();
+//         private bool _notifyingImmediateObservers = false;
+//         private bool _disposed;
 
-            public void Dispose()
-            {
-                if (disposed)
-                    return;
+//         private class ObserverData : ISynchronizedObserver, IDisposable
+//         {
+//             public TObserver observer { get; private set; }
+//             public bool disposed { get; private set; }
 
-                disposed = true;
-                handleDispose?.Invoke(this);
-            }
-        }
+//             private bool _disposeSent = false;
+//             private Queue<TNotification> _pendingNotifications = new Queue<TNotification>();
+//             private NotifyObserverDelegate<TObserver, TNotification> _notifyObserver;
+//             private Action<ObserverData> _cleanUpObserver;
 
-        public SynchronizedNotificationQueue(NotifyObserverDelegate<TObserver, TNotification> notifyObserver, SynchronizationContext context = default)
-        {
-            _notifyObserver = notifyObserver;
-            _context = context ?? SynchronizationContext.Default;
-        }
+//             public ObserverData(TObserver observer, NotifyObserverDelegate<TObserver, TNotification> notifyObserver, Action<ObserverData> cleanUpObserver)
+//             {
+//                 this.observer = observer;
+//                 _notifyObserver = notifyObserver;
+//                 _cleanUpObserver = cleanUpObserver;
+//             }
 
-        private void InitializeNextObserver()
-        {
-            _uninitializedObservers.Dequeue().initialized = true;
-        }
+//             public void SendPendingNotifications()
+//             {
+//                 if (disposed && _disposeSent)
+//                     return;
 
-        private void NotifyNext()
-        {
-            NotifyInternal(_pendingNotifications.Dequeue(), _observers, false);
-        }
+//                 var count = _pendingNotifications.Count;
 
-        private void NotifyInternal(TNotification notification, List<ObserverData> observers, bool notifyUninitializedObservers)
-        {
-            _notifyingObservers = true;
+//                 while (count > 0)
+//                 {
+//                     _notifyObserver(observer, _pendingNotifications.Dequeue());
+//                     count--;
+//                 }
 
-            int count = observers.Count;
+//                 if (disposed)
+//                 {
+//                     _disposeSent = true;
+//                     observer.OnDispose();
+//                 }
+//             }
 
-            for (int i = 0; i < count; i++)
-            {
-                var instance = observers[i];
+//             public void SendDisposeNotification()
+//             {
+//                 if (disposed)
+//                     return;
 
-                if ((!notifyUninitializedObservers && !instance.initialized) || instance.disposed)
-                    continue;
+//                 observer.OnDispose();
+//             }
 
-                _notifyObserver(instance.observer, notification);
-            }
+//             public void EnqueueNotification(TNotification notification)
+//             {
+//                 _pendingNotifications.Enqueue(notification);
+//             }
 
-            foreach (var disposed in _disposedObservers)
-                observers.Remove(disposed);
+//             public void Dispose()
+//             {
+//                 if (disposed)
+//                     return;
 
-            _disposedObservers.Clear();
+//                 disposed = true;
+//                 _cleanUpObserver.Invoke(this);
+//             }
+//         }
 
-            _notifyingObservers = false;
-        }
+//         public SynchronizedNotificationQueue(NotifyObserverDelegate<TObserver, TNotification> notifyObserver, SynchronizationContext context = default)
+//         {
+//             _notifyObserver = notifyObserver;
+//             _context = context ?? SynchronizationContext.Default;
+//         }
 
-        private void NotifyDisposeInternal(List<ObserverData> observers)
-        {
-            _notifyingObservers = true;
+//         private void CleanUpObserver(ObserverData observerData)
+//         {
+//             if (_disposed)
+//                 return;
 
-            for (int i = 0; i < observers.Count; i++)
-            {
-                var instance = observers[i];
+//             if (observerData.observer.immediate)
+//             {
+//                 _immediateObservers.Remove(observerData);
+//             }
+//             else
+//             {
+//                 _observers.Remove(observerData);
+//             }
 
-                if (instance.disposed)
-                    continue;
+//             observerData.observer.OnDispose();
+//         }
 
-                instance.observer.OnDispose();
-            }
+//         public IDisposable RegisterObserver(TObserver observer)
+//         {
+//             var data = new ObserverData(observer, _notifyObserver, CleanUpObserver);
 
-            _notifyingObservers = false;
-        }
+//             if (observer.immediate)
+//             {
+//                 _immediateObservers.Add(data);
+//             }
+//             else
+//             {
+//                 _observers.Add(data);
+//                 _context.RegisterObserver(data);
+//             }
 
-        private void HandleObserverDisposed(ObserverData observerData)
-        {
-            if (_disposed)
-                return;
+//             return data;
+//         }
 
-            if (_notifyingObservers)
-            {
-                _disposedObservers.Add(observerData);
-            }
-            else if (observerData.observer.immediate)
-            {
-                _immediateObservers.Remove(observerData);
-            }
-            else
-            {
-                _observers.Remove(observerData);
-            }
+//         public void EnqueueNotify(TNotification notification)
+//         {
+//             _context.PauseExecution();
 
-            observerData.observer.OnDispose();
-        }
+//             foreach (var observer in _observers)
+//             {
+//                 observer.EnqueueNotification(notification);
+//                 _context.MarkDirty(observer);
+//             }
 
-        private void NotifyDispose()
-        {
-            NotifyDisposeInternal(_observers);
-        }
+//             _notifyingImmediateObservers = true;
 
-        public void EnqueueNotify(TNotification notifyData)
-        {
-            _pendingNotifications.Enqueue(notifyData);
+//             int count = _immediateObservers.Count;
 
-            _context.PauseExecution();
-            _context.EnqueueAction(NotifyNext);
+//             for (int i = 0; i < count; i++)
+//             {
+//                 var instance = _immediateObservers[i];
 
-            try
-            {
-                NotifyInternal(notifyData, _immediateObservers, true);
-            }
-            catch (Exception exc)
-            {
-                UnityEngine.Debug.LogException(exc);
-            }
+//                 if (instance.disposed)
+//                     continue;
 
-            _context.ResumeExecution();
-        }
+//                 try
+//                 {
+//                     _notifyObserver(instance.observer, notification);
+//                 }
+//                 catch (Exception exc)
+//                 {
+//                     UnityEngine.Debug.LogException(exc);
+//                 }
+//             }
 
-        public IDisposable AddObserver(TObserver observer)
-        {
-            var data = new ObserverData() { observer = observer, handleDispose = HandleObserverDisposed };
+//             foreach (var disposed in _disposedImmediateObservers)
+//                 _immediateObservers.Remove(disposed);
 
-            if (observer.immediate)
-            {
-                _immediateObservers.Add(data);
-            }
-            else
-            {
-                _observers.Add(data);
-            }
+//             _disposedImmediateObservers.Clear();
 
-            _uninitializedObservers.Enqueue(data);
-            _context.EnqueueAction(InitializeNextObserver);
+//             _notifyingImmediateObservers = false;
 
-            return data;
-        }
+//             _context.ResumeExecution();
+//         }
 
-        public void Dispose()
-        {
-            if (_disposed)
-                return;
+//         public void Dispose()
+//         {
+//             if (_disposed)
+//                 return;
 
-            _disposed = true;
+//             _disposed = true;
 
-            _context.PauseExecution();
-            _context.EnqueueAction(NotifyDispose);
+//             _context.PauseExecution();
 
-            try
-            {
-                NotifyDisposeInternal(_immediateObservers);
-            }
-            catch (Exception exc)
-            {
-                UnityEngine.Debug.LogException(exc);
-            }
+//             foreach (var observer in _observers)
+//             {
+//                 observer.Dispose();
+//                 _context.MarkDirty(observer); // calling notify after dispose calls OnDispose on the observer
+//             }
 
-            _context.ResumeExecution();
-        }
-    }
-}
+//             for (int i = 0; i < _immediateObservers.Count; i++)
+//             {
+//                 var instance = _immediateObservers[i];
+
+//                 if (instance.disposed)
+//                     continue;
+
+//                 try
+//                 {
+//                     instance.observer.OnDispose();
+//                 }
+//                 catch (Exception exc)
+//                 {
+//                     UnityEngine.Debug.LogException(exc);
+//                 }
+//             }
+
+//             _context.ResumeExecution();
+//         }
+//     }
+// }

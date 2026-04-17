@@ -13,7 +13,7 @@ namespace ObserveThing
         private int _index = -1;
         private bool _disposed;
 
-        public IndexOfObservable(IListObservable<T> source, IValueObservable<T> value, IValueObserver<int> receiver)
+        public IndexOfObservable(IListOperator<T> source, IValueOperator<T> value, IValueObserver<int> receiver)
         {
             _receiver = receiver;
             _valueStream = value.Subscribe(

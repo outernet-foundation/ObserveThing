@@ -9,7 +9,7 @@ namespace ObserveThing
         private ICollectionObserver<T> _receiver;
         private bool _disposed;
 
-        public ForEachCollectionObservable(ICollectionObservable<T> source, ICollectionObserver<T> forEachReceiver, ICollectionObserver<T> receiver)
+        public ForEachCollectionObservable(ICollectionOperator<T> source, ICollectionObserver<T> forEachReceiver, ICollectionObserver<T> receiver)
         {
             _forEachReceiver = forEachReceiver;
             _receiver = receiver;

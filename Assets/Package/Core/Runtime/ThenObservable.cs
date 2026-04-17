@@ -10,7 +10,7 @@ namespace ObserveThing
         private bool _initialized;
         private bool _disposed;
 
-        public ThenObservable(IValueObservable<T> source, IValueObserver<T> thenReceiver, IValueObserver<T> receiver)
+        public ThenObservable(IValueOperator<T> source, IValueObserver<T> thenReceiver, IValueObserver<T> receiver)
         {
             _thenReceiver = thenReceiver;
             _receiver = receiver;

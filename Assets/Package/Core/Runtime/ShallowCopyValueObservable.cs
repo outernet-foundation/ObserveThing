@@ -11,7 +11,7 @@ namespace ObserveThing
         private T _latest;
         private bool _disposed;
 
-        public ShallowCopyValueObservable(IValueObservable<IValueObservable<T>> source, IValueObserver<T> receiver)
+        public ShallowCopyValueObservable(IValueOperator<IValueOperator<T>> source, IValueObserver<T> receiver)
         {
             _receiver = receiver;
 
@@ -39,7 +39,7 @@ namespace ObserveThing
                 _receiver.OnNext(default);
         }
 
-        private void HandleNext(IValueObservable<T> value)
+        private void HandleNext(IValueOperator<T> value)
         {
             _nestedSubscription?.Dispose();
             _nestedSubscription = null;

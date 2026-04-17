@@ -5,58 +5,83 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class ReadonlyCollectionObservable<T> : ICollectionObservable<T>, IEnumerable<T>, IDisposable
+    public struct CollectionOp<T>
     {
-        IEnumerator<T> IEnumerable<T>.GetEnumerator() => _collection.Select(x => x.value).GetEnumerator();
-        IEnumerator IEnumerable.GetEnumerator() => _collection.Select(x => x.value).GetEnumerator();
+        public uint id { get; }
+        public int index { get; }
+        public T element { get; }
+        public bool isRemove { get; }
 
-        public int count => _collection.Count;
+        public CollectionOp(uint id, int index, T element, bool isRemove)
+        {
+            this.id = id;
+            this.index = index;
+            this.element = element;
+            this.isRemove = isRemove;
+        }
+    }
 
-        private List<(uint id, T value)> _collection = new List<(uint id, T value)>();
-        private SynchronizedNotificationQueue<ICollectionObserver<T>, bool> _notificationQueue;
+    public class ReadonlyCollectionObservable<T> : IObservable, ICollectionOperator<T>, IEnumerable<T>, IDisposable
+    {
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() => _initOperations.Select(x => x.value.element).GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => _initOperations.Select(x => x.value.element).GetEnumerator();
+
+        public int count => _initOperations.Count;
+
+        private ObservationContext _context;
+        private List<ObservableOperation<CollectionOp<T>>> _initOperations = new List<ObservableOperation<CollectionOp<T>>>();
 
         public ReadonlyCollectionObservable(params T[] source) : this((IEnumerable<T>)source) { }
-        public ReadonlyCollectionObservable(SynchronizationContext context, params T[] source) : this(source, context) { }
+        public ReadonlyCollectionObservable(ObservationContext context, params T[] source) : this(source, context) { }
 
-        public ReadonlyCollectionObservable(IEnumerable<T> source, SynchronizationContext context = default)
+        public ReadonlyCollectionObservable(IEnumerable<T> source, ObservationContext context = default)
         {
-            _notificationQueue = new SynchronizedNotificationQueue<ICollectionObserver<T>, bool>((_, _) => { }, context);
+            _context = context ?? ObservationContext.Default;
 
             uint nextId = 0;
+
             foreach (var element in source)
             {
-                _collection.Add(new(nextId, element));
+                _initOperations.Add(new ObservableOperation<CollectionOp<T>>() { source = this, value = new CollectionOp<T>(nextId, -1, element, false) });
                 nextId++;
             }
         }
 
-        public bool Contains(T element)
-            => _collection.Select(x => x.value).Contains(element);
-
-        public IDisposable Subscribe(ICollectionObserver<T> observer)
+        void IObservable.InitializeObserver(IObserver observer)
         {
-            var subscription = _notificationQueue.AddObserver(observer);
-
-            for (int i = 0; i < _collection.Count; i++)
-            {
-                var element = _collection[i];
-                observer.OnAdd(element.id, element.value);
-            }
-
-            return subscription;
+            observer.OnNext(_initOperations);
         }
 
-        public IDisposable Subscribe(IObserver observer)
-            => Subscribe(new CollectionObserver<T>(
-                onAdd: (_, _) => observer.OnChange(),
-                onRemove: (_, _) => observer.OnChange(),
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
+        IDisposable ICollectionOperator<T>.Subscribe(ICollectionObserver<T> observer)
+            => _context.RegisterObserver(
+                new Observer(
+                    onNext: ops =>
+                    {
+                        foreach (var op in ops.Cast<IObservableOperation<CollectionOp<T>>>())
+                        {
+                            if (op.value.isRemove)
+                            {
+                                observer.OnRemove(op.value.id, op.value.element);
+                            }
+                            else
+                            {
+                                observer.OnAdd(op.value.id, op.value.element);
+                            }
+                        }
+                    },
+                    onError: observer.OnError,
+                    onDispose: observer.OnDispose,
+                    immediate: observer.immediate
+                ),
+                this
+            );
+
+        public bool Contains(T element)
+            => _initOperations.Select(x => x.value.element).Contains(element);
 
         public void Dispose()
         {
-            _notificationQueue.Dispose();
+            _context.HandleObservableDisposed(this);
         }
     }
 }
