@@ -145,7 +145,7 @@ namespace ObserveThing
                 }
                 catch (Exception exc)
                 {
-                    UnityEngine.Debug.LogException(exc);
+                    observer.OnError(exc);
                 }
 
                 foreach (var operation in ops)
