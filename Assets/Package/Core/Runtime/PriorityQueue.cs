@@ -29,7 +29,7 @@ namespace System.Collections.Generic
         /// <summary>
         /// Custom comparer used to order the heap.
         /// </summary>
-        private readonly IComparer<TPriority>? _comparer;
+        private readonly IComparer<TPriority> _comparer;
 
         /// <summary>
         /// The number of nodes in the heap.
@@ -89,7 +89,7 @@ namespace System.Collections.Generic
         ///  Custom comparer dictating the ordering of elements.
         ///  Uses <see cref="Comparer{T}.Default" /> if the argument is <see langword="null"/>.
         /// </param>
-        public PriorityQueue(IComparer<TPriority>? comparer)
+        public PriorityQueue(IComparer<TPriority> comparer)
         {
             _nodes = Array.Empty<(TElement, TPriority)>();
             _comparer = InitializeComparer(comparer);
@@ -107,7 +107,7 @@ namespace System.Collections.Generic
         /// <exception cref="ArgumentOutOfRangeException">
         ///  The specified <paramref name="initialCapacity"/> was negative.
         /// </exception>
-        public PriorityQueue(int initialCapacity, IComparer<TPriority>? comparer)
+        public PriorityQueue(int initialCapacity, IComparer<TPriority> comparer)
         {
             if (initialCapacity < 0)
                 throw new ArgumentOutOfRangeException(nameof(initialCapacity));
@@ -150,7 +150,7 @@ namespace System.Collections.Generic
         ///  Constructs the heap using a heapify operation,
         ///  which is generally faster than enqueuing individual elements sequentially.
         /// </remarks>
-        public PriorityQueue(IEnumerable<(TElement Element, TPriority Priority)> items, IComparer<TPriority>? comparer)
+        public PriorityQueue(IEnumerable<(TElement Element, TPriority Priority)> items, IComparer<TPriority> comparer)
         {
             if (items == null)
                 throw new ArgumentNullException(nameof(items));
@@ -532,7 +532,7 @@ namespace System.Collections.Generic
             TElement element,
             [MaybeNullWhen(false)] out TElement removedElement,
             [MaybeNullWhen(false)] out TPriority priority,
-            IEqualityComparer<TElement>? equalityComparer = null)
+            IEqualityComparer<TElement> equalityComparer = null)
         {
             int index = FindIndex(element, equalityComparer);
             if (index < 0)
@@ -892,7 +892,7 @@ namespace System.Collections.Generic
         /// <summary>
         /// Scans the heap for the first index containing an element equal to the specified parameter.
         /// </summary>
-        private int FindIndex(TElement element, IEqualityComparer<TElement>? equalityComparer)
+        private int FindIndex(TElement element, IEqualityComparer<TElement> equalityComparer)
         {
             equalityComparer ??= EqualityComparer<TElement>.Default;
             ReadOnlySpan<(TElement Element, TPriority Priority)> nodes = _nodes.AsSpan(0, _size);
@@ -927,7 +927,7 @@ namespace System.Collections.Generic
         /// <summary>
         /// Initializes the custom comparer to be used internally by the heap.
         /// </summary>
-        private static IComparer<TPriority>? InitializeComparer(IComparer<TPriority>? comparer)
+        private static IComparer<TPriority> InitializeComparer(IComparer<TPriority> comparer)
         {
             if (typeof(TPriority).IsValueType)
             {
