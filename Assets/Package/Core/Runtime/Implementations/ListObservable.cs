@@ -21,7 +21,7 @@ namespace ObserveThing
         }
     }
 
-    public class ListObservable<T> : IObservable, IListOperator<T>, IEnumerable<T>, IDisposable
+    public class ListObservable<T> : IOperationObservable, IListObservable<T>, IEnumerable<T>, IDisposable
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
@@ -58,9 +58,9 @@ namespace ObserveThing
             _idProvider = new CollectionIdProvider(x => _list.Any(item => item.id == x));
         }
 
-        IDisposable IListOperator<T>.Subscribe(IListObserver<T> observer)
+        IDisposable IListObservable<T>.Subscribe(IListObserver<T> observer)
             => _context.RegisterObserver(
-                new Observer(
+                new OperationObserver(
                     onNext: ops =>
                     {
                         //init
@@ -75,7 +75,7 @@ namespace ObserveThing
                             return;
                         }
 
-                        foreach (var op in ops.Cast<IObservableOperation<ListOpArgs<T>>>())
+                        foreach (var op in ops.Cast<IOperation<ListOpArgs<T>>>())
                         {
                             if (op.value.isRemove)
                             {
@@ -94,9 +94,9 @@ namespace ObserveThing
                 this
             );
 
-        IDisposable ICollectionOperator<T>.Subscribe(ICollectionObserver<T> observer)
+        IDisposable ICollectionObservable<T>.Subscribe(ICollectionObserver<T> observer)
             => _context.RegisterObserver(
-                new Observer(
+                new OperationObserver(
                     onNext: ops =>
                     {
                         //init
@@ -108,7 +108,7 @@ namespace ObserveThing
                             return;
                         }
 
-                        foreach (var op in ops.Cast<IObservableOperation<ListOpArgs<T>>>())
+                        foreach (var op in ops.Cast<IOperation<ListOpArgs<T>>>())
                         {
                             if (op.value.isRemove)
                             {

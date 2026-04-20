@@ -8,22 +8,22 @@ namespace ObserveThing
         public static Action<Exception> DefaultExceptionHandler = UnityEngine.Debug.LogException;
     }
 
-    public interface IObserver
+    public interface IOperationObserver
     {
         bool immediate { get; }
-        void OnNext(IReadOnlyList<IObservableOperation> operations);
+        void OnNext(IReadOnlyList<IOperation> operations);
         void OnError(Exception exc);
         void OnDispose();
     }
 
-    public class Observer : IObserver
+    public class OperationObserver : IOperationObserver
     {
         public bool immediate { get; }
-        private Action<IReadOnlyList<IObservableOperation>> _onNext;
+        private Action<IReadOnlyList<IOperation>> _onNext;
         private Action<Exception> _onError;
         private Action _onDispose;
 
-        public Observer(Action<IReadOnlyList<IObservableOperation>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+        public OperationObserver(Action<IReadOnlyList<IOperation>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
         {
             _onNext = onNext;
             _onError = onError;
@@ -31,7 +31,7 @@ namespace ObserveThing
             this.immediate = immediate;
         }
 
-        public void OnNext(IReadOnlyList<IObservableOperation> operations)
+        public void OnNext(IReadOnlyList<IOperation> operations)
         {
             try
             {

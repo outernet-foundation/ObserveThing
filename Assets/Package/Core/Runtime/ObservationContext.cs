@@ -4,38 +4,38 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public interface IObservableOperation
+    public interface IOperation
     {
-        IObservable source { get; }
+        IOperationObservable source { get; }
         object value { get; }
     }
 
-    public interface IObservableOperation<out T> : IObservableOperation
+    public interface IOperation<out T> : IOperation
     {
         new T value { get; }
 
-        object IObservableOperation.value => value;
+        object IOperation.value => value;
     }
 
     public class ObservationContext
     {
         public static ObservationContext Default { get; } = new ObservationContext();
 
-        private interface IPooledOperation : IObservableOperation
+        private interface IPooledOperation : IOperation
         {
             void Hold();
             void Release();
         }
 
-        private class ObservableOperation<T> : IPooledOperation, IObservableOperation<T>
+        private class PooledOperation<T> : IPooledOperation, IOperation<T>
         {
-            public IObservable source { get; set; }
+            public IOperationObservable source { get; set; }
             public T value { get; set; }
 
             private int _holdCount = 0;
-            private Action<ObservableOperation<T>> _deallocate;
+            private Action<PooledOperation<T>> _deallocate;
 
-            public ObservableOperation(Action<ObservableOperation<T>> deallocate)
+            public PooledOperation(Action<PooledOperation<T>> deallocate)
             {
                 _deallocate = deallocate;
             }
@@ -59,12 +59,12 @@ namespace ObserveThing
 
         private class OperationPool<T>
         {
-            private HashSet<ObservableOperation<T>> _allocatedInstances = new HashSet<ObservableOperation<T>>();
-            private HashSet<ObservableOperation<T>> _unallocatedInstances = new HashSet<ObservableOperation<T>>();
+            private HashSet<PooledOperation<T>> _allocatedInstances = new HashSet<PooledOperation<T>>();
+            private HashSet<PooledOperation<T>> _unallocatedInstances = new HashSet<PooledOperation<T>>();
 
-            public ObservableOperation<T> Allocate()
+            public PooledOperation<T> Allocate()
             {
-                ObservableOperation<T> instance;
+                PooledOperation<T> instance;
 
                 if (_unallocatedInstances.Count > 0)
                 {
@@ -73,7 +73,7 @@ namespace ObserveThing
                 }
                 else
                 {
-                    instance = new ObservableOperation<T>(Deallocate);
+                    instance = new PooledOperation<T>(Deallocate);
                 }
 
                 _allocatedInstances.Add(instance);
@@ -81,7 +81,7 @@ namespace ObserveThing
                 return instance;
             }
 
-            public void Deallocate(ObservableOperation<T> instance)
+            public void Deallocate(PooledOperation<T> instance)
             {
                 _allocatedInstances.Remove(instance);
                 _unallocatedInstances.Add(instance);
@@ -90,8 +90,8 @@ namespace ObserveThing
 
         private class ObserverData : IDisposable
         {
-            public IObserver observer { get; }
-            public List<IObservable> observed { get; } = new List<IObservable>();
+            public IOperationObserver observer { get; }
+            public List<IOperationObservable> observed { get; } = new List<IOperationObservable>();
             public int order { get; }
             public bool pending;
             public bool disposed { get; private set; }
@@ -102,7 +102,7 @@ namespace ObserveThing
 
             private Action<ObserverData> _onDispose;
 
-            public ObserverData(IObserver observer, int order, Action<ObserverData> onDispose)
+            public ObserverData(IOperationObserver observer, int order, Action<ObserverData> onDispose)
             {
                 this.observer = observer;
                 this.order = order;
@@ -169,8 +169,8 @@ namespace ObserveThing
             }
         }
 
-        private Dictionary<IObserver, ObserverData> _observers = new Dictionary<IObserver, ObserverData>();
-        private Dictionary<IObservable, HashSet<ObserverData>> _observersByObservables = new Dictionary<IObservable, HashSet<ObserverData>>();
+        private Dictionary<IOperationObserver, ObserverData> _observers = new Dictionary<IOperationObserver, ObserverData>();
+        private Dictionary<IOperationObservable, HashSet<ObserverData>> _observersByObservables = new Dictionary<IOperationObservable, HashSet<ObserverData>>();
         private PriorityQueue<ObserverData, int> _pendingImmediateObservers = new PriorityQueue<ObserverData, int>();
         private PriorityQueue<ObserverData, int> _pendingObservers = new PriorityQueue<ObserverData, int>();
         private Dictionary<Type, object> _operationPools = new Dictionary<Type, object>();
@@ -191,7 +191,7 @@ namespace ObserveThing
                 DrainPendingObserverQueue();
         }
 
-        public IDisposable RegisterObserver(IObserver observer, params IObservable[] observables)
+        public IDisposable RegisterObserver(IOperationObserver observer, params IOperationObservable[] observables)
         {
             var observerData = new ObserverData(observer, _nextObserverOrder++, HandleObserverDisposed);
             observerData.observed.AddRange(observables);
@@ -215,29 +215,7 @@ namespace ObserveThing
             return observerData;
         }
 
-        private IPooledOperation AllocateOperationInternal<T>(IObservable source, T value)
-        {
-            OperationPool<T> operationPool;
-
-            if (_operationPools.TryGetValue(typeof(T), out var poolObject))
-            {
-                operationPool = (OperationPool<T>)poolObject;
-            }
-            else
-            {
-                operationPool = new OperationPool<T>();
-                _operationPools.Add(typeof(T), operationPool);
-            }
-
-            var operation = operationPool.Allocate();
-
-            operation.source = source;
-            operation.value = value;
-
-            return operation;
-        }
-
-        public void DeregisterObserver(IObserver observer)
+        public void DeregisterObserver(IOperationObserver observer)
         {
             if (!_observers.TryGetValue(observer, out var observerData))
                 return;
@@ -262,7 +240,7 @@ namespace ObserveThing
             _observers.Remove(data.observer);
         }
 
-        public void HandleObservableDisposed(IObservable observable)
+        public void HandleObservableDisposed(IOperationObservable observable)
         {
             if (!_observersByObservables.TryGetValue(observable, out var observers))
                 return;
@@ -277,7 +255,7 @@ namespace ObserveThing
             }
         }
 
-        public void RegisterOperation<T>(IObservable observable, T value)
+        public void RegisterOperation<T>(IOperationObservable observable, T value)
         {
             if (!_observersByObservables.TryGetValue(observable, out var observers))
                 return;
@@ -294,7 +272,10 @@ namespace ObserveThing
                 _operationPools.Add(typeof(T), operationPool);
             }
 
-            var operation = AllocateOperationInternal(observable, value);
+            var operation = operationPool.Allocate();
+
+            operation.source = observable;
+            operation.value = value;
 
             foreach (var observer in observers.Where(x => x.observer.immediate))
             {

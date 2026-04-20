@@ -19,7 +19,7 @@ namespace ObserveThing
         }
     }
 
-    public class DictionaryObservable<TKey, TValue> : IObservable, IDictionaryOperator<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>, IDisposable
+    public class DictionaryObservable<TKey, TValue> : IOperationObservable, IDictionaryObservable<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>, IDisposable
     {
         public TValue this[TKey key]
         {
@@ -63,9 +63,9 @@ namespace ObserveThing
             _idProvider = new CollectionIdProvider(x => _dictionary.Values.Any(y => y.id == x));
         }
 
-        IDisposable IDictionaryOperator<TKey, TValue>.Subscribe(IDictionaryObserver<TKey, TValue> observer)
+        IDisposable IDictionaryObservable<TKey, TValue>.Subscribe(IDictionaryObserver<TKey, TValue> observer)
             => _context.RegisterObserver(
-                new Observer(
+                new OperationObserver(
                     onNext: ops =>
                     {
                         //init
@@ -77,7 +77,7 @@ namespace ObserveThing
                             return;
                         }
 
-                        foreach (var op in ops.Cast<IObservableOperation<DictionaryOpArgs<TKey, TValue>>>())
+                        foreach (var op in ops.Cast<IOperation<DictionaryOpArgs<TKey, TValue>>>())
                         {
                             if (op.value.isRemove)
                             {
@@ -96,9 +96,9 @@ namespace ObserveThing
                 this
             );
 
-        IDisposable ICollectionOperator<KeyValuePair<TKey, TValue>>.Subscribe(ICollectionObserver<KeyValuePair<TKey, TValue>> observer)
+        IDisposable ICollectionObservable<KeyValuePair<TKey, TValue>>.Subscribe(ICollectionObserver<KeyValuePair<TKey, TValue>> observer)
             => _context.RegisterObserver(
-                new Observer(
+                new OperationObserver(
                     onNext: ops =>
                     {
                         //init
@@ -110,7 +110,7 @@ namespace ObserveThing
                             return;
                         }
 
-                        foreach (var op in ops.Cast<IObservableOperation<DictionaryOpArgs<TKey, TValue>>>())
+                        foreach (var op in ops.Cast<IOperation<DictionaryOpArgs<TKey, TValue>>>())
                         {
                             if (op.value.isRemove)
                             {

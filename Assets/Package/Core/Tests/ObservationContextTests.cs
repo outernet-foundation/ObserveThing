@@ -15,13 +15,13 @@ namespace ObserveThing.Tests
 
             ValueObservable<int> intObservable = new ValueObservable<int>(context);
             ValueObservable<string> stringObservable = new ValueObservable<string>(context);
-            List<(IObservable source, object value)> operations = new List<(IObservable source, object value)>();
+            List<(IOperationObservable source, object value)> operations = new List<(IOperationObservable source, object value)>();
 
             int callCount = 0;
             bool init = false;
 
             context.RegisterObserver(
-                new Observer(
+                new OperationObserver(
                     onNext: ops =>
                     {
                         callCount++;
@@ -32,7 +32,7 @@ namespace ObserveThing.Tests
                             return;
                         }
 
-                        operations.AddRange(ops.Select<IObservableOperation, (IObservable source, object value)>(x => new(x.source, x.value)));
+                        operations.AddRange(ops.Select<IOperation, (IOperationObservable source, object value)>(x => new(x.source, x.value)));
                     }
                 ),
                 intObservable,
@@ -64,7 +64,7 @@ namespace ObserveThing.Tests
             AssertValueOp(operations[4], stringObservable, "5");
         }
 
-        private void AssertValueOp<T>((IObservable source, object value) op, IObservable source, T value)
+        private void AssertValueOp<T>((IOperationObservable source, object value) op, IOperationObservable source, T value)
         {
             Assert.AreEqual(source, op.source);
             Assert.AreEqual(value, op.value);
@@ -78,9 +78,9 @@ namespace ObserveThing.Tests
             ValueObservable<int> intObservable = new ValueObservable<int>(context);
             ValueObservable<string> stringObservable = new ValueObservable<string>(context);
 
-            List<(int observer, IObservable source, object value)> observerCallOrder = new List<(int observer, IObservable source, object value)>();
+            List<(int observer, IOperationObservable source, object value)> observerCallOrder = new List<(int observer, IOperationObservable source, object value)>();
 
-            var observer1 = new Observer(
+            var observer1 = new OperationObserver(
                 onNext: ops =>
                 {
                     if (ops == null)
@@ -94,7 +94,7 @@ namespace ObserveThing.Tests
                 }
             );
 
-            var observer2 = new Observer(
+            var observer2 = new OperationObserver(
                 onNext: ops =>
                 {
                     if (ops == null)
@@ -111,7 +111,7 @@ namespace ObserveThing.Tests
                 }
             );
 
-            var observer4 = new Observer(
+            var observer4 = new OperationObserver(
                 onNext: ops =>
                 {
                     if (ops == null)
@@ -125,7 +125,7 @@ namespace ObserveThing.Tests
                 }
             );
 
-            var observer3 = new Observer(
+            var observer3 = new OperationObserver(
                 onNext: ops =>
                 {
                     if (ops == null)
@@ -148,7 +148,7 @@ namespace ObserveThing.Tests
                 }
             );
 
-            var observer5 = new Observer(
+            var observer5 = new OperationObserver(
                 onNext: ops =>
                 {
                     if (ops == null)
@@ -174,7 +174,7 @@ namespace ObserveThing.Tests
             Assert.AreEqual("cat", stringObservable.value);
 
             Assert.AreEqual(
-                new List<(int observer, IObservable source, object value)>()
+                new List<(int observer, IOperationObservable source, object value)>()
                 {
                     new (1, null, null), //init observer1
                     new (2, null, null), //init observer2
@@ -211,7 +211,7 @@ namespace ObserveThing.Tests
             var observable2 = new ValueObservable<int>(context);
             var disposeCallCount = 0;
             var disposed = false;
-            var observer = new Observer(onDispose: () =>
+            var observer = new OperationObserver(onDispose: () =>
             {
                 disposeCallCount++;
                 disposed = true;

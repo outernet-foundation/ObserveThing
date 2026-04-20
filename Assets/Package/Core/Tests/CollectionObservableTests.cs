@@ -14,7 +14,7 @@ namespace ObserveThing.Tests
             Observers.DefaultExceptionHandler = UnityEngine.Debug.LogException;
         }
 
-        private T Peek<T>(IValueOperator<T> observable)
+        private T Peek<T>(IValueObservable<T> observable)
         {
             T result = default;
             var observer = observable.Subscribe(x => result = x);
@@ -22,7 +22,7 @@ namespace ObserveThing.Tests
             return result;
         }
 
-        private List<T> Peek<T>(IListOperator<T> observable)
+        private List<T> Peek<T>(IListObservable<T> observable)
         {
             List<T> result = new List<T>();
             var observer = observable.Subscribe(x => result.Add(x));
@@ -30,13 +30,13 @@ namespace ObserveThing.Tests
             return result;
         }
 
-        private void AreEqual<T>(T expected, IValueOperator<T> observable)
+        private void AreEqual<T>(T expected, IValueObservable<T> observable)
             => Assert.AreEqual(expected, Peek(observable));
 
-        private void AreEqual<T>(IEnumerable<T> expected, IEnumerable<IValueOperator<T>> actual)
+        private void AreEqual<T>(IEnumerable<T> expected, IEnumerable<IValueObservable<T>> actual)
             => Assert.AreEqual(expected, actual.Select(x => Peek(x)));
 
-        private void AreEqual<T>(IEnumerable<T> expected, IListOperator<T> observable)
+        private void AreEqual<T>(IEnumerable<T> expected, IListObservable<T> observable)
             => Assert.AreEqual(expected, observable);
 
         [Test]
@@ -412,7 +412,7 @@ namespace ObserveThing.Tests
             bool disposed = false;
 
             var list = new ListObservable<ListObservable<int>>();
-            var selectMany = list.ObservableSelectMany(x => (ICollectionOperator<int>)x).Subscribe(
+            var selectMany = list.ObservableSelectMany(x => (ICollectionObservable<int>)x).Subscribe(
                 x =>
                 {
                     callCount++;
@@ -486,7 +486,7 @@ namespace ObserveThing.Tests
             bool disposed = false;
             bool receivedCall = false;
 
-            var select = ((ICollectionOperator<int>)list).ObservableSelect(x => x.ToString()).Subscribe(
+            var select = ((ICollectionObservable<int>)list).ObservableSelect(x => x.ToString()).Subscribe(
                 onAdd: x =>
                 {
                     result.Add(x);
@@ -551,7 +551,7 @@ namespace ObserveThing.Tests
                 new ValueObservable<float>(3)
             );
 
-            var stream = new ShallowCopyCollectionOperator<float>(
+            var stream = new ShallowCopyCollectionObservable<float>(
                 source,
                 new CollectionObserver<float>(
                     onAdd: (_, x) =>

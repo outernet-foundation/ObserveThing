@@ -4,13 +4,13 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class ObservableOperation<T> : IObservableOperation<T>
+    public class ObservableOperation<T> : IOperation<T>
     {
         public T value { get; set; }
-        public IObservable source { get; set; }
+        public IOperationObservable source { get; set; }
     }
 
-    public class ValueObservable<T> : IObservable, IValueOperator<T>, IDisposable
+    public class ValueObservable<T> : IOperationObservable, IValueObservable<T>, IDisposable
     {
         public T value
         {
@@ -36,9 +36,9 @@ namespace ObserveThing
             _value = startValue;
         }
 
-        IDisposable IValueOperator<T>.Subscribe(IValueObserver<T> observer)
+        IDisposable IValueObservable<T>.Subscribe(IValueObserver<T> observer)
             => _context.RegisterObserver(
-                new Observer(
+                new OperationObserver(
                     onNext: ops =>
                     {
                         // init
@@ -48,7 +48,7 @@ namespace ObserveThing
                             return;
                         }
 
-                        foreach (var op in ops.Cast<IObservableOperation<T>>())
+                        foreach (var op in ops.Cast<IOperation<T>>())
                             observer.OnNext(op.value);
                     },
                     onError: observer.OnError,

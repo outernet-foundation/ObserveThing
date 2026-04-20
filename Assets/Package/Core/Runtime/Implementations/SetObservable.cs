@@ -19,7 +19,7 @@ namespace ObserveThing
         }
     }
 
-    public class SetObservable<T> : IObservable, ISetOperator<T>, IEnumerable<T>, IDisposable
+    public class SetObservable<T> : IOperationObservable, ISetObservable<T>, IEnumerable<T>, IDisposable
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator()
             => _set.Keys.GetEnumerator();
@@ -47,9 +47,9 @@ namespace ObserveThing
             _idProvider = new CollectionIdProvider(x => _set.ContainsValue(x));
         }
 
-        IDisposable ISetOperator<T>.Subscribe(ISetObserver<T> observer)
+        IDisposable ISetObservable<T>.Subscribe(ISetObserver<T> observer)
             => _context.RegisterObserver(
-                new Observer(
+                new OperationObserver(
                     onNext: ops =>
                     {
                         //init
@@ -59,7 +59,7 @@ namespace ObserveThing
                                 observer.OnAdd(element.Value, element.Key);
                         }
 
-                        foreach (var op in ops.Cast<IObservableOperation<SetOpArgs<T>>>())
+                        foreach (var op in ops.Cast<IOperation<SetOpArgs<T>>>())
                         {
                             if (op.value.isRemove)
                             {
@@ -78,9 +78,9 @@ namespace ObserveThing
                 this
             );
 
-        IDisposable ICollectionOperator<T>.Subscribe(ICollectionObserver<T> observer)
+        IDisposable ICollectionObservable<T>.Subscribe(ICollectionObserver<T> observer)
             => _context.RegisterObserver(
-                new Observer(
+                new OperationObserver(
                     onNext: ops =>
                     {
                         //init
@@ -90,7 +90,7 @@ namespace ObserveThing
                                 observer.OnAdd(element.Value, element.Key);
                         }
 
-                        foreach (var op in ops.Cast<IObservableOperation<SetOpArgs<T>>>())
+                        foreach (var op in ops.Cast<IOperation<SetOpArgs<T>>>())
                         {
                             if (op.value.isRemove)
                             {
