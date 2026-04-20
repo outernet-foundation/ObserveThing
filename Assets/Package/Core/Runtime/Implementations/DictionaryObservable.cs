@@ -129,6 +129,9 @@ namespace ObserveThing
                 this
             );
 
+        public IDisposable Subscribe(IOperationObserver observer)
+            => _context.RegisterObserver(observer, this);
+
         public bool TryGetValue(TKey key, out TValue value)
         {
             if (_dictionary.TryGetValue(key, out var data))

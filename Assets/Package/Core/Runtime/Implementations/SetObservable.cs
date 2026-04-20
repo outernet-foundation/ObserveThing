@@ -109,6 +109,9 @@ namespace ObserveThing
                 this
             );
 
+        public IDisposable Subscribe(IOperationObserver observer)
+            => _context.RegisterObserver(observer, this);
+
         public bool Add(T element)
         {
             if (_set.ContainsKey(element))

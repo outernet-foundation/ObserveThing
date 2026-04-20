@@ -3,7 +3,10 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public interface IOperationObservable { }
+    public interface IOperationObservable
+    {
+        IDisposable Subscribe(IOperationObserver observer);
+    }
 
     public interface IValueObservable<out T>
     {

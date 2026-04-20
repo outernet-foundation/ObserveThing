@@ -78,6 +78,9 @@ namespace ObserveThing
                 this
             );
 
+        public IDisposable Subscribe(IOperationObserver observer)
+            => _context.RegisterObserver(observer, this);
+
         public bool Contains(T element)
             => _collection.Select(x => x.element).Contains(element);
 

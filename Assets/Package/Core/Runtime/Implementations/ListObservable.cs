@@ -127,6 +127,9 @@ namespace ObserveThing
                 this
             );
 
+        public IDisposable Subscribe(IOperationObserver observer)
+            => _context.RegisterObserver(observer, this);
+
         public void Add(T added)
             => Insert(_list.Count, added);
 

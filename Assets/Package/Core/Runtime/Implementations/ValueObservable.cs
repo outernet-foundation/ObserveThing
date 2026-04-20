@@ -58,6 +58,9 @@ namespace ObserveThing
                 this
             );
 
+        public IDisposable Subscribe(IOperationObserver observer)
+            => _context.RegisterObserver(observer, this);
+            
         public void Dispose()
         {
             _context.HandleObservableDisposed(this);
