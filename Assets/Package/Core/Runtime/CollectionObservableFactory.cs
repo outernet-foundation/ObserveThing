@@ -14,7 +14,7 @@ namespace ObserveThing
         public IDisposable Subscribe(ICollectionObserver<T> observer)
             => _subscribe(observer);
 
-        public IDisposable Subscribe(IOperationObserver observer)
+        public IDisposable Subscribe(IObserver observer)
         {
             throw new NotImplementedException();
         }

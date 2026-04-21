@@ -11,7 +11,7 @@ namespace ObserveThing.Tests
         [SetUp]
         public void SetUp()
         {
-            Observers.DefaultExceptionHandler = UnityEngine.Debug.LogException;
+            Settings.DefaultExceptionHandler = UnityEngine.Debug.LogException;
         }
 
         private T Peek<T>(IValueObservable<T> observable)
@@ -472,7 +472,7 @@ namespace ObserveThing.Tests
             list.Dispose();
             Assert.IsTrue(disposed);
 
-            list.Add(arr1);
+            Assert.Throws(typeof(ObjectDisposedException), () => list.Add(arr1));
 
             Assert.AreEqual(24, callCount);
             Assert.That(results, Is.EquivalentTo(new int[] { 1, 2, 3, 4, 6, 4, 6, 7, 8, 100, 44, 44 }));

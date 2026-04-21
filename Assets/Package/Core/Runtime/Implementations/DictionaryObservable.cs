@@ -19,7 +19,7 @@ namespace ObserveThing
         }
     }
 
-    public class DictionaryObservable<TKey, TValue> : IOperationObservable, IDictionaryObservable<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>, IDisposable
+    public class DictionaryObservable<TKey, TValue> : Observable<DictionaryOpArgs<TKey, TValue>>, IDictionaryObservable<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>, IDisposable
     {
         public TValue this[TKey key]
         {
@@ -46,7 +46,6 @@ namespace ObserveThing
         public int count => _dictionary.Count;
 
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
-        private ObservationContext _context;
         private CollectionIdProvider _idProvider;
 
         public DictionaryObservable(params KeyValuePair<TKey, TValue>[] source) : this(source, default) { }
@@ -57,16 +56,15 @@ namespace ObserveThing
                 _dictionary.Add(kvp.Key, new(_idProvider.GetUnusedId(), kvp.Value));
         }
 
-        public DictionaryObservable(ObservationContext context = default)
+        public DictionaryObservable(ObservationContext context = default) : base(context)
         {
-            _context = context ?? ObservationContext.Default;
             _idProvider = new CollectionIdProvider(x => _dictionary.Values.Any(y => y.id == x));
         }
 
-        IDisposable IDictionaryObservable<TKey, TValue>.Subscribe(IDictionaryObserver<TKey, TValue> observer)
-            => _context.RegisterObserver(
-                new OperationObserver(
-                    onNext: ops =>
+        public IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer)
+            => Subscribe(
+                new Observer<DictionaryOpArgs<TKey, TValue>>(
+                    onOperation: ops =>
                     {
                         //init
                         if (ops == null)
@@ -77,29 +75,28 @@ namespace ObserveThing
                             return;
                         }
 
-                        foreach (var op in ops.Cast<IOperation<DictionaryOpArgs<TKey, TValue>>>())
+                        foreach (var op in ops)
                         {
-                            if (op.value.isRemove)
+                            if (op.isRemove)
                             {
-                                observer.OnRemove(op.value.id, op.value.kvp);
+                                observer.OnRemove(op.id, op.kvp);
                             }
                             else
                             {
-                                observer.OnAdd(op.value.id, op.value.kvp);
+                                observer.OnAdd(op.id, op.kvp);
                             }
                         }
                     },
                     onError: observer.OnError,
                     onDispose: observer.OnDispose,
                     immediate: observer.immediate
-                ),
-                this
+                )
             );
 
-        IDisposable ICollectionObservable<KeyValuePair<TKey, TValue>>.Subscribe(ICollectionObserver<KeyValuePair<TKey, TValue>> observer)
-            => _context.RegisterObserver(
-                new OperationObserver(
-                    onNext: ops =>
+        public IDisposable Subscribe(ICollectionObserver<KeyValuePair<TKey, TValue>> observer)
+            => Subscribe(
+                new Observer<DictionaryOpArgs<TKey, TValue>>(
+                    onOperation: ops =>
                     {
                         //init
                         if (ops == null)
@@ -110,27 +107,23 @@ namespace ObserveThing
                             return;
                         }
 
-                        foreach (var op in ops.Cast<IOperation<DictionaryOpArgs<TKey, TValue>>>())
+                        foreach (var op in ops)
                         {
-                            if (op.value.isRemove)
+                            if (op.isRemove)
                             {
-                                observer.OnRemove(op.value.id, op.value.kvp);
+                                observer.OnRemove(op.id, op.kvp);
                             }
                             else
                             {
-                                observer.OnAdd(op.value.id, op.value.kvp);
+                                observer.OnAdd(op.id, op.kvp);
                             }
                         }
                     },
                     onError: observer.OnError,
                     onDispose: observer.OnDispose,
                     immediate: observer.immediate
-                ),
-                this
+                )
             );
-
-        public IDisposable Subscribe(IOperationObserver observer)
-            => _context.RegisterObserver(observer, this);
 
         public bool TryGetValue(TKey key, out TValue value)
         {
@@ -148,7 +141,7 @@ namespace ObserveThing
         {
             var id = _idProvider.GetUnusedId();
             _dictionary.Add(key, (id, value));
-            _context.RegisterOperation(this, new DictionaryOpArgs<TKey, TValue>(id, new(key, value), false));
+            EnqueuePendingOperation(new DictionaryOpArgs<TKey, TValue>(id, new(key, value), false));
         }
 
         public bool Remove(TKey key)
@@ -157,7 +150,7 @@ namespace ObserveThing
                 return false;
 
             _dictionary.Remove(key);
-            _context.RegisterOperation(this, new DictionaryOpArgs<TKey, TValue>(data.id, new(key, data.value), true));
+            EnqueuePendingOperation(new DictionaryOpArgs<TKey, TValue>(data.id, new(key, data.value), true));
 
             return true;
         }
@@ -167,7 +160,7 @@ namespace ObserveThing
             foreach (var kvp in _dictionary.ToArray())
             {
                 _dictionary.Remove(kvp.Key);
-                _context.RegisterOperation(this, new DictionaryOpArgs<TKey, TValue>(kvp.Value.id, new(kvp.Key, kvp.Value.value), true));
+                EnqueuePendingOperation(new DictionaryOpArgs<TKey, TValue>(kvp.Value.id, new(kvp.Key, kvp.Value.value), true));
             }
         }
 
@@ -176,10 +169,5 @@ namespace ObserveThing
 
         public bool ContainsValue(TValue value)
             => _dictionary.Values.Select(x => x.value).Contains(value);
-
-        public void Dispose()
-        {
-            _context.HandleObservableDisposed(this);
-        }
     }
 }

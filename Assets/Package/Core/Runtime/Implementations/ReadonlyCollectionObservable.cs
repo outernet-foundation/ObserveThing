@@ -5,14 +5,14 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public struct CollectionOp<T>
+    public struct CollectionOpArgs<T>
     {
         public uint id { get; }
         public int index { get; }
         public T element { get; }
         public bool isRemove { get; }
 
-        public CollectionOp(uint id, int index, T element, bool isRemove)
+        public CollectionOpArgs(uint id, int index, T element, bool isRemove)
         {
             this.id = id;
             this.index = index;
@@ -21,23 +21,20 @@ namespace ObserveThing
         }
     }
 
-    public class ReadonlyCollectionObservable<T> : IOperationObservable, ICollectionObservable<T>, IEnumerable<T>, IDisposable
+    public class ReadonlyCollectionObservable<T> : Observable<CollectionOpArgs<T>>, ICollectionObservable<T>, IEnumerable<T>, IDisposable
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => _collection.Select(x => x.element).GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _collection.Select(x => x.element).GetEnumerator();
 
         public int count => _collection.Count;
 
-        private ObservationContext _context;
         private List<(uint id, T element)> _collection = new List<(uint id, T element)>();
 
         public ReadonlyCollectionObservable(params T[] source) : this((IEnumerable<T>)source) { }
         public ReadonlyCollectionObservable(ObservationContext context, params T[] source) : this(source, context) { }
 
-        public ReadonlyCollectionObservable(IEnumerable<T> source, ObservationContext context = default)
+        public ReadonlyCollectionObservable(IEnumerable<T> source, ObservationContext context = default) : base(context)
         {
-            _context = context ?? ObservationContext.Default;
-
             uint nextId = 0;
 
             foreach (var element in source)
@@ -47,10 +44,10 @@ namespace ObserveThing
             }
         }
 
-        IDisposable ICollectionObservable<T>.Subscribe(ICollectionObserver<T> observer)
-            => _context.RegisterObserver(
-                new OperationObserver(
-                    onNext: ops =>
+        public IDisposable Subscribe(ICollectionObserver<T> observer)
+            => Subscribe(
+                new Observer<CollectionOpArgs<T>>(
+                    onOperation: ops =>
                     {
                         //init
                         if (ops == null)
@@ -59,34 +56,25 @@ namespace ObserveThing
                                 observer.OnAdd(element.id, element.element);
                         }
 
-                        foreach (var op in ops.Cast<IOperation<CollectionOp<T>>>())
+                        foreach (var op in ops)
                         {
-                            if (op.value.isRemove)
+                            if (op.isRemove)
                             {
-                                observer.OnRemove(op.value.id, op.value.element);
+                                observer.OnRemove(op.id, op.element);
                             }
                             else
                             {
-                                observer.OnAdd(op.value.id, op.value.element);
+                                observer.OnAdd(op.id, op.element);
                             }
                         }
                     },
                     onError: observer.OnError,
                     onDispose: observer.OnDispose,
                     immediate: observer.immediate
-                ),
-                this
+                )
             );
-
-        public IDisposable Subscribe(IOperationObserver observer)
-            => _context.RegisterObserver(observer, this);
 
         public bool Contains(T element)
             => _collection.Select(x => x.element).Contains(element);
-
-        public void Dispose()
-        {
-            _context.HandleObservableDisposed(this);
-        }
     }
 }

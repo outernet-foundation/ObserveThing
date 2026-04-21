@@ -3,39 +3,40 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public static class Observers
+    public static class Settings
     {
         public static Action<Exception> DefaultExceptionHandler = UnityEngine.Debug.LogException;
+        public static ObservationContext DefaultObservationContext = new ObservationContext();
     }
 
-    public interface IOperationObserver
+    public interface IObserver
     {
         bool immediate { get; }
-        void OnNext(IReadOnlyList<IOperation> operations);
+        void OnOperation(IReadOnlyList<IOperation> operations);
         void OnError(Exception exc);
         void OnDispose();
     }
 
-    public class OperationObserver : IOperationObserver
+    public class Observer : IObserver
     {
         public bool immediate { get; }
-        private Action<IReadOnlyList<IOperation>> _onNext;
+        private Action<IReadOnlyList<IOperation>> _onOperation;
         private Action<Exception> _onError;
         private Action _onDispose;
 
-        public OperationObserver(Action<IReadOnlyList<IOperation>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+        public Observer(Action<IReadOnlyList<IOperation>> onOperation = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
         {
-            _onNext = onNext;
+            _onOperation = onOperation;
             _onError = onError;
             _onDispose = onDispose;
             this.immediate = immediate;
         }
 
-        public void OnNext(IReadOnlyList<IOperation> operations)
+        public void OnOperation(IReadOnlyList<IOperation> operations)
         {
             try
             {
-                _onNext?.Invoke(operations);
+                _onOperation?.Invoke(operations);
             }
             catch (Exception exc)
             {
@@ -44,7 +45,46 @@ namespace ObserveThing
         }
 
         public void OnDispose() => _onDispose?.Invoke();
-        public void OnError(Exception error) => (_onError ?? Observers.DefaultExceptionHandler)?.Invoke(error);
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
+    public interface IObserver<in T>
+    {
+        bool immediate { get; }
+        void OnOperation(IReadOnlyList<T> operations);
+        void OnError(Exception exc);
+        void OnDispose();
+    }
+
+    public class Observer<T> : IObserver<T>
+    {
+        public bool immediate { get; }
+        private Action<IReadOnlyList<T>> _onOperation;
+        private Action<Exception> _onError;
+        private Action _onDispose;
+
+        public Observer(Action<IReadOnlyList<T>> onOperation = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+        {
+            _onOperation = onOperation;
+            _onError = onError;
+            _onDispose = onDispose;
+            this.immediate = immediate;
+        }
+
+        public void OnOperation(IReadOnlyList<T> operations)
+        {
+            try
+            {
+                _onOperation?.Invoke(operations);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
+        public void OnDispose() => _onDispose?.Invoke();
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
     }
 
     public interface IValueObserver<in T>
@@ -83,7 +123,7 @@ namespace ObserveThing
         }
 
         public void OnDispose() => _onDispose?.Invoke();
-        public void OnError(Exception error) => (_onError ?? Observers.DefaultExceptionHandler)?.Invoke(error);
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
     }
 
     public interface ICollectionObserver<in T>
@@ -136,7 +176,7 @@ namespace ObserveThing
             }
         }
 
-        public void OnError(Exception error) => (_onError ?? Observers.DefaultExceptionHandler)?.Invoke(error);
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
         public void OnDispose() => _onDispose?.Invoke();
     }
 
@@ -190,7 +230,7 @@ namespace ObserveThing
             }
         }
 
-        public void OnError(Exception error) => (_onError ?? Observers.DefaultExceptionHandler)?.Invoke(error);
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
         public void OnDispose() => _onDispose?.Invoke();
     }
 
@@ -244,7 +284,7 @@ namespace ObserveThing
             }
         }
 
-        public void OnError(Exception error) => (_onError ?? Observers.DefaultExceptionHandler)?.Invoke(error);
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
         public void OnDispose() => _onDispose?.Invoke();
     }
 
@@ -298,7 +338,7 @@ namespace ObserveThing
             }
         }
 
-        public void OnError(Exception error) => (_onError ?? Observers.DefaultExceptionHandler)?.Invoke(error);
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
         public void OnDispose() => _onDispose?.Invoke();
     }
 }

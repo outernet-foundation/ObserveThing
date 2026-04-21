@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using NUnit.Framework;
+using UnityEngine.TestTools;
 
 namespace ObserveThing.Tests
 {
@@ -9,7 +10,7 @@ namespace ObserveThing.Tests
         [SetUp]
         public void SetUp()
         {
-            Observers.DefaultExceptionHandler = UnityEngine.Debug.LogException;
+            Settings.DefaultExceptionHandler = UnityEngine.Debug.LogException;
         }
 
         [Test]
@@ -77,7 +78,7 @@ namespace ObserveThing.Tests
 
             dict.Dispose();
             Assert.IsTrue(disposed);
-            dict.Add(100, "me");
+            Assert.Throws(typeof(ObjectDisposedException), () => dict.Add(100, "me"));
             Assert.AreEqual(4, callCount);
         }
     }

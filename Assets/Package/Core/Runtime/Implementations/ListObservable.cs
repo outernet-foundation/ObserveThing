@@ -21,7 +21,7 @@ namespace ObserveThing
         }
     }
 
-    public class ListObservable<T> : IOperationObservable, IListObservable<T>, IEnumerable<T>, IDisposable
+    public class ListObservable<T> : Observable<ListOpArgs<T>>, IListObservable<T>, IEnumerable<T>, IDisposable
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
@@ -41,27 +41,28 @@ namespace ObserveThing
         }
 
         private List<(uint id, T value)> _list = new List<(uint id, T value)>();
-        private ObservationContext _context;
         private CollectionIdProvider _idProvider;
 
-        public ListObservable(params T[] source) : this(source, default) { }
-        public ListObservable(ObservationContext context, params T[] source) : this(source, context) { }
-        public ListObservable(IEnumerable<T> source, ObservationContext context = default) : this(context)
+        public ListObservable(params T[] initialValue) : this(initialValue, default) { }
+        public ListObservable(ObservationContext context, params T[] initialValue) : this(initialValue, context) { }
+        public ListObservable(IEnumerable<T> initialValue, ObservationContext context = default) : this(context)
         {
-            foreach (var element in source)
+            if (initialValue == null)
+                return;
+
+            foreach (var element in initialValue)
                 _list.Add(new(_idProvider.GetUnusedId(), element));
         }
 
-        public ListObservable(ObservationContext context = default)
+        public ListObservable(ObservationContext context = default) : base(context)
         {
-            _context = context ?? ObservationContext.Default;
             _idProvider = new CollectionIdProvider(x => _list.Any(item => item.id == x));
         }
 
-        IDisposable IListObservable<T>.Subscribe(IListObserver<T> observer)
-            => _context.RegisterObserver(
-                new OperationObserver(
-                    onNext: ops =>
+        public IDisposable Subscribe(IListObserver<T> observer)
+            => Subscribe(
+                new Observer<ListOpArgs<T>>(
+                    onOperation: ops =>
                     {
                         //init
                         if (ops == null)
@@ -75,29 +76,28 @@ namespace ObserveThing
                             return;
                         }
 
-                        foreach (var op in ops.Cast<IOperation<ListOpArgs<T>>>())
+                        foreach (var op in ops)
                         {
-                            if (op.value.isRemove)
+                            if (op.isRemove)
                             {
-                                observer.OnRemove(op.value.id, op.value.index, op.value.element);
+                                observer.OnRemove(op.id, op.index, op.element);
                             }
                             else
                             {
-                                observer.OnAdd(op.value.id, op.value.index, op.value.element);
+                                observer.OnAdd(op.id, op.index, op.element);
                             }
                         }
                     },
                     onError: observer.OnError,
                     onDispose: observer.OnDispose,
                     immediate: observer.immediate
-                ),
-                this
+                )
             );
 
-        IDisposable ICollectionObservable<T>.Subscribe(ICollectionObserver<T> observer)
-            => _context.RegisterObserver(
-                new OperationObserver(
-                    onNext: ops =>
+        public IDisposable Subscribe(ICollectionObserver<T> observer)
+            => Subscribe(
+                new Observer<ListOpArgs<T>>(
+                    onOperation: ops =>
                     {
                         //init
                         if (ops == null)
@@ -108,27 +108,23 @@ namespace ObserveThing
                             return;
                         }
 
-                        foreach (var op in ops.Cast<IOperation<ListOpArgs<T>>>())
+                        foreach (var op in ops)
                         {
-                            if (op.value.isRemove)
+                            if (op.isRemove)
                             {
-                                observer.OnRemove(op.value.id, op.value.element);
+                                observer.OnRemove(op.id, op.element);
                             }
                             else
                             {
-                                observer.OnAdd(op.value.id, op.value.element);
+                                observer.OnAdd(op.id, op.element);
                             }
                         }
                     },
                     onError: observer.OnError,
                     onDispose: observer.OnDispose,
                     immediate: observer.immediate
-                ),
-                this
+                )
             );
-
-        public IDisposable Subscribe(IOperationObserver observer)
-            => _context.RegisterObserver(observer, this);
 
         public void Add(T added)
             => Insert(_list.Count, added);
@@ -154,14 +150,14 @@ namespace ObserveThing
         {
             var removed = _list[index];
             _list.RemoveAt(index);
-            _context.RegisterOperation(this, new ListOpArgs<T>(removed.id, index, removed.value, true));
+            EnqueuePendingOperation(new ListOpArgs<T>(removed.id, index, removed.value, true));
         }
 
         public void Insert(int index, T item)
         {
             (uint id, T value) inserted = new(_idProvider.GetUnusedId(), item);
             _list.Insert(index, inserted);
-            _context.RegisterOperation(this, new ListOpArgs<T>(inserted.id, index, inserted.value, false));
+            EnqueuePendingOperation(new ListOpArgs<T>(inserted.id, index, inserted.value, false));
         }
 
         public void Clear()
@@ -175,10 +171,5 @@ namespace ObserveThing
 
         public bool Contains(T item)
             => _list.Any(x => Equals(x.value, item));
-
-        public void Dispose()
-        {
-            _context.HandleObservableDisposed(this);
-        }
     }
 }

@@ -11,7 +11,7 @@ namespace ObserveThing.Tests
         [SetUp]
         public void SetUp()
         {
-            Observers.DefaultExceptionHandler = UnityEngine.Debug.LogException;
+            Settings.DefaultExceptionHandler = UnityEngine.Debug.LogException;
         }
 
         [Test]
@@ -87,7 +87,7 @@ namespace ObserveThing.Tests
             toggle.Dispose();
             Assert.IsTrue(disposed);
 
-            toggle.value = true;
+            Assert.Throws(typeof(ObjectDisposedException), () => toggle.value = true);
             Assert.AreEqual(3, callCount);
         }
 
@@ -515,13 +515,15 @@ namespace ObserveThing.Tests
             bool standardFiredFirst = false;
             bool immediateFiredFirst = false;
 
-            var standardStream = observable.Subscribe(x =>
-            {
-                standardFired = true;
+            var standardStream = observable.Subscribe(
+                onNext: x =>
+                {
+                    standardFired = true;
 
-                if (!immediateFiredFirst)
-                    standardFiredFirst = true;
-            });
+                    if (!immediateFiredFirst)
+                        standardFiredFirst = true;
+                }
+            );
 
             var immediateStream = observable.Subscribe(
                 immediate: true,

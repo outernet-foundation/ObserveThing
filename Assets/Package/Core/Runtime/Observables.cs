@@ -3,9 +3,14 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public interface IOperationObservable
+    public interface IObservable
     {
-        IDisposable Subscribe(IOperationObserver observer);
+        IDisposable Subscribe(IObserver observer);
+    }
+
+    public interface IObservable<out T> : IObservable
+    {
+        IDisposable Subscribe(IObserver<T> observer);
     }
 
     public interface IValueObservable<out T>
@@ -35,63 +40,66 @@ namespace ObserveThing
 
     public static class Observables
     {
-        public static IValueObservable<TResult> Combine<T1, T2, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, Func<T1, T2, IValueObservable<TResult>> select)
-            => Combine(source1, source2).ObservableSelect(x => select(x.Item1, x.Item2));
+        public static IObservable Combine(params IObservable[] observables)
+            => Combine(Settings.DefaultObservationContext, observables);
 
-        public static IValueObservable<TResult> Combine<T1, T2, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, Func<T1, T2, TResult> select)
-            => Combine(source1, source2).ObservableSelect(x => select(x.Item1, x.Item2));
+        public static IObservable Combine(ObservationContext context, params IObservable[] observables)
+            => new ObservableFactory(receiver => new CombineObservable(context, receiver, observables));
 
-        public static IValueObservable<(T1, T2)> Combine<T1, T2>(IValueObservable<T1> source1, IValueObservable<T2> source2)
+        public static IValueObservable<TResult> CombineValues<T1, T2, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, Func<T1, T2, IValueObservable<TResult>> select)
+            => CombineValues(source1, source2).ObservableSelect(x => select(x.Item1, x.Item2));
+
+        public static IValueObservable<TResult> CombineValues<T1, T2, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, Func<T1, T2, TResult> select)
+            => CombineValues(source1, source2).ObservableSelect(x => select(x.Item1, x.Item2));
+
+        public static IValueObservable<(T1, T2)> CombineValues<T1, T2>(IValueObservable<T1> source1, IValueObservable<T2> source2)
             => new ValueObservableFactory<(T1, T2)>(receiver => new CombineValueObservable<T1, T2>(source1, source2, receiver));
 
-        public static IValueObservable<TResult> Combine<T1, T2, T3, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, Func<T1, T2, T3, IValueObservable<TResult>> select)
-            => Combine(source1, source2, source3).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3));
+        public static IValueObservable<TResult> CombineValues<T1, T2, T3, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, Func<T1, T2, T3, IValueObservable<TResult>> select)
+            => CombineValues(source1, source2, source3).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3));
 
-        public static IValueObservable<TResult> Combine<T1, T2, T3, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, Func<T1, T2, T3, TResult> select)
-            => Combine(source1, source2, source3).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3));
+        public static IValueObservable<TResult> CombineValues<T1, T2, T3, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, Func<T1, T2, T3, TResult> select)
+            => CombineValues(source1, source2, source3).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3));
 
-        public static IValueObservable<(T1, T2, T3)> Combine<T1, T2, T3>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3)
+        public static IValueObservable<(T1, T2, T3)> CombineValues<T1, T2, T3>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3)
             => new ValueObservableFactory<(T1, T2, T3)>(receiver => new CombineValueObservable<T1, T2, T3>(source1, source2, source3, receiver));
 
-        public static IValueObservable<TResult> Combine<T1, T2, T3, T4, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, Func<T1, T2, T3, T4, IValueObservable<TResult>> select)
-            => Combine(source1, source2, source3, source4).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4));
+        public static IValueObservable<TResult> CombineValues<T1, T2, T3, T4, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, Func<T1, T2, T3, T4, IValueObservable<TResult>> select)
+            => CombineValues(source1, source2, source3, source4).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4));
 
-        public static IValueObservable<TResult> Combine<T1, T2, T3, T4, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, Func<T1, T2, T3, T4, TResult> select)
-            => Combine(source1, source2, source3, source4).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4));
+        public static IValueObservable<TResult> CombineValues<T1, T2, T3, T4, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, Func<T1, T2, T3, T4, TResult> select)
+            => CombineValues(source1, source2, source3, source4).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4));
 
-        public static IValueObservable<(T1, T2, T3, T4)> Combine<T1, T2, T3, T4>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4)
+        public static IValueObservable<(T1, T2, T3, T4)> CombineValues<T1, T2, T3, T4>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4)
             => new ValueObservableFactory<(T1, T2, T3, T4)>(receiver => new CombineValueObservable<T1, T2, T3, T4>(source1, source2, source3, source4, receiver));
 
-        public static IValueObservable<TResult> Combine<T1, T2, T3, T4, T5, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, Func<T1, T2, T3, T4, T5, IValueObservable<TResult>> select)
-            => Combine(source1, source2, source3, source4, source5).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5));
+        public static IValueObservable<TResult> CombineValues<T1, T2, T3, T4, T5, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, Func<T1, T2, T3, T4, T5, IValueObservable<TResult>> select)
+            => CombineValues(source1, source2, source3, source4, source5).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5));
 
-        public static IValueObservable<TResult> Combine<T1, T2, T3, T4, T5, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, Func<T1, T2, T3, T4, T5, TResult> select)
-            => Combine(source1, source2, source3, source4, source5).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5));
+        public static IValueObservable<TResult> CombineValues<T1, T2, T3, T4, T5, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, Func<T1, T2, T3, T4, T5, TResult> select)
+            => CombineValues(source1, source2, source3, source4, source5).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5));
 
-        public static IValueObservable<(T1, T2, T3, T4, T5)> Combine<T1, T2, T3, T4, T5>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5)
+        public static IValueObservable<(T1, T2, T3, T4, T5)> CombineValues<T1, T2, T3, T4, T5>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5)
             => new ValueObservableFactory<(T1, T2, T3, T4, T5)>(receiver => new CombineValueObservable<T1, T2, T3, T4, T5>(source1, source2, source3, source4, source5, receiver));
 
-        public static IValueObservable<TResult> Combine<T1, T2, T3, T4, T5, T6, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, Func<T1, T2, T3, T4, T5, T6, IValueObservable<TResult>> select)
-            => Combine(source1, source2, source3, source4, source5, source6).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5, x.Item6));
+        public static IValueObservable<TResult> CombineValues<T1, T2, T3, T4, T5, T6, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, Func<T1, T2, T3, T4, T5, T6, IValueObservable<TResult>> select)
+            => CombineValues(source1, source2, source3, source4, source5, source6).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5, x.Item6));
 
-        public static IValueObservable<TResult> Combine<T1, T2, T3, T4, T5, T6, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, Func<T1, T2, T3, T4, T5, T6, TResult> select)
-            => Combine(source1, source2, source3, source4, source5, source6).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5, x.Item6));
+        public static IValueObservable<TResult> CombineValues<T1, T2, T3, T4, T5, T6, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, Func<T1, T2, T3, T4, T5, T6, TResult> select)
+            => CombineValues(source1, source2, source3, source4, source5, source6).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5, x.Item6));
 
-        public static IValueObservable<(T1, T2, T3, T4, T5, T6)> Combine<T1, T2, T3, T4, T5, T6>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6)
+        public static IValueObservable<(T1, T2, T3, T4, T5, T6)> CombineValues<T1, T2, T3, T4, T5, T6>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6)
             => new ValueObservableFactory<(T1, T2, T3, T4, T5, T6)>(receiver => new CombineValueObservable<T1, T2, T3, T4, T5, T6>(source1, source2, source3, source4, source5, source6, receiver));
 
-        public static IValueObservable<TResult> Combine<T1, T2, T3, T4, T5, T6, T7, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, IValueObservable<T7> source7, Func<T1, T2, T3, T4, T5, T6, T7, IValueObservable<TResult>> select)
-            => Combine(source1, source2, source3, source4, source5, source6, source7).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5, x.Item6, x.Item7));
+        public static IValueObservable<TResult> CombineValues<T1, T2, T3, T4, T5, T6, T7, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, IValueObservable<T7> source7, Func<T1, T2, T3, T4, T5, T6, T7, IValueObservable<TResult>> select)
+            => CombineValues(source1, source2, source3, source4, source5, source6, source7).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5, x.Item6, x.Item7));
 
-        public static IValueObservable<TResult> Combine<T1, T2, T3, T4, T5, T6, T7, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, IValueObservable<T7> source7, Func<T1, T2, T3, T4, T5, T6, T7, TResult> select)
-            => Combine(source1, source2, source3, source4, source5, source6, source7).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5, x.Item6, x.Item7));
+        public static IValueObservable<TResult> CombineValues<T1, T2, T3, T4, T5, T6, T7, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, IValueObservable<T7> source7, Func<T1, T2, T3, T4, T5, T6, T7, TResult> select)
+            => CombineValues(source1, source2, source3, source4, source5, source6, source7).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5, x.Item6, x.Item7));
 
-        public static IValueObservable<(T1, T2, T3, T4, T5, T6, T7)> Combine<T1, T2, T3, T4, T5, T6, T7>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, IValueObservable<T7> source7)
+        public static IValueObservable<(T1, T2, T3, T4, T5, T6, T7)> CombineValues<T1, T2, T3, T4, T5, T6, T7>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, IValueObservable<T7> source7)
             => new ValueObservableFactory<(T1, T2, T3, T4, T5, T6, T7)>(receiver => new CombineValueObservable<T1, T2, T3, T4, T5, T6, T7>(source1, source2, source3, source4, source5, source6, source7, receiver));
-    }
 
-    public static class ObservableExtensions
-    {
         public static IValueObservable<T> ObservableShallowCopy<T>(this IValueObservable<IValueObservable<T>> source)
             => new ValueObservableFactory<T>(receiver => new ShallowCopyValueObservable<T>(source, receiver));
 
@@ -275,6 +283,22 @@ namespace ObserveThing
             source.Subscribe(x => result = x).Dispose();
             return result;
         }
+
+        public static IDisposable Subscribe(this IObservable source, Action<IReadOnlyList<IOperation>> onOperation = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new Observer(
+                onOperation: onOperation,
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable Subscribe<T>(this IObservable<T> source, Action<IReadOnlyList<T>> onOperation = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new Observer<T>(
+                onOperation: onOperation,
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
 
         public static IDisposable Subscribe<T>(this IValueObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
             => source.Subscribe(new ValueObserver<T>(

@@ -15,28 +15,24 @@ namespace ObserveThing.Tests
 
             ValueObservable<int> intObservable = new ValueObservable<int>(context);
             ValueObservable<string> stringObservable = new ValueObservable<string>(context);
-            List<(IOperationObservable source, object value)> operations = new List<(IOperationObservable source, object value)>();
+            List<(IObservable source, object value)> operations = new List<(IObservable source, object value)>();
 
             int callCount = 0;
             bool init = false;
 
-            context.RegisterObserver(
-                new OperationObserver(
-                    onNext: ops =>
+            var stream = Observables.Combine(context, stringObservable, intObservable).Subscribe(
+                onOperation: ops =>
+                {
+                    callCount++;
+
+                    if (ops == null)
                     {
-                        callCount++;
-
-                        if (ops == null)
-                        {
-                            init = true;
-                            return;
-                        }
-
-                        operations.AddRange(ops.Select<IOperation, (IOperationObservable source, object value)>(x => new(x.source, x.value)));
+                        init = true;
+                        return;
                     }
-                ),
-                intObservable,
-                stringObservable
+
+                    operations.AddRange(ops.Select<IOperation, (IObservable source, object value)>(x => new(x.source, x.value)));
+                }
             );
 
             Assert.AreEqual(1, callCount);
@@ -64,7 +60,7 @@ namespace ObserveThing.Tests
             AssertValueOp(operations[4], stringObservable, "5");
         }
 
-        private void AssertValueOp<T>((IOperationObservable source, object value) op, IOperationObservable source, T value)
+        private void AssertValueOp<T>((IObservable source, object value) op, IObservable source, T value)
         {
             Assert.AreEqual(source, op.source);
             Assert.AreEqual(value, op.value);
@@ -78,10 +74,16 @@ namespace ObserveThing.Tests
             ValueObservable<int> intObservable = new ValueObservable<int>(context);
             ValueObservable<string> stringObservable = new ValueObservable<string>(context);
 
-            List<(int observer, IOperationObservable source, object value)> observerCallOrder = new List<(int observer, IOperationObservable source, object value)>();
+            List<(int observer, IObservable source, object value)> observerCallOrder = new List<(int observer, IObservable source, object value)>();
 
-            var observer1 = new OperationObserver(
-                onNext: ops =>
+            IDisposable stream1 = default;
+            IDisposable stream2 = default;
+            IDisposable stream3 = default;
+            IDisposable stream4 = default;
+            IDisposable stream5 = default;
+
+            stream1 = Observables.Combine(context, intObservable, stringObservable).Subscribe(
+                onOperation: ops =>
                 {
                     if (ops == null)
                     {
@@ -94,8 +96,8 @@ namespace ObserveThing.Tests
                 }
             );
 
-            var observer2 = new OperationObserver(
-                onNext: ops =>
+            stream2 = Observables.Combine(context, intObservable, stringObservable).Subscribe(
+                onOperation: ops =>
                 {
                     if (ops == null)
                     {
@@ -111,22 +113,8 @@ namespace ObserveThing.Tests
                 }
             );
 
-            var observer4 = new OperationObserver(
-                onNext: ops =>
-                {
-                    if (ops == null)
-                    {
-                        observerCallOrder.Add(new(4, null, null));
-                        return;
-                    }
-
-                    foreach (var op in ops)
-                        observerCallOrder.Add(new(4, op.source, op.value));
-                }
-            );
-
-            var observer3 = new OperationObserver(
-                onNext: ops =>
+            stream3 = Observables.Combine(context, intObservable, stringObservable).Subscribe(
+                onOperation: ops =>
                 {
                     if (ops == null)
                     {
@@ -143,13 +131,27 @@ namespace ObserveThing.Tests
                     if (intObservable.value == 2)
                     {
                         stringObservable.value = "cat";
-                        context.DeregisterObserver(observer4);
+                        stream4.Dispose();
                     }
                 }
             );
 
-            var observer5 = new OperationObserver(
-                onNext: ops =>
+            stream4 = Observables.Combine(context, intObservable, stringObservable).Subscribe(
+                onOperation: ops =>
+                {
+                    if (ops == null)
+                    {
+                        observerCallOrder.Add(new(4, null, null));
+                        return;
+                    }
+
+                    foreach (var op in ops)
+                        observerCallOrder.Add(new(4, op.source, op.value));
+                }
+            );
+
+            stream5 = Observables.Combine(context, intObservable, stringObservable).Subscribe(
+                onOperation: ops =>
                 {
                     if (ops == null)
                     {
@@ -162,19 +164,13 @@ namespace ObserveThing.Tests
                 }
             );
 
-            context.RegisterObserver(observer1, intObservable, stringObservable);
-            context.RegisterObserver(observer2, intObservable, stringObservable);
-            context.RegisterObserver(observer3, intObservable, stringObservable);
-            context.RegisterObserver(observer4, intObservable, stringObservable);
-            context.RegisterObserver(observer5, intObservable, stringObservable);
-
             intObservable.value = 1;
 
             Assert.AreEqual(3, intObservable.value);
             Assert.AreEqual("cat", stringObservable.value);
 
             Assert.AreEqual(
-                new List<(int observer, IOperationObservable source, object value)>()
+                new List<(int observer, IObservable source, object value)>()
                 {
                     new (1, null, null), //init observer1
                     new (2, null, null), //init observer2
@@ -211,13 +207,14 @@ namespace ObserveThing.Tests
             var observable2 = new ValueObservable<int>(context);
             var disposeCallCount = 0;
             var disposed = false;
-            var observer = new OperationObserver(onDispose: () =>
-            {
-                disposeCallCount++;
-                disposed = true;
-            });
 
-            context.RegisterObserver(observer, observable1, observable2);
+            var stream = Observables.Combine(context, observable1, observable2).Subscribe(
+                onDispose: () =>
+                {
+                    disposeCallCount++;
+                    disposed = true;
+                }
+            );
 
             observable1.Dispose();
 
@@ -228,6 +225,57 @@ namespace ObserveThing.Tests
 
             Assert.IsTrue(disposed);
             Assert.AreEqual(1, disposeCallCount);
+        }
+
+        [Test]
+        public void TestObservable()
+        {
+            var context = new ObservationContext();
+            var value = new ValueObservable<int>(2, context);
+
+            var init = false;
+            var lastValue = 0;
+            var callCount = 0;
+
+            value.Subscribe(new Observer<int>(
+                onOperation: ops =>
+                {
+                    callCount++;
+
+                    if (ops == null)
+                    {
+                        init = true;
+                        lastValue = value.value;
+                    }
+                    else
+                    {
+                        lastValue = ops.Last();
+                    }
+                }
+            ));
+
+            Assert.AreEqual(1, callCount);
+            Assert.IsTrue(init);
+            Assert.AreEqual(value.value, lastValue);
+
+            init = false;
+            value.value = 4;
+
+            Assert.AreEqual(2, callCount);
+            Assert.IsFalse(init);
+            Assert.AreEqual(value.value, lastValue);
+
+            context.ExecuteBatchOperation(() =>
+            {
+                value.value = 5;
+                value.value = 6;
+                value.value = 7;
+                value.value = 8;
+            });
+
+            Assert.AreEqual(3, callCount);
+            Assert.IsFalse(init);
+            Assert.AreEqual(value.value, lastValue);
         }
     }
 }

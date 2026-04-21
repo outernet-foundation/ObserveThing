@@ -10,7 +10,7 @@ namespace ObserveThing.Tests
         [SetUp]
         public void SetUp()
         {
-            Observers.DefaultExceptionHandler = UnityEngine.Debug.LogException;
+            Settings.DefaultExceptionHandler = UnityEngine.Debug.LogException;
         }
 
         [Test]

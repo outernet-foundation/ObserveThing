@@ -19,7 +19,7 @@ namespace ObserveThing
         }
     }
 
-    public class SetObservable<T> : IOperationObservable, ISetObservable<T>, IEnumerable<T>, IDisposable
+    public class SetObservable<T> : Observable<SetOpArgs<T>>, ISetObservable<T>, IEnumerable<T>, IDisposable
     {
         IEnumerator<T> IEnumerable<T>.GetEnumerator()
             => _set.Keys.GetEnumerator();
@@ -30,7 +30,6 @@ namespace ObserveThing
         public int count => _set.Count;
 
         private Dictionary<T, uint> _set = new Dictionary<T, uint>();
-        private ObservationContext _context;
         private CollectionIdProvider _idProvider;
 
         public SetObservable(params T[] source) : this(source, default) { }
@@ -41,16 +40,15 @@ namespace ObserveThing
                 _set.Add(value, _idProvider.GetUnusedId());
         }
 
-        public SetObservable(ObservationContext context = default)
+        public SetObservable(ObservationContext context = default) : base(context)
         {
-            _context = context ?? ObservationContext.Default;
             _idProvider = new CollectionIdProvider(x => _set.ContainsValue(x));
         }
 
-        IDisposable ISetObservable<T>.Subscribe(ISetObserver<T> observer)
-            => _context.RegisterObserver(
-                new OperationObserver(
-                    onNext: ops =>
+        public IDisposable Subscribe(ISetObserver<T> observer)
+            => Subscribe(
+                new Observer<SetOpArgs<T>>(
+                    onOperation: ops =>
                     {
                         //init
                         if (ops == null)
@@ -59,29 +57,28 @@ namespace ObserveThing
                                 observer.OnAdd(element.Value, element.Key);
                         }
 
-                        foreach (var op in ops.Cast<IOperation<SetOpArgs<T>>>())
+                        foreach (var op in ops)
                         {
-                            if (op.value.isRemove)
+                            if (op.isRemove)
                             {
-                                observer.OnRemove(op.value.id, op.value.element);
+                                observer.OnRemove(op.id, op.element);
                             }
                             else
                             {
-                                observer.OnAdd(op.value.id, op.value.element);
+                                observer.OnAdd(op.id, op.element);
                             }
                         }
                     },
                     onError: observer.OnError,
                     onDispose: observer.OnDispose,
                     immediate: observer.immediate
-                ),
-                this
+                )
             );
 
-        IDisposable ICollectionObservable<T>.Subscribe(ICollectionObserver<T> observer)
-            => _context.RegisterObserver(
-                new OperationObserver(
-                    onNext: ops =>
+        public IDisposable Subscribe(ICollectionObserver<T> observer)
+            => Subscribe(
+                new Observer<SetOpArgs<T>>(
+                    onOperation: ops =>
                     {
                         //init
                         if (ops == null)
@@ -90,27 +87,23 @@ namespace ObserveThing
                                 observer.OnAdd(element.Value, element.Key);
                         }
 
-                        foreach (var op in ops.Cast<IOperation<SetOpArgs<T>>>())
+                        foreach (var op in ops)
                         {
-                            if (op.value.isRemove)
+                            if (op.isRemove)
                             {
-                                observer.OnRemove(op.value.id, op.value.element);
+                                observer.OnRemove(op.id, op.element);
                             }
                             else
                             {
-                                observer.OnAdd(op.value.id, op.value.element);
+                                observer.OnAdd(op.id, op.element);
                             }
                         }
                     },
                     onError: observer.OnError,
                     onDispose: observer.OnDispose,
                     immediate: observer.immediate
-                ),
-                this
+                )
             );
-
-        public IDisposable Subscribe(IOperationObserver observer)
-            => _context.RegisterObserver(observer, this);
 
         public bool Add(T element)
         {
@@ -119,7 +112,7 @@ namespace ObserveThing
 
             var id = _idProvider.GetUnusedId();
             _set.Add(element, id);
-            _context.RegisterOperation(this, new SetOpArgs<T>(id, element, false));
+            EnqueuePendingOperation(new SetOpArgs<T>(id, element, false));
             return true;
         }
 
@@ -135,7 +128,7 @@ namespace ObserveThing
                 return false;
 
             _set.Remove(element);
-            _context.RegisterOperation(this, new SetOpArgs<T>(id, element, true));
+            EnqueuePendingOperation(new SetOpArgs<T>(id, element, true));
 
             return true;
         }
@@ -145,16 +138,11 @@ namespace ObserveThing
             foreach (var kvp in _set.ToArray())
             {
                 _set.Remove(kvp.Key);
-                _context.RegisterOperation(this, new SetOpArgs<T>(kvp.Value, kvp.Key, true));
+                EnqueuePendingOperation(new SetOpArgs<T>(kvp.Value, kvp.Key, true));
             }
         }
 
         public bool Contains(T element)
             => _set.ContainsKey(element);
-
-        public void Dispose()
-        {
-            _context.HandleObservableDisposed(this);
-        }
     }
 }
