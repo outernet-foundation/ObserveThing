@@ -118,7 +118,7 @@ namespace ObserveThing
             }
         }
 
-        public ObservationContext context { get; }
+        public ObservationContext context { get; protected set; }
         public bool disposed { get; private set; }
 
         private Queue<Operation<T>> _operationPool = new Queue<Operation<T>>();
