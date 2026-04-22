@@ -27,6 +27,9 @@ namespace ObserveThing
         IEnumerator IEnumerable.GetEnumerator()
             => _set.Keys.GetEnumerator();
 
+        public IEnumerable<(uint id, T element)> ElementsWithIds
+            => _set.Select<KeyValuePair<T, uint>, (uint id, T element)>(x => new(x.Value, x.Key));
+
         public int count => _set.Count;
 
         private Dictionary<T, uint> _set = new Dictionary<T, uint>();

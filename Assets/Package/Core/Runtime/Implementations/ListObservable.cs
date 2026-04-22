@@ -23,10 +23,17 @@ namespace ObserveThing
 
     public class ListObservable<T> : Observable<ListOpArgs<T>>, IListObservable<T>, IEnumerable<T>, IDisposable
     {
-        IEnumerator<T> IEnumerable<T>.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
-        IEnumerator IEnumerable.GetEnumerator() => _list.Select(x => x.value).GetEnumerator();
+        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+            => _list.Select(x => x.value).GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator()
+            => _list.Select(x => x.value).GetEnumerator();
+
+        public IEnumerable<(uint id, T element)> ElementsWithIds
+            => _list;
 
         public int count => _list.Count;
+
         public T this[int index]
         {
             get => _list[index].value;

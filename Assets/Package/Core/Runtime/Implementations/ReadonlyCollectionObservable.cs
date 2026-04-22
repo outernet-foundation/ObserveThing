@@ -23,8 +23,14 @@ namespace ObserveThing
 
     public class ReadonlyCollectionObservable<T> : Observable<CollectionOpArgs<T>>, ICollectionObservable<T>, IEnumerable<T>, IDisposable
     {
-        IEnumerator<T> IEnumerable<T>.GetEnumerator() => _collection.Select(x => x.element).GetEnumerator();
-        IEnumerator IEnumerable.GetEnumerator() => _collection.Select(x => x.element).GetEnumerator();
+        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+            => _collection.Select(x => x.element).GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator()
+            => _collection.Select(x => x.element).GetEnumerator();
+
+        public IEnumerable<(uint id, T element)> ElementsWithIds
+            => _collection;
 
         public int count => _collection.Count;
 

@@ -21,6 +21,17 @@ namespace ObserveThing
 
     public class DictionaryObservable<TKey, TValue> : Observable<DictionaryOpArgs<TKey, TValue>>, IDictionaryObservable<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>, IDisposable
     {
+        IEnumerator<KeyValuePair<TKey, TValue>> IEnumerable<KeyValuePair<TKey, TValue>>.GetEnumerator()
+            => _dictionary.Select(x => new KeyValuePair<TKey, TValue>(x.Key, x.Value.value)).GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator()
+            => _dictionary.Select(x => new KeyValuePair<TKey, TValue>(x.Key, x.Value.value)).GetEnumerator();
+
+        public IEnumerable<(uint id, KeyValuePair<TKey, TValue> element)> ElementsWithIds
+            => _dictionary.Select<KeyValuePair<TKey, (uint id, TValue value)>, (uint id, KeyValuePair<TKey, TValue> element)>(x => new(x.Value.id, KeyValuePair.Create(x.Key, x.Value.value)));
+
+        public int count => _dictionary.Count;
+
         public TValue this[TKey key]
         {
             get => _dictionary[key].value;
@@ -34,16 +45,8 @@ namespace ObserveThing
             }
         }
 
-        IEnumerator<KeyValuePair<TKey, TValue>> IEnumerable<KeyValuePair<TKey, TValue>>.GetEnumerator()
-            => _dictionary.Select(x => new KeyValuePair<TKey, TValue>(x.Key, x.Value.value)).GetEnumerator();
-
-        IEnumerator IEnumerable.GetEnumerator()
-            => _dictionary.Select(x => new KeyValuePair<TKey, TValue>(x.Key, x.Value.value)).GetEnumerator();
-
         public IEnumerable<TKey> keys => _dictionary.Keys;
         public IEnumerable<TValue> values => _dictionary.Values.Select(x => x.value);
-
-        public int count => _dictionary.Count;
 
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
         private CollectionIdProvider _idProvider;
