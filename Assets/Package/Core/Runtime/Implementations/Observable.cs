@@ -119,13 +119,12 @@ namespace ObserveThing
         }
 
         public ObservationContext context { get; }
+        public bool disposed { get; private set; }
 
         private Queue<Operation<T>> _operationPool = new Queue<Operation<T>>();
         private List<Operation<T>> _opList = new List<Operation<T>>();
 
         private List<ObserverData> _observers = new List<ObserverData>();
-
-        private bool _disposed;
 
         public Observable(ObservationContext context)
         {
@@ -134,7 +133,7 @@ namespace ObserveThing
 
         protected void EnqueuePendingOperation(T operation)
         {
-            if (_disposed)
+            if (disposed)
                 throw new ObjectDisposedException(GetType().Name);
 
             foreach (var observer in _observers)
@@ -152,7 +151,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IObserver<T> observer)
         {
-            if (_disposed)
+            if (disposed)
                 throw new ObjectDisposedException(GetType().Name);
 
             var observerData = new ObserverData(observer, context.AllocateObserverPriority(), HandleObserverDisposed);
@@ -199,7 +198,7 @@ namespace ObserveThing
 
         private void HandleObserverDisposed(ObserverData data)
         {
-            if (_disposed)
+            if (disposed)
                 return;
 
             _observers.Remove(data);
@@ -209,10 +208,10 @@ namespace ObserveThing
 
         public void Dispose()
         {
-            if (_disposed)
+            if (disposed)
                 return;
 
-            _disposed = true;
+            disposed = true;
 
             foreach (var observer in _observers.OrderByDescending(x => x.immediate).ThenBy(x => x.priority))
             {
