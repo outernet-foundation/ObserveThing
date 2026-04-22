@@ -7,12 +7,12 @@ namespace ObserveThing
     public class DistinctObservable<T> : IDisposable
     {
         private IDisposable _sourceStream;
-        private ICollectionObserver<T> _receiver;
+        private ISetObserver<T> _receiver;
         private Dictionary<T, (uint id, int count)> _dataByElement = new Dictionary<T, (uint id, int count)>();
         private CollectionIdProvider _idProvider;
         private bool _disposed;
 
-        public DistinctObservable(ICollectionObservable<T> source, ICollectionObserver<T> receiver)
+        public DistinctObservable(ICollectionObservable<T> source, ISetObserver<T> receiver)
         {
             _receiver = receiver;
             _idProvider = new CollectionIdProvider(x => _dataByElement.Values.Any(y => y.id == x));

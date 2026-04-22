@@ -150,8 +150,8 @@ namespace ObserveThing
         public static ICollectionObservable<U> ObservableSelect<T, U>(this ICollectionObservable<T> source, Func<T, U> select)
             => new CollectionObservableFactory<U>(receiver => new SelectCollectionObservable<T, U>(source, select, receiver));
 
-        public static ICollectionObservable<T> ObservableDistinct<T>(this ICollectionObservable<T> source)
-            => new CollectionObservableFactory<T>(receiver => new DistinctObservable<T>(source, receiver));
+        public static ISetObservable<T> ObservableDistinct<T>(this ICollectionObservable<T> source)
+            => new SetObservableFactory<T>(receiver => new DistinctObservable<T>(source, receiver));
 
         public static ICollectionObservable<T> ObservableWhere<T>(this ICollectionObservable<T> source, Func<T, bool> where)
             => source.ObservableWhere(x => new ValueObservable<bool>(where(x)));
