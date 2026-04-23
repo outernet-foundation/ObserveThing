@@ -162,7 +162,7 @@ namespace ObserveThing
             return observerData;
         }
 
-        public IDisposable Subscribe(IObserver observer)
+        public IDisposable Subscribe(IObserver<IOperation> observer)
             => Subscribe(new Observer<T>(
                 onOperation: ops =>
                 {

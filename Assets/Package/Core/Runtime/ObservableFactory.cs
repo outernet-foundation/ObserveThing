@@ -5,14 +5,14 @@ namespace ObserveThing
 {
     public class ObservableFactory : IObservable
     {
-        private Func<IObserver, IDisposable> _subscribe;
+        private Func<IObserver<IOperation>, IDisposable> _subscribe;
 
-        public ObservableFactory(Func<IObserver, IDisposable> subscribe)
+        public ObservableFactory(Func<IObserver<IOperation>, IDisposable> subscribe)
         {
             _subscribe = subscribe;
         }
 
-        public IDisposable Subscribe(IObserver observer)
+        public IDisposable Subscribe(IObserver<IOperation> observer)
             => _subscribe(observer);
     }
 
@@ -30,7 +30,7 @@ namespace ObserveThing
         public IDisposable Subscribe(IObserver<T> observer)
             => _subscribe(observer);
 
-        public IDisposable Subscribe(IObserver observer)
+        public IDisposable Subscribe(IObserver<IOperation> observer)
             => Subscribe(new Observer<T>(
                 onOperation: ops =>
                 {
