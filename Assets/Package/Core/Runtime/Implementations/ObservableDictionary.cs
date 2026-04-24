@@ -18,8 +18,8 @@ namespace ObserveThing
         IEnumerator IEnumerable.GetEnumerator()
             => ElementsInternal().Select(x => KeyValuePair.Create(x.Key, x.Value.value)).GetEnumerator();
 
-        public IEnumerable<KeyValuePair<TKey, (uint id, TValue value)>> ElementsWithIds
-            => ElementsInternal();
+        public IEnumerable<(uint id, KeyValuePair<TKey, TValue> kvp)> ElementsWithIds
+            => ElementsInternal().Select<KeyValuePair<TKey, (uint id, TValue value)>, (uint id, KeyValuePair<TKey, TValue>)>(x => new(x.Value.id, KeyValuePair.Create(x.Key, x.Value.value)));
 
         public TValue this[TKey key]
         {
