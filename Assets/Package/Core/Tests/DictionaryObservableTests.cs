@@ -21,8 +21,8 @@ namespace ObserveThing.Tests
             Exception exception = default;
             bool disposed = false;
 
-            DictionaryObservable<int, string> dict = new DictionaryObservable<int, string>();
-            ValueObservable<int> key = new ValueObservable<int>();
+            ObservableDictionary<int, string> dict = new ObservableDictionary<int, string>();
+            ObservableValue<int> key = new ObservableValue<int>();
 
             dict.ObservableTrack(key).Subscribe(
                 x =>

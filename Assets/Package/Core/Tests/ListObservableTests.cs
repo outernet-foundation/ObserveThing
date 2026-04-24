@@ -17,7 +17,7 @@ namespace ObserveThing.Tests
         public void TestSelect()
         {
             var result = new List<string>();
-            var list = new ListObservable<int>();
+            var list = new ObservableList<int>();
             bool disposed = false;
             bool receivedCall = false;
             var select = list.ObservableSelect(x => x.ToString()).Subscribe(
@@ -74,7 +74,7 @@ namespace ObserveThing.Tests
         [Test]
         public void TestShallowCopy()
         {
-            var list = new ListObservable<ValueObservable<int>>();
+            var list = new ObservableList<ObservableValue<int>>();
             var result = new List<string>();
             bool disposed = false;
             bool receivedCall = false;
@@ -92,10 +92,10 @@ namespace ObserveThing.Tests
                 onDispose: () => disposed = true
             );
 
-            var element1 = new ValueObservable<int>(2);
-            var element2 = new ValueObservable<int>(3);
-            var element3 = new ValueObservable<int>(45);
-            var element4 = new ValueObservable<int>(11);
+            var element1 = new ObservableValue<int>(2);
+            var element2 = new ObservableValue<int>(3);
+            var element3 = new ObservableValue<int>(45);
+            var element4 = new ObservableValue<int>(11);
 
             list.Add(element1);
             list.Add(element2);
@@ -141,7 +141,7 @@ namespace ObserveThing.Tests
             receivedCall = false;
             stream.Dispose();
             Assert.IsTrue(disposed);
-            list.Add(new ValueObservable<int>(150));
+            list.Add(new ObservableValue<int>(150));
             Assert.IsFalse(receivedCall);
         }
     }

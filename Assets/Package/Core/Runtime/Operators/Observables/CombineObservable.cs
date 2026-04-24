@@ -1,64 +1,26 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 
 namespace ObserveThing
 {
-    public interface IOperation
-    {
-        IObservable source { get; }
-        object value { get; }
-        IOperation Clone();
-    }
-
-    public interface IOperation<T> : IOperation
-    {
-        new IObservable<T> source { get; }
-        new T value { get; }
-
-        IObservable IOperation.source => source;
-        object IOperation.value => value;
-    }
-
-    public class Operation<T> : IOperation<T>
-    {
-        public IObservable<T> source { get; }
-        public T value { get; set; }
-
-        public Operation(IObservable<T> source)
-        {
-            this.source = source;
-        }
-
-        public IOperation Clone()
-        {
-            return new Operation<T>(source) { value = value };
-        }
-
-        public override string ToString()
-        {
-            return $"Op[{source}: {value}]";
-        }
-    }
-
-    public abstract class Observable<T> : IObservable<T>, IDisposable
+    public class CombineObservable : IObservable, IDisposable
     {
         private class ObserverData : IPendingObserver, IDisposable
         {
-            public IObserver<T> observer { get; }
+            public IObserver observer { get; }
             public uint priority { get; }
             public bool immediate => observer.immediate;
             public bool pending;
             public bool disposed { get; private set; }
 
-            private List<T> _pendingOperations;
-            private List<T> _pendingOperations1 = new List<T>();
-            private List<T> _pendingOperations2 = new List<T>();
+            private List<IOperation> _pendingOperations;
+            private List<IOperation> _pendingOperations1 = new List<IOperation>();
+            private List<IOperation> _pendingOperations2 = new List<IOperation>();
 
             private Action<ObserverData> _onDispose;
 
-            public ObserverData(IObserver<T> observer, uint priority, Action<ObserverData> onDispose)
+            public ObserverData(IObserver observer, uint priority, Action<ObserverData> onDispose)
             {
                 this.observer = observer;
                 this.priority = priority;
@@ -80,7 +42,7 @@ namespace ObserveThing
                 }
             }
 
-            public void EnqueuePendingOperation(T operation)
+            public void EnqueuePendingOperation(IOperation operation)
             {
                 _pendingOperations.Add(operation);
             }
@@ -122,14 +84,17 @@ namespace ObserveThing
         public ObservationContext context { get; protected set; }
         public bool disposed { get; private set; }
 
-        private Queue<Operation<T>> _operationPool = new Queue<Operation<T>>();
-        private List<Operation<T>> _opList = new List<Operation<T>>();
-
         private List<ObserverData> _observers = new List<ObserverData>();
+        private ISetObservable<IObservable> _source;
+        private bool _disposeOnSourceEmpty;
+        private IDisposable _sourceSubscription;
+        private Dictionary<IObservable, IDisposable> _observables = new Dictionary<IObservable, IDisposable>();
 
-        public Observable(ObservationContext context)
+        public CombineObservable(ObservationContext context, ISetObservable<IObservable> source, bool disposeOnSourceEmpty = false)
         {
             this.context = context ?? Settings.DefaultObservationContext;
+            _source = source;
+            _disposeOnSourceEmpty = disposeOnSourceEmpty;
         }
 
         private void HandleObserverDisposed(ObserverData data)
@@ -146,26 +111,79 @@ namespace ObserveThing
             context.DeallocateObserverPriority(data.priority);
         }
 
-        protected void EnqueuePendingOperation(T operation)
+        protected void HandleCombinedSourceChanged(IReadOnlyList<IOperation> operations)
         {
             if (disposed)
                 throw new ObjectDisposedException(GetType().Name);
 
-            foreach (var observer in _observers)
+            foreach (var op in operations)
             {
-                observer.EnqueuePendingOperation(operation);
+                var opClone = op.Clone();
 
-                if (!observer.pending)
-                    context.RegisterPendingObserver(observer);
+                foreach (var observer in _observers)
+                {
+                    observer.EnqueuePendingOperation(opClone);
+
+                    if (!observer.pending)
+                        context.RegisterPendingObserver(observer);
+                }
             }
 
             context.NotifyPendingObserversIfNecessary();
         }
 
-        protected abstract IReadOnlyList<T> GetInitializationOperations();
-        protected virtual void OnFirstObserverAdded() { }
-        protected virtual void OnLastLastRemoved() { }
-        protected virtual void DisposeInternal() { }
+        protected IReadOnlyList<IOperation> GetInitializationOperations()
+        {
+            List<IOperation> ops = new List<IOperation>();
+            foreach (var observable in _observables.Keys)
+            {
+                var initSubscription = observable.Subscribe(x => ops.AddRange(x.Select(x => x.Clone())));
+                initSubscription.Dispose();
+            }
+            return ops;
+        }
+
+        protected void OnFirstObserverAdded()
+        {
+            _sourceSubscription = _source.Subscribe(
+                onAdd: HandleSourceAdded,
+                onRemove: HandleSourceRemoved,
+                onError: OnError,
+                onDispose: Dispose,
+                immediate: true
+            );
+        }
+
+        protected void OnLastLastRemoved()
+        {
+            _sourceSubscription?.Dispose();
+            _sourceSubscription = null;
+        }
+
+        private void HandleSourceAdded(IObservable observable)
+        {
+            _observables.Add(
+                observable,
+                observable.Subscribe(
+                    onOperation: HandleCombinedSourceChanged,
+                    onError: OnError,
+                    onDispose: () => HandleSourceRemoved(observable),
+                    immediate: true
+                )
+            );
+        }
+
+        private void HandleSourceRemoved(IObservable observable)
+        {
+            if (!_observables.TryGetValue(observable, out var subscription))
+                return;
+
+            _observables.Remove(observable);
+            subscription.Dispose();
+
+            if (_disposeOnSourceEmpty && _observables.Count == 0)
+                Dispose();
+        }
 
         protected void OnError(Exception error)
         {
@@ -173,7 +191,7 @@ namespace ObserveThing
                 observer.observer.OnError(error);
         }
 
-        public IDisposable Subscribe(IObserver<T> observer)
+        public IDisposable Subscribe(IObserver observer)
         {
             if (disposed)
             {
@@ -194,34 +212,6 @@ namespace ObserveThing
             return observerData;
         }
 
-        public IDisposable Subscribe(IObserver observer)
-            => Subscribe(new Observer<T>(
-                onOperation: ops =>
-                {
-                    foreach (var op in ops)
-                    {
-                        if (!_operationPool.TryDequeue(out var operation))
-                            operation = new Operation<T>(this);
-
-                        operation.value = op;
-                        _opList.Add(operation);
-                    }
-
-                    observer.OnOperation(_opList);
-
-                    foreach (var op in _opList)
-                    {
-                        op.value = default;
-                        _operationPool.Enqueue(op);
-                    }
-
-                    _opList.Clear();
-                },
-                observer.OnError,
-                observer.OnDispose,
-                immediate: observer.immediate
-            ));
-
         public void Dispose()
         {
             if (disposed)
@@ -236,8 +226,6 @@ namespace ObserveThing
             }
 
             _observers.Clear();
-
-            DisposeInternal();
         }
     }
 }
