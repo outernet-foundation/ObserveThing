@@ -11,7 +11,7 @@ namespace ObserveThing.Tests
         [SetUp]
         public void SetUp()
         {
-            Observers.DefaultExceptionHandler = UnityEngine.Debug.LogException;
+            Settings.DefaultExceptionHandler = UnityEngine.Debug.LogException;
         }
 
         private T Peek<T>(IValueObservable<T> observable)
@@ -43,11 +43,11 @@ namespace ObserveThing.Tests
         public void TestOrderBy()
         {
             int callCount = 0;
-            List<ValueObservable<int>> results = new List<ValueObservable<int>>();
+            List<ObservableValue<int>> results = new List<ObservableValue<int>>();
             Exception exception = default;
             bool disposed = false;
 
-            var list = new ListObservable<ValueObservable<int>>();
+            var list = new ObservableList<ObservableValue<int>>();
             var orderBy = list.ObservableOrderBy(x => x.AsObservable()).Subscribe(
                 onAdd: (index, value) =>
                 {
@@ -63,11 +63,11 @@ namespace ObserveThing.Tests
                 onDispose: () => disposed = true
             );
 
-            list.Add(new ValueObservable<int>(1));
-            list.Add(new ValueObservable<int>(2));
-            list.Add(new ValueObservable<int>(13));
-            list.Add(new ValueObservable<int>(2));
-            list.Add(new ValueObservable<int>(4));
+            list.Add(new ObservableValue<int>(1));
+            list.Add(new ObservableValue<int>(2));
+            list.Add(new ObservableValue<int>(13));
+            list.Add(new ObservableValue<int>(2));
+            list.Add(new ObservableValue<int>(4));
 
             Assert.AreEqual(5, callCount);
 
@@ -88,7 +88,7 @@ namespace ObserveThing.Tests
             Assert.AreEqual(10, callCount);
             AreEqual(new int[] { -33, 1, 4, 22 }, results);
 
-            var multiAdd = new ValueObservable<int>(3);
+            var multiAdd = new ObservableValue<int>(3);
 
             list.Add(multiAdd);
             list.Add(multiAdd);
@@ -131,7 +131,7 @@ namespace ObserveThing.Tests
         [Test]
         public void TestOrderByExternalCollection()
         {
-            ListObservable<string> source = new ListObservable<string>();
+            ObservableList<string> source = new ObservableList<string>();
             List<string> destination = new List<string>();
 
             source
@@ -155,15 +155,48 @@ namespace ObserveThing.Tests
             Assert.That(destination, Is.EqualTo(source));
         }
 
+        public struct TestStruct
+        {
+            public int value;
+        }
+
+        [Test]
+        public void TestOrderByExternalStructCollection()
+        {
+            ObservableList<TestStruct> source = new ObservableList<TestStruct>();
+            List<TestStruct> destination = new List<TestStruct>();
+
+            source
+                .ObservableSelect(x => x)
+                .ObservableWhere(x => true)
+                .ObservableOrderBy(x => source.ObservableIndexOf(x))
+                .Subscribe(
+                    onAdd: (index, value) => destination.Insert(index, value),
+                    onRemove: (index, value) => destination.RemoveAt(index)
+                );
+
+            source.Add(new TestStruct() { value = 1 });
+            source.Add(new TestStruct() { value = 2 });
+            source.Add(new TestStruct() { value = 3 });
+
+            Assert.That(destination, Is.EqualTo(source));
+
+            source.Remove(new TestStruct() { value = 2 });
+            source.Add(new TestStruct() { value = 4 });
+            source.Insert(0, new TestStruct() { value = 10 });
+
+            Assert.That(destination, Is.EqualTo(source));
+        }
+
         [Test]
         public void TestWhere()
         {
             int callCount = 0;
-            List<ValueObservable<int>> results = new List<ValueObservable<int>>();
+            List<ObservableValue<int>> results = new List<ObservableValue<int>>();
             Exception exception = default;
             bool disposed = false;
 
-            var list = new ListObservable<ValueObservable<int>>();
+            var list = new ObservableList<ObservableValue<int>>();
             var where = list.ObservableWhere(x => x.ObservableSelect(x => x % 2 == 0)).Subscribe(
                 onAdd: x =>
                 {
@@ -179,11 +212,11 @@ namespace ObserveThing.Tests
                 () => disposed = true
             );
 
-            var v1 = new ValueObservable<int>(1);
-            var v2 = new ValueObservable<int>(6);
-            var v3 = new ValueObservable<int>(13);
-            var v4 = new ValueObservable<int>(2);
-            var v5 = new ValueObservable<int>(4);
+            var v1 = new ObservableValue<int>(1);
+            var v2 = new ObservableValue<int>(6);
+            var v3 = new ObservableValue<int>(13);
+            var v4 = new ObservableValue<int>(2);
+            var v5 = new ObservableValue<int>(4);
 
             list.Add(v1);
             list.Add(v2);
@@ -209,7 +242,7 @@ namespace ObserveThing.Tests
             Assert.AreEqual(4, callCount);
             Assert.That(results, Is.EquivalentTo(new[] { v2, v5 }));
 
-            var v6 = new ValueObservable<int>(8);
+            var v6 = new ObservableValue<int>(8);
 
             list.Add(v6);
 
@@ -243,7 +276,7 @@ namespace ObserveThing.Tests
             Exception exception = default;
             bool disposed = false;
 
-            var list = new ListObservable<int>();
+            var list = new ObservableList<int>();
             var distinct = list.ObservableDistinct().Subscribe(
                 onAdd: x =>
                 {
@@ -303,8 +336,8 @@ namespace ObserveThing.Tests
             Exception exception = default;
             bool disposed = false;
 
-            var list1 = new ListObservable<int>();
-            var list2 = new ListObservable<int>();
+            var list1 = new ObservableList<int>();
+            var list2 = new ObservableList<int>();
             var concat = list1.ObservableConcat(list2.AsObservable()).Subscribe(
                 onAdd: x =>
                 {
@@ -378,7 +411,7 @@ namespace ObserveThing.Tests
             Exception exception = default;
             bool disposed = false;
 
-            var list = new ListObservable<ListObservable<int>>();
+            var list = new ObservableList<ObservableList<int>>();
             var selectMany = list.ObservableSelectMany(x => (ICollectionObservable<int>)x).Subscribe(
                 x =>
                 {
@@ -394,9 +427,9 @@ namespace ObserveThing.Tests
                 () => disposed = true
             );
 
-            var arr1 = new ListObservable<int>(new[] { 1, 2, 3 });
-            var arr2 = new ListObservable<int>(new[] { 4, 5, 6 });
-            var arr3 = new ListObservable<int>(new[] { 7, 8, 9 });
+            var arr1 = new ObservableList<int>(new[] { 1, 2, 3 });
+            var arr2 = new ObservableList<int>(new[] { 4, 5, 6 });
+            var arr3 = new ObservableList<int>(new[] { 7, 8, 9 });
 
             list.Add(arr1);
             list.Add(arr2);
@@ -439,7 +472,7 @@ namespace ObserveThing.Tests
             list.Dispose();
             Assert.IsTrue(disposed);
 
-            list.Add(arr1);
+            Assert.Throws(typeof(ObjectDisposedException), () => list.Add(arr1));
 
             Assert.AreEqual(24, callCount);
             Assert.That(results, Is.EquivalentTo(new int[] { 1, 2, 3, 4, 6, 4, 6, 7, 8, 100, 44, 44 }));
@@ -449,7 +482,7 @@ namespace ObserveThing.Tests
         public void TestSelect()
         {
             var result = new List<string>();
-            var list = new ListObservable<int>();
+            var list = new ObservableList<int>();
             bool disposed = false;
             bool receivedCall = false;
 
@@ -512,10 +545,10 @@ namespace ObserveThing.Tests
             bool disposed = false;
             bool callReceived = false;
             var result = new List<float>();
-            var source = new ListObservable<ValueObservable<float>>(
-                new ValueObservable<float>(1),
-                new ValueObservable<float>(2),
-                new ValueObservable<float>(3)
+            var source = new ObservableList<ObservableValue<float>>(
+                new ObservableValue<float>(1),
+                new ObservableValue<float>(2),
+                new ObservableValue<float>(3)
             );
 
             var stream = new ShallowCopyCollectionObservable<float>(
@@ -550,9 +583,9 @@ namespace ObserveThing.Tests
 
             Assert.That(result, Is.EquivalentTo(new float[] { 1, 3 }));
 
-            source.Add(new ValueObservable<float>(55));
-            source.Add(new ValueObservable<float>(55));
-            source.Add(new ValueObservable<float>(1));
+            source.Add(new ObservableValue<float>(55));
+            source.Add(new ObservableValue<float>(55));
+            source.Add(new ObservableValue<float>(1));
 
             Assert.That(result, Is.EquivalentTo(new float[] { 1, 1, 3, 55, 55 }));
 
@@ -563,21 +596,21 @@ namespace ObserveThing.Tests
             callReceived = false;
             stream.Dispose();
 
-            source.Add(new ValueObservable<float>(100));
+            source.Add(new ObservableValue<float>(100));
             Assert.IsTrue(disposed);
             Assert.IsFalse(callReceived);
         }
 
         public class TestElement
         {
-            public ValueObservable<int> intValue = new ValueObservable<int>();
-            public ValueObservable<string> stringValue = new ValueObservable<string>();
+            public ObservableValue<int> intValue = new ObservableValue<int>();
+            public ObservableValue<string> stringValue = new ObservableValue<string>();
         }
 
         [Test]
         public void TestErrorLog()
         {
-            var dict = new DictionaryObservable<int, string>();
+            var dict = new ObservableDictionary<int, string>();
             var stream = dict.ObservableSelect(x =>
             {
                 if (x.Key != 0)
@@ -604,15 +637,15 @@ namespace ObserveThing.Tests
         [Test]
         public void TestFirst()
         {
-            (bool found, ValueObservable<int> value) result = default;
+            (bool found, ObservableValue<int> value) result = default;
             bool receivedCall = false;
             bool disposed = false;
 
-            var source = new ListObservable<ValueObservable<int>>(
-                new ValueObservable<int>(1),
-                new ValueObservable<int>(4),
-                new ValueObservable<int>(4),
-                new ValueObservable<int>(13)
+            var source = new ObservableList<ObservableValue<int>>(
+                new ObservableValue<int>(1),
+                new ObservableValue<int>(4),
+                new ObservableValue<int>(4),
+                new ObservableValue<int>(13)
             );
 
             var subscription = source.ObservableFirst(x => x.ObservableSelect(x => x == 4))
@@ -656,15 +689,15 @@ namespace ObserveThing.Tests
         [Test]
         public void TestFirstOrDefault()
         {
-            ValueObservable<int> result = default;
+            ObservableValue<int> result = default;
             bool receivedCall = false;
             bool disposed = false;
 
-            var source = new ListObservable<ValueObservable<int>>(
-                new ValueObservable<int>(1),
-                new ValueObservable<int>(4),
-                new ValueObservable<int>(4),
-                new ValueObservable<int>(13)
+            var source = new ObservableList<ObservableValue<int>>(
+                new ObservableValue<int>(1),
+                new ObservableValue<int>(4),
+                new ObservableValue<int>(4),
+                new ObservableValue<int>(13)
             );
 
             var subscription = source.ObservableFirstOrDefault(x => x.ObservableSelect(x => x == 4))

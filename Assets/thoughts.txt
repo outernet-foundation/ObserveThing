@@ -1,0 +1,14 @@
+in order to order observers you need to be able to batch them
+in order to batch them you need to be able to send mutliple values per call
+in order to send multiple values per call you need to have a common argument type
+having a common argument type generates waste
+
+could we have a common argument type which does not generate waste?
+even if we could, we'd have to have _arrays_ of the comon argument type, which themselves would be waste
+also, we end up in a really gnarly, cumbersome place where we have to handle each _element_ in each _array_ of each _event_, which sucks
+
+so that's a no, at least for the time being
+if we're boxed out from ordering and batching events in ObserveThing, we have to pivot
+there's really only one thing we can do- we have to make Stateful implement batching and ordering on top of ObserveThing
+it'll be more garbage-y, but it'll get the job done
+the other issue is we will no longer be 

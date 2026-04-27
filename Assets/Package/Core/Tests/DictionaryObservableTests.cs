@@ -1,117 +1,16 @@
 using System;
 using System.Collections.Generic;
 using NUnit.Framework;
+using UnityEngine.TestTools;
 
 namespace ObserveThing.Tests
 {
-    // public class ManualDictionaryObservable<TKey, TValue> : IDictionaryObservable<TKey, TValue>
-    // {
-    //     private Dictionary<TKey, TValue> _mostRecentDictionary = new Dictionary<TKey, TValue>();
-    //     private DictionaryEventArgs<TKey, TValue> _args = new DictionaryEventArgs<TKey, TValue>();
-    //     private List<Instance> _instances = new List<Instance>();
-    //     private bool _disposing;
-
-
-    //     public void OnAdd(TKey key, TValue value)
-    //     {
-    //         _mostRecentDictionary.Add(key, value);
-    //         _args.element = new KeyValuePair<TKey, TValue>(key, value);
-    //         _args.operationType = OpType.Add;
-    //         foreach (var instance in _instances)
-    //             instance.OnNext(_args);
-    //     }
-
-    //     public void OnRemove(TKey key)
-    //     {
-    //         if (!_mostRecentDictionary.TryGetValue(key, out var value))
-    //             return;
-
-    //         _mostRecentDictionary.Remove(key);
-
-    //         _args.element = new KeyValuePair<TKey, TValue>(key, value);
-    //         _args.operationType = OpType.Remove;
-    //         foreach (var instance in _instances)
-    //             instance.OnNext(_args);
-    //     }
-
-    //     public void OnError(Exception exception)
-    //     {
-    //         foreach (var instance in _instances)
-    //             instance.OnError(exception);
-    //     }
-
-    //     public void DisposeAll()
-    //     {
-    //         _disposing = true;
-
-    //         foreach (var instance in _instances)
-    //             instance.Dispose();
-
-    //         _instances.Clear();
-
-    //         _disposing = false;
-    //     }
-
-    //     public IDisposable Subscribe(IObserver<IDictionaryEventArgs<TKey, TValue>> observer)
-    //     {
-    //         var instance = new Instance(observer, x =>
-    //         {
-    //             if (!_disposing)
-    //                 _instances.Remove(x);
-    //         });
-
-    //         _instances.Add(instance);
-
-    //         foreach (var kvp in _mostRecentDictionary)
-    //         {
-    //             _args.element = kvp;
-    //             _args.operationType = OpType.Add;
-    //             instance.OnNext(_args);
-    //         }
-
-    //         return instance;
-    //     }
-
-    //     private class Instance : IDisposable
-    //     {
-    //         private IObserver<DictionaryEventArgs<TKey, TValue>> _observer;
-    //         private Action<Instance> _onDispose;
-
-    //         public Instance(IObserver<DictionaryEventArgs<TKey, TValue>> observer, Action<Instance> onDispose)
-    //         {
-    //             _observer = observer;
-    //             _onDispose = onDispose;
-    //         }
-
-    //         public void OnNext(DictionaryEventArgs<TKey, TValue> args)
-    //         {
-    //             _observer?.OnNext(args);
-    //         }
-
-    //         public void OnError(Exception error)
-    //         {
-    //             _observer?.OnError(error);
-    //         }
-
-    //         public void Dispose()
-    //         {
-    //             if (_observer == null)
-    //                 throw new Exception("ALREADY DISPOSED");
-
-    //             _observer.OnDispose();
-    //             _observer = null;
-
-    //             _onDispose(this);
-    //         }
-    //     }
-    // }
-
     public class DictionaryObservableTests
     {
         [SetUp]
         public void SetUp()
         {
-            Observers.DefaultExceptionHandler = UnityEngine.Debug.LogException;
+            Settings.DefaultExceptionHandler = UnityEngine.Debug.LogException;
         }
 
         [Test]
@@ -122,8 +21,8 @@ namespace ObserveThing.Tests
             Exception exception = default;
             bool disposed = false;
 
-            DictionaryObservable<int, string> dict = new DictionaryObservable<int, string>();
-            ValueObservable<int> key = new ValueObservable<int>();
+            ObservableDictionary<int, string> dict = new ObservableDictionary<int, string>();
+            ObservableValue<int> key = new ObservableValue<int>();
 
             dict.ObservableTrack(key).Subscribe(
                 x =>
@@ -179,7 +78,7 @@ namespace ObserveThing.Tests
 
             dict.Dispose();
             Assert.IsTrue(disposed);
-            dict.Add(100, "me");
+            Assert.Throws(typeof(ObjectDisposedException), () => dict.Add(100, "me"));
             Assert.AreEqual(4, callCount);
         }
     }

@@ -11,7 +11,7 @@ namespace ObserveThing.Tests
         [SetUp]
         public void SetUp()
         {
-            Observers.DefaultExceptionHandler = UnityEngine.Debug.LogException;
+            Settings.DefaultExceptionHandler = UnityEngine.Debug.LogException;
         }
 
         [Test]
@@ -22,7 +22,7 @@ namespace ObserveThing.Tests
             bool disposed = false;
             var result = new Dictionary<int, ObservablePrimitive<string>>();
 
-            var dict = new ObservableDictionary<int, ObservablePrimitive<string>>();
+            var dict = new FofX.Stateful.ObservableDictionary<int, ObservablePrimitive<string>>();
             dict.Initialize("root", new ObservableNodeContext());
 
             var observable = dict.ToObservable().Subscribe(
