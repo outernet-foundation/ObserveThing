@@ -72,6 +72,8 @@ namespace ObserveThing.Tests
             ObservableValue<int> intObservable = new ObservableValue<int>(context);
             ObservableValue<string> stringObservable = new ObservableValue<string>(context);
 
+            var query = Observables.ObservableCombine(context, intObservable, stringObservable);
+
             List<(int observer, IObservable source, object value)> observerCallOrder = new List<(int observer, IObservable source, object value)>();
 
             IDisposable stream1 = default;
@@ -80,29 +82,17 @@ namespace ObserveThing.Tests
             IDisposable stream4 = default;
             IDisposable stream5 = default;
 
-            stream1 = Observables.ObservableCombine(context, intObservable, stringObservable).Subscribe(
+            stream1 = query.Subscribe(
                 onOperation: ops =>
                 {
-                    if (ops == null)
-                    {
-                        observerCallOrder.Add(new(1, null, null));
-                        return;
-                    }
-
                     foreach (var op in ops)
                         observerCallOrder.Add(new(1, op.source, op.value));
                 }
             );
 
-            stream2 = Observables.ObservableCombine(context, intObservable, stringObservable).Subscribe(
+            stream2 = query.Subscribe(
                 onOperation: ops =>
                 {
-                    if (ops == null)
-                    {
-                        observerCallOrder.Add(new(2, null, null));
-                        return;
-                    }
-
                     foreach (var op in ops)
                         observerCallOrder.Add(new(2, op.source, op.value));
 
@@ -111,15 +101,9 @@ namespace ObserveThing.Tests
                 }
             );
 
-            stream3 = Observables.ObservableCombine(context, intObservable, stringObservable).Subscribe(
+            stream3 = query.Subscribe(
                 onOperation: ops =>
                 {
-                    if (ops == null)
-                    {
-                        observerCallOrder.Add(new(3, null, null));
-                        return;
-                    }
-
                     foreach (var op in ops)
                         observerCallOrder.Add(new(3, op.source, op.value));
 
@@ -134,29 +118,17 @@ namespace ObserveThing.Tests
                 }
             );
 
-            stream4 = Observables.ObservableCombine(context, intObservable, stringObservable).Subscribe(
+            stream4 = query.Subscribe(
                 onOperation: ops =>
                 {
-                    if (ops == null)
-                    {
-                        observerCallOrder.Add(new(4, null, null));
-                        return;
-                    }
-
                     foreach (var op in ops)
                         observerCallOrder.Add(new(4, op.source, op.value));
                 }
             );
 
-            stream5 = Observables.ObservableCombine(context, intObservable, stringObservable).Subscribe(
+            stream5 = query.Subscribe(
                 onOperation: ops =>
                 {
-                    if (ops == null)
-                    {
-                        observerCallOrder.Add(new(5, null, null));
-                        return;
-                    }
-
                     foreach (var op in ops)
                         observerCallOrder.Add(new(5, op.source, op.value));
                 }
@@ -211,7 +183,9 @@ namespace ObserveThing.Tests
             var disposeCallCount = 0;
             var disposed = false;
 
-            var stream = Observables.ObservableCombine(context, observable1, observable2).Subscribe(
+            var query = Observables.ObservableCombine(context, observable1, observable2);
+
+            var stream = query.Subscribe(
                 onDispose: () =>
                 {
                     disposeCallCount++;
@@ -225,6 +199,20 @@ namespace ObserveThing.Tests
             Assert.AreEqual(0, disposeCallCount);
 
             observable2.Dispose();
+
+            Assert.IsTrue(disposed);
+            Assert.AreEqual(1, disposeCallCount);
+
+            disposeCallCount = 0;
+            disposed = false;
+
+            query.Subscribe(
+                onDispose: () =>
+                {
+                    disposeCallCount++;
+                    disposed = true;
+                }
+            );
 
             Assert.IsTrue(disposed);
             Assert.AreEqual(1, disposeCallCount);
