@@ -58,6 +58,12 @@ namespace ObserveThing
         public static IObservable ObservableCombine(this ISetObservable<IObservable> source, bool disposeOnSourceEmpty = false, ObservationContext context = default)
             => new CombineObservable(context, source, disposeOnSourceEmpty);
 
+        public static IValueObservable<T> ObservableThen<T>(this IValueObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default)
+            => new ValueOperator<T>(receiver => new ThenObservable<T>(source, new ValueObserver<T>(onNext, onError, onDispose), receiver));
+
+        public static IValueObservable<T> ObservableThen<T>(this IValueObservable<T> source, IValueObserver<T> thenObserver)
+            => new ValueOperator<T>(receiver => new ThenObservable<T>(source, thenObserver, receiver));
+
         public static IValueObservable<TResult> ObservableCombineValues<T1, T2, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, Func<T1, T2, IValueObservable<TResult>> select, ObservationContext context = default)
             => ObservableCombineValues(source1, source2, context).ObservableSelect(x => select(x.Item1, x.Item2), context);
 
@@ -130,6 +136,20 @@ namespace ObserveThing
         public static ICollectionObservable<T> ObservableShallowCopy<T>(this ICollectionObservable<IValueObservable<T>> source, ObservationContext context = default)
             => new CollectionOperator<T>(context, receiver => new ShallowCopyCollectionObservable<T>(source, receiver));
 
+        public static ICollectionObservable<T> ObservableForEach<T>(this ICollectionObservable<T> source, Action<T> onAdd = default, Action<T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.ObservableForEach(new CollectionObserver<T>(
+                onAdd == null ? null : (_, value) => onAdd(value),
+                onRemove == null ? null : (_, value) => onRemove(value),
+                onError,
+                onDispose
+            ));
+
+        public static ICollectionObservable<T> ObservableForEachWithIds<T>(this ICollectionObservable<T> source, Action<uint, T> onAdd = default, Action<uint, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.ObservableForEach(new CollectionObserver<T>(onAdd, onRemove, onError, onDispose));
+
+        public static ICollectionObservable<T> ObservableForEach<T>(this ICollectionObservable<T> source, ICollectionObserver<T> forEachObserver)
+            => new CollectionOperator<T>(receiver => new ForEachCollectionObservable<T>(source, forEachObserver, receiver));
+
         public static ICollectionObservable<U> ObservableSelect<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> select, ObservationContext context = default)
             => source.ObservableSelect<T, IValueObservable<U>>(select, context).ObservableShallowCopy(context);
 
@@ -190,6 +210,20 @@ namespace ObserveThing
         public static IValueObservable<(bool found, T value)> ObservableFirst<T>(this ICollectionObservable<T> source, Func<T, IValueObservable<bool>> validate, ObservationContext context = default)
             => new ValueOperator<(bool found, T value)>(context, receiver => new FirstObservable<T>(source, validate, receiver));
 
+        public static IDictionaryObservable<TKey, TValue> ObservableForEach<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<KeyValuePair<TKey, TValue>> onAdd = default, Action<KeyValuePair<TKey, TValue>> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+                    => source.ObservableForEach(new DictionaryObserver<TKey, TValue>(
+                        onAdd == null ? null : (_, value) => onAdd(value),
+                        onRemove == null ? null : (_, value) => onRemove(value),
+                        onError,
+                        onDispose
+                    ));
+
+        public static IDictionaryObservable<TKey, TValue> ObservableForEachWithIds<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<uint, KeyValuePair<TKey, TValue>> onAdd = default, Action<uint, KeyValuePair<TKey, TValue>> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.ObservableForEach(new DictionaryObserver<TKey, TValue>(onAdd, onRemove, onError, onDispose));
+
+        public static IDictionaryObservable<TKey, TValue> ObservableForEach<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, IDictionaryObserver<TKey, TValue> forEachObserver)
+            => new DictionaryOperator<TKey, TValue>(receiver => new ForEachDictionaryObservable<TKey, TValue>(source, forEachObserver, receiver));
+
         public static IValueObservable<(bool keyPresent, TValue value)> ObservableTrack<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, TKey key, ObservationContext context = default)
             => source.ObservableTrack(new ObservableValue<TKey>(key), context);
 
@@ -201,6 +235,20 @@ namespace ObserveThing
 
         public static IListObservable<T> ObservableShallowCopy<T>(this IListObservable<IValueObservable<T>> source, ObservationContext context = default)
             => new ListOperator<T>(context, receiver => new ShallowCopyListObservable<T>(source, receiver));
+
+        public static IListObservable<T> ObservableForEach<T>(this IListObservable<T> source, Action<int, T> onAdd = default, Action<int, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+                    => source.ObservableForEach(new ListObserver<T>(
+                        onAdd == null ? null : (_, index, value) => onAdd(index, value),
+                        onRemove == null ? null : (_, index, value) => onRemove(index, value),
+                        onError,
+                        onDispose
+                    ));
+
+        public static IListObservable<T> ObservableForEachWithIds<T>(this IListObservable<T> source, Action<uint, int, T> onAdd = default, Action<uint, int, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
+            => source.ObservableForEach(new ListObserver<T>(onAdd, onRemove, onError, onDispose));
+
+        public static IListObservable<T> ObservableForEach<T>(this IListObservable<T> source, IListObserver<T> forEachObserver)
+            => new ListOperator<T>(receiver => new ForEachListObservable<T>(source, forEachObserver, receiver));
 
         public static IListObservable<U> ObservableSelect<T, U>(this IListObservable<T> source, Func<T, U> select, ObservationContext context = default)
             => new ListOperator<U>(context, receiver => new SelectListObservable<T, U>(source, select, receiver));
