@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace ObserveThing
 {
@@ -77,10 +78,7 @@ namespace ObserveThing
             var originalIndex = _order.IndexOf(data);
 
             if (originalIndex != -1)
-            {
                 _order.RemoveAt(originalIndex);
-                _receiver.OnRemove(data.id, originalIndex, data.element);
-            }
 
             int newIndex = -1;
 
@@ -100,7 +98,13 @@ namespace ObserveThing
 
             _order.Insert(newIndex, data);
 
-            _receiver.OnAdd(data.id, newIndex, data.element);
+            if (originalIndex != newIndex)
+            {
+                if (originalIndex != -1)
+                    _receiver.OnRemove(data.id, originalIndex, data.element);
+
+                _receiver.OnAdd(data.id, newIndex, data.element);
+            }
         }
 
         public void Dispose()
