@@ -25,7 +25,6 @@ namespace ObserveThing
     {
         private List<(uint id, T value)> _list = new List<(uint id, T value)>();
         private CollectionIdProvider _idProvider;
-        private List<ListOpArgs<T>> _initOps = new List<ListOpArgs<T>>();
 
         public ObservableListBase(ObservationContext context, IEnumerable<T> value) : base(context)
         {
@@ -45,16 +44,7 @@ namespace ObserveThing
             => _list;
 
         protected override IReadOnlyList<ListOpArgs<T>> GetInitializationOperations()
-        {
-            _initOps.Clear();
-            for (int i = 0; i < _list.Count; i++)
-            {
-                var op = _list[i];
-                _initOps.Add(new ListOpArgs<T>(op.id, i, op.value, false));
-            }
-
-            return _initOps;
-        }
+            => _list.Select((element, index) => new ListOpArgs<T>(element.id, index, element.value, false)).ToArray();
 
         protected void AddInternal(T added)
             => InsertInternal(_list.Count, added);

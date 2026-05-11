@@ -43,11 +43,7 @@ namespace ObserveThing
             => _set;
 
         protected override IReadOnlyList<SetOpArgs<T>> GetInitializationOperations()
-        {
-            _initOps.Clear();
-            _initOps.AddRange(_set.Select(x => new SetOpArgs<T>(x.Value, x.Key, false)));
-            return _initOps;
-        }
+            => _set.Select(x => new SetOpArgs<T>(x.Value, x.Key, false)).ToArray();
 
         protected bool AddInternal(T element)
         {

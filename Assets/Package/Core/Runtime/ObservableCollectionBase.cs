@@ -22,16 +22,11 @@ namespace ObserveThing
     public class ObservableCollectionBase<T> : Observable<CollectionOpArgs<T>>, ICollectionObservable<T>
     {
         private Dictionary<uint, T> _collection = new Dictionary<uint, T>();
-        private List<CollectionOpArgs<T>> _initOps = new List<CollectionOpArgs<T>>();
 
         public ObservableCollectionBase(ObservationContext context) : base(context) { }
 
         protected override IReadOnlyList<CollectionOpArgs<T>> GetInitializationOperations()
-        {
-            _initOps.Clear();
-            _initOps.AddRange(_collection.Select(x => new CollectionOpArgs<T>(x.Key, x.Value, false)));
-            return _initOps;
-        }
+            => _collection.Select(x => new CollectionOpArgs<T>(x.Key, x.Value, false)).ToArray();
 
         protected IEnumerable<(uint id, T element)> GetElementsWithIdsInternal()
             => _collection.Select<KeyValuePair<uint, T>, (uint id, T element)>(x => new(x.Key, x.Value));

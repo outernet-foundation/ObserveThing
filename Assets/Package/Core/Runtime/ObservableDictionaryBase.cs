@@ -23,7 +23,6 @@ namespace ObserveThing
     {
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
         private CollectionIdProvider _idProvider;
-        private List<DictionaryOpArgs<TKey, TValue>> _initOps = new List<DictionaryOpArgs<TKey, TValue>>();
 
         public ObservableDictionaryBase(ObservationContext context, IEnumerable<KeyValuePair<TKey, TValue>> value) : base(context)
         {
@@ -49,11 +48,7 @@ namespace ObserveThing
             => _dictionary;
 
         protected override IReadOnlyList<DictionaryOpArgs<TKey, TValue>> GetInitializationOperations()
-        {
-            _initOps.Clear();
-            _initOps.AddRange(_dictionary.Select(x => new DictionaryOpArgs<TKey, TValue>(x.Value.id, KeyValuePair.Create(x.Key, x.Value.value), false)));
-            return _initOps;
-        }
+            => _dictionary.Select(x => new DictionaryOpArgs<TKey, TValue>(x.Value.id, KeyValuePair.Create(x.Key, x.Value.value), false)).ToArray();
 
         protected void SetInternal(TKey key, TValue value)
         {
