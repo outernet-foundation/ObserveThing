@@ -87,6 +87,45 @@ namespace ObserveThing
         public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
     }
 
+    public interface IValueObserver
+    {
+        bool immediate { get; }
+        void OnNext(object value);
+        void OnError(Exception exc);
+        void OnDispose();
+    }
+
+    public class ValueObserver : IValueObserver
+    {
+        public bool immediate { get; }
+        private Action<object> _onNext;
+        private Action<Exception> _onError;
+        private Action _onDispose;
+
+        public ValueObserver(Action<object> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+        {
+            _onNext = onNext;
+            _onError = onError;
+            _onDispose = onDispose;
+            this.immediate = immediate;
+        }
+
+        public void OnNext(object value)
+        {
+            try
+            {
+                _onNext?.Invoke(value);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
+        public void OnDispose() => _onDispose?.Invoke();
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
     public interface IValueObserver<in T>
     {
         bool immediate { get; }
@@ -124,6 +163,60 @@ namespace ObserveThing
 
         public void OnDispose() => _onDispose?.Invoke();
         public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
+    public interface ICollectionObserver
+    {
+        bool immediate { get; }
+        public void OnAdd(uint id, object value);
+        public void OnRemove(uint id, object value);
+        void OnError(Exception exc);
+        void OnDispose();
+    }
+
+    public class CollectionObserver : ICollectionObserver
+    {
+        public bool immediate { get; }
+        private Action<uint, object> _onAdd;
+        private Action<uint, object> _onRemove;
+        private Action<Exception> _onError;
+        private Action _onDispose;
+
+        public CollectionObserver(Action<uint, object> onAdd = default, Action<uint, object> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+        {
+            _onAdd = onAdd;
+            _onRemove = onRemove;
+            _onError = onError;
+            _onDispose = onDispose;
+            this.immediate = immediate;
+        }
+
+        public void OnAdd(uint id, object value)
+        {
+            try
+            {
+                _onAdd?.Invoke(id, value);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
+        public void OnRemove(uint id, object value)
+        {
+            try
+            {
+                _onRemove?.Invoke(id, value);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+        public void OnDispose() => _onDispose?.Invoke();
     }
 
     public interface ICollectionObserver<in T>
@@ -223,6 +316,60 @@ namespace ObserveThing
             try
             {
                 _onRemove?.Invoke(id, value);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+        public void OnDispose() => _onDispose?.Invoke();
+    }
+
+    public interface IListObserver
+    {
+        bool immediate { get; }
+        public void OnAdd(uint id, int index, object value);
+        public void OnRemove(uint id, int index, object value);
+        void OnError(Exception exc);
+        void OnDispose();
+    }
+
+    public class ListObserver : IListObserver
+    {
+        public bool immediate { get; }
+        private Action<uint, int, object> _onAdd;
+        private Action<uint, int, object> _onRemove;
+        private Action<Exception> _onError;
+        private Action _onDispose;
+
+        public ListObserver(Action<uint, int, object> onAdd = default, Action<uint, int, object> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+        {
+            _onAdd = onAdd;
+            _onRemove = onRemove;
+            _onError = onError;
+            _onDispose = onDispose;
+            this.immediate = immediate;
+        }
+
+        public void OnAdd(uint id, int index, object value)
+        {
+            try
+            {
+                _onAdd?.Invoke(id, index, value);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
+        public void OnRemove(uint id, int index, object value)
+        {
+            try
+            {
+                _onRemove?.Invoke(id, index, value);
             }
             catch (Exception exc)
             {

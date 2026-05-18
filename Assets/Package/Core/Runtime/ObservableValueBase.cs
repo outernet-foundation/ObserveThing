@@ -42,5 +42,19 @@ namespace ObserveThing
                     immediate: observer.immediate
                 )
             );
+
+        public IDisposable Subscribe(IValueObserver observer)
+            => Subscribe(
+                new Observer(
+                    onOperation: ops =>
+                    {
+                        foreach (var op in ops)
+                            observer.OnNext(op);
+                    },
+                    onError: observer.OnError,
+                    onDispose: observer.OnDispose,
+                    immediate: observer.immediate
+                )
+            );
     }
 }

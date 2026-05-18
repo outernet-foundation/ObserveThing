@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using NUnit.Framework.Constraints;
 
 namespace ObserveThing
 {
@@ -13,12 +14,22 @@ namespace ObserveThing
         IDisposable Subscribe(IObserver<T> observer);
     }
 
-    public interface IValueObservable<out T>
+    public interface IValueObservable
+    {
+        IDisposable Subscribe(IValueObserver observer);
+    }
+
+    public interface IValueObservable<out T> : IValueObservable
     {
         IDisposable Subscribe(IValueObserver<T> observer);
     }
 
-    public interface ICollectionObservable<out T>
+    public interface ICollectionObservable
+    {
+        IDisposable Subscribe(ICollectionObserver observer);
+    }
+
+    public interface ICollectionObservable<out T> : ICollectionObservable
     {
         IDisposable Subscribe(ICollectionObserver<T> observer);
     }
@@ -33,13 +44,27 @@ namespace ObserveThing
         IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer);
     }
 
-    public interface IListObservable<out T> : ICollectionObservable<T>
+    public interface IListObservable : ICollectionObservable
+    {
+        IDisposable Subscribe(IListObserver observer);
+    }
+
+    public interface IListObservable<out T> : ICollectionObservable<T>, IListObservable
     {
         IDisposable Subscribe(IListObserver<T> observer);
     }
 
     public static class Observables
     {
+        public static IValueObservable<T> ObservableCast<T>(this IValueObservable source)
+            => new ValueOperator<T>(receiver => new CastValueObservable<T>(source, receiver));
+
+        public static ICollectionObservable<T> ObservableCast<T>(this ICollectionObservable source)
+            => new CollectionOperator<T>(receiver => new CastCollectionObservable<T>(source, receiver));
+
+        public static IListObservable<T> ObservableCast<T>(this IListObservable source)
+            => new ListOperator<T>(receiver => new CastListObservable<T>(source, receiver));
+
         public static IObservable ObservableCombine(params IObservable[] observables)
             => new ObservableSet<IObservable>(observables).ObservableCombine(disposeOnSourceEmpty: true);
 
@@ -297,6 +322,14 @@ namespace ObserveThing
                 immediate: immediate
             ));
 
+        public static IDisposable Subscribe(this IValueObservable source, Action<object> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new ValueObserver(
+                onNext: onNext,
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
         public static IDisposable Subscribe<T>(this IValueObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
             => source.Subscribe(new ValueObserver<T>(
                 onNext: onNext,
@@ -341,6 +374,24 @@ namespace ObserveThing
                 immediate: immediate
             ));
 
+        public static IDisposable Subscribe(this IListObservable source, Action<int, object> onAdd = default, Action<int, object> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new ListObserver(
+                onAdd: onAdd == null ? null : (_, index, x) => onAdd(index, x),
+                onRemove: onRemove == null ? null : (_, index, x) => onRemove(index, x),
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable SubscribeWithId(this IListObservable source, Action<uint, int, object> onAdd = default, Action<uint, int, object> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new ListObserver(
+                onAdd: onAdd,
+                onRemove: onRemove,
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
         public static IDisposable Subscribe<T>(this ISetObservable<T> source, Action<T> onAdd = default, Action<T> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
             => source.Subscribe(new SetObserver<T>(
                 onAdd: onAdd == null ? null : (_, x) => onAdd(x),
@@ -370,6 +421,24 @@ namespace ObserveThing
 
         public static IDisposable SubscribeWithId<T>(this ICollectionObservable<T> source, Action<uint, T> onAdd = default, Action<uint, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
             => source.Subscribe(new CollectionObserver<T>(
+                onAdd: onAdd,
+                onRemove: onRemove,
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable Subscribe(this ICollectionObservable source, Action<object> onAdd = default, Action<object> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new CollectionObserver(
+                onAdd: onAdd == null ? null : (_, x) => onAdd(x),
+                onRemove: onRemove == null ? null : (_, x) => onRemove(x),
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable SubscribeWithId(this ICollectionObservable source, Action<uint, object> onAdd = default, Action<uint, object> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new CollectionObserver(
                 onAdd: onAdd,
                 onRemove: onRemove,
                 onError: onError,

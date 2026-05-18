@@ -143,5 +143,51 @@ namespace ObserveThing
                     immediate: observer.immediate
                 )
             );
+
+        public IDisposable Subscribe(ICollectionObserver observer)
+            => Subscribe(
+                new Observer<ListOpArgs<T>>(
+                    onOperation: ops =>
+                    {
+                        foreach (var op in ops)
+                        {
+                            if (op.isRemove)
+                            {
+                                observer.OnRemove(op.id, op.element);
+                            }
+                            else
+                            {
+                                observer.OnAdd(op.id, op.element);
+                            }
+                        }
+                    },
+                    onError: observer.OnError,
+                    onDispose: observer.OnDispose,
+                    immediate: observer.immediate
+                )
+            );
+
+        public IDisposable Subscribe(IListObserver observer)
+            => Subscribe(
+                new Observer<ListOpArgs<T>>(
+                    onOperation: ops =>
+                    {
+                        foreach (var op in ops)
+                        {
+                            if (op.isRemove)
+                            {
+                                observer.OnRemove(op.id, op.index, op.element);
+                            }
+                            else
+                            {
+                                observer.OnAdd(op.id, op.index, op.element);
+                            }
+                        }
+                    },
+                    onError: observer.OnError,
+                    onDispose: observer.OnDispose,
+                    immediate: observer.immediate
+                )
+            );
     }
 }

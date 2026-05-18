@@ -82,6 +82,29 @@ namespace ObserveThing
                 )
             );
 
+        public IDisposable Subscribe(ICollectionObserver observer)
+            => Subscribe(
+                new Observer<CollectionOpArgs<T>>(
+                    onOperation: ops =>
+                    {
+                        foreach (var op in ops)
+                        {
+                            if (op.isRemove)
+                            {
+                                observer.OnRemove(op.id, op.element);
+                            }
+                            else
+                            {
+                                observer.OnAdd(op.id, op.element);
+                            }
+                        }
+                    },
+                    onError: observer.OnError,
+                    onDispose: observer.OnDispose,
+                    immediate: observer.immediate
+                )
+            );
+
         public bool ContainsId(uint id)
             => _collection.ContainsKey(id);
 
