@@ -20,6 +20,7 @@ namespace ObserveThing
         private HashSet<uint> _allocatedPriorties = new HashSet<uint>();
         private CollectionIdProvider _idProvider;
 
+        private bool _notifyingImmediateObservers = false;
         private bool _notifyingObservers = false;
         private bool _executingBatch = false;
 
@@ -40,16 +41,12 @@ namespace ObserveThing
 
         private void DrainPendingObserverQueue()
         {
-            DrainPendingImmediateObserverQueue(); // do this first because there might not be any entries in the observer queue
-
             while (_pendingObservers.TryDequeue(out var observer, out var _))
             {
                 if (observer.disposed)
                     continue;
 
                 observer.SendNext();
-
-                DrainPendingImmediateObserverQueue();
             }
         }
 
@@ -90,16 +87,18 @@ namespace ObserveThing
 
         public void NotifyPendingObserversIfNecessary()
         {
-            if (_notifyingObservers)
+            if (_notifyingImmediateObservers)
+                return;
+
+            _notifyingImmediateObservers = true;
+            DrainPendingImmediateObserverQueue(); // immediate notifications should get sent even in we're in a batch
+            _notifyingImmediateObservers = false;
+
+            if (_notifyingObservers || _executingBatch)
                 return;
 
             _notifyingObservers = true;
-
-            DrainPendingImmediateObserverQueue(); // immediate notifications should get sent even in we're in a batch
-
-            if (!_executingBatch)
-                DrainPendingObserverQueue(); // standard notifications should only go out if we're not in a batch
-
+            DrainPendingObserverQueue();
             _notifyingObservers = false;
         }
     }

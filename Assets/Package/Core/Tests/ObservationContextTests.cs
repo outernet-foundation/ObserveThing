@@ -70,105 +70,146 @@ namespace ObserveThing.Tests
             var context = new ObservationContext();
 
             ObservableValue<int> intObservable = new ObservableValue<int>(context);
-            ObservableValue<string> stringObservable = new ObservableValue<string>(context);
 
-            var query = Observables.ObservableCombine(context, intObservable, stringObservable);
+            List<(int observer, object value)> observerCallOrder = new List<(int observer, object value)>();
 
-            List<(int observer, IObservable source, object value)> observerCallOrder = new List<(int observer, IObservable source, object value)>();
+            IDisposable subscription1 = default;
+            IDisposable subscription2 = default;
+            IDisposable subscription3 = default;
+            IDisposable subscription4 = default;
+            IDisposable subscription5 = default;
 
-            IDisposable stream1 = default;
-            IDisposable stream2 = default;
-            IDisposable stream3 = default;
-            IDisposable stream4 = default;
-            IDisposable stream5 = default;
-
-            stream1 = query.Subscribe(
+            subscription1 = intObservable.Subscribe(
                 onOperation: ops =>
                 {
                     foreach (var op in ops)
-                        observerCallOrder.Add(new(1, op.source, op.value));
+                        observerCallOrder.Add(new(1, op.value));
                 }
             );
 
-            stream2 = query.Subscribe(
+            subscription2 = intObservable.Subscribe(
                 onOperation: ops =>
                 {
                     foreach (var op in ops)
-                        observerCallOrder.Add(new(2, op.source, op.value));
+                        observerCallOrder.Add(new(2, op.value));
 
                     if (intObservable.value == 1)
                         intObservable.value = 2;
                 }
             );
 
-            stream3 = query.Subscribe(
+            subscription3 = intObservable.Subscribe(
                 onOperation: ops =>
                 {
                     foreach (var op in ops)
-                        observerCallOrder.Add(new(3, op.source, op.value));
-
-                    if (stringObservable.value == "cat")
-                        intObservable.value = 3;
+                        observerCallOrder.Add(new(3, op.value));
 
                     if (intObservable.value == 2)
                     {
-                        stringObservable.value = "cat";
-                        stream4.Dispose();
+                        intObservable.value = 3;
+                        subscription4.Dispose();
                     }
                 }
             );
 
-            stream4 = query.Subscribe(
+            subscription4 = intObservable.Subscribe(
                 onOperation: ops =>
                 {
                     foreach (var op in ops)
-                        observerCallOrder.Add(new(4, op.source, op.value));
+                        observerCallOrder.Add(new(4, op.value));
                 }
             );
 
-            stream5 = query.Subscribe(
+            subscription5 = intObservable.Subscribe(
                 onOperation: ops =>
                 {
                     foreach (var op in ops)
-                        observerCallOrder.Add(new(5, op.source, op.value));
+                        observerCallOrder.Add(new(5, op.value));
                 }
             );
 
             intObservable.value = 1;
 
             Assert.AreEqual(3, intObservable.value);
-            Assert.AreEqual("cat", stringObservable.value);
 
             Assert.AreEqual(
-                new List<(int observer, IObservable source, object value)>()
+                new List<(int observer, object value)>()
                 {
-                    new (1, intObservable, 0), //init observer1
-                    new (1, stringObservable, null), //init observer1
-                    new (2, intObservable, 0), //init observer2
-                    new (2, stringObservable, null), //init observer2
-                    new (3, intObservable, 0), //init observer3
-                    new (3, stringObservable, null), //init observer3
-                    new (4, intObservable, 0), //init observer4
-                    new (4, stringObservable, null), //init observer4
-                    new (5, intObservable, 0), //init observer5
-                    new (5, stringObservable, null), //init observer5
-                    new (1, intObservable, 1), //observer1 observes external setting intObservable to 1
-                    new (2, intObservable, 1), //observer2 observes external setting intObservable to 1
-                    new (1, intObservable, 2), //observer1 observes observer2 setting intObservable to 2
-                    new (2, intObservable, 2), //observer2 observes observer2 setting intObservable to 2
-                    new (3, intObservable, 1), //observer3 observes external setting intObservable to 1
-                    new (3, intObservable, 2), //observer3 observes observer2 setting intObservable to 2
-                    new (1, stringObservable, "cat"), //observer1 observes observer3 setting stringObservable to "cat"
-                    new (2, stringObservable, "cat"), //observer2 observes observer3 setting stringObservable to "cat"
-                    new (3, stringObservable, "cat"), //observer3 observes observer3 setting stringObservable to "cat"
+                    new (1, 0), //init observer1
+                    new (2, 0), //init observer2
+                    new (3, 0), //init observer3
+                    new (4, 0), //init observer4
+                    new (5, 0), //init observer5
+                    new (1, 1), //observer1 observes external setting intObservable to 1
+                    new (2, 1), //observer2 observes external setting intObservable to 1
+                    new (1, 2), //observer1 observes observer2 setting intObservable to 2
+                    new (2, 2), //observer2 observes observer2 setting intObservable to 2
+                    new (3, 1), //observer3 observes external setting intObservable to 1
+                    new (3, 2), //observer3 observes observer2 setting intObservable to 2
                     //4, //observer4 is never called past the init because it gets unsubscribed by observer3
-                    new (1, intObservable, 3), //observer1 observes observer3 setting intObservable to 3
-                    new (2, intObservable, 3), //observer2 observes observer3 setting intObservable to 3
-                    new (3, intObservable, 3), //observer3 observes observer3 setting intObservable to 3
-                    new (5, intObservable, 1), //observer5 observes external setting intObservable to 1
-                    new (5, intObservable, 2), //observer5 observes observer2 setting intObservable to 2
-                    new (5, stringObservable, "cat"), //observer5 observers observer2 settings stringObservable to "cat"
-                    new (5, intObservable, 3) //observer5 observes observer3 setting intObservable to 3
+                    new (1, 3), //observer1 observes observer3 setting intObservable to 3
+                    new (2, 3), //observer2 observes observer3 setting intObservable to 3
+                    new (3, 3), //observer3 observes observer3 setting intObservable to 3
+                    new (5, 1), //observer5 observes external setting intObservable to 1
+                    new (5, 2), //observer5 observes observer2 setting intObservable to 2
+                    new (5, 3) //observer5 observes observer3 setting intObservable to 3
+                },
+                observerCallOrder
+            );
+        }
+
+        [Test]
+        public void TestCombineObservable()
+        {
+            var context = new ObservationContext();
+
+            ObservableValue<int> intObservable = new ObservableValue<int>(context);
+            ObservableValue<string> stringObservable = new ObservableValue<string>(context);
+
+            var query = Observables.ObservableCombine(context, intObservable, stringObservable);
+
+            List<(IObservable source, object value)> observerCallOrder = new List<(IObservable source, object value)>();
+
+            IDisposable subscription = query.Subscribe(
+                onOperation: ops =>
+                {
+                    UnityEngine.Debug.Log("EP: Batch is\n" + string.Join("\n", ops.Select(x => $"{x.source} {x.value}")));
+
+                    foreach (var op in ops)
+                        observerCallOrder.Add(new(op.source, op.value));
+
+                    if (intObservable.value == 2)
+                    {
+                        intObservable.value = 6;
+                        intObservable.value = 7;
+                        intObservable.value = 8;
+                        stringObservable.value = "mouse";
+                    }
+                }
+            );
+
+            intObservable.value = 1;
+            stringObservable.value = "cat";
+            stringObservable.value = "dog";
+            intObservable.value = 2;
+            stringObservable.value = "frog";
+            intObservable.value = 3;
+            intObservable.value = 4;
+
+            UnityEngine.Debug.Log("EP:\n" + string.Join("\n", observerCallOrder.Select(x => $"{x.source} {x.value}")));
+
+            Assert.AreEqual(
+                new List<(IObservable source, object value)>()
+                {
+                    new(intObservable, 0),
+                    new(stringObservable, null),
+                    new(intObservable, 1),
+                    new(stringObservable, "cat"),
+                    new(stringObservable, "dog"),
+                    new(intObservable, 2),
+                    new(stringObservable, "frog"),
+                    new(intObservable, 3),
+                    new(intObservable, 4),
                 },
                 observerCallOrder
             );
