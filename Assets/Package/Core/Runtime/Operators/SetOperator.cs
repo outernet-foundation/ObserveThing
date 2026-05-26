@@ -21,7 +21,7 @@ namespace ObserveThing
             _operator = _operatorFactory(this);
         }
 
-        protected override void OnLastLastRemoved()
+        protected override void OnLastObserverRemoved()
         {
             _active = false;
             _operator?.Dispose();

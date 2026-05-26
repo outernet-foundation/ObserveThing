@@ -125,7 +125,10 @@ namespace ObserveThing
                     observer.EnqueuePendingOperation(opClone);
 
                     if (!observer.pending)
+                    {
+                        observer.pending = true;
                         context.RegisterPendingObserver(observer);
+                    }
                 }
             }
 

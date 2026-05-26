@@ -140,7 +140,7 @@ namespace ObserveThing
                 return;
 
             if (_observers.Count == 0)
-                OnLastLastRemoved();
+                OnLastObserverRemoved();
 
             context.DeallocateObserverPriority(data.priority);
         }
@@ -155,7 +155,10 @@ namespace ObserveThing
                 observer.EnqueuePendingOperation(operation);
 
                 if (!observer.pending)
+                {
+                    observer.pending = true;
                     context.RegisterPendingObserver(observer);
+                }
             }
 
             context.NotifyPendingObserversIfNecessary();
@@ -163,7 +166,7 @@ namespace ObserveThing
 
         protected abstract IReadOnlyList<T> GetInitializationOperations();
         protected virtual void OnFirstObserverAdded() { }
-        protected virtual void OnLastLastRemoved() { }
+        protected virtual void OnLastObserverRemoved() { }
         protected virtual void DisposeInternal() { }
 
         protected void OnError(Exception error)
