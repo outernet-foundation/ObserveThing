@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace ObserveThing
 {
@@ -8,10 +9,15 @@ namespace ObserveThing
         public static ObservationContext DefaultObservationContext = new ObservationContext();
     }
 
+    public interface IOperation
+    {
+        IObservable source { get; }
+    }
+
     public interface IObserver
     {
         bool immediate { get; }
-        void OnNext(object args);
+        void OnNext(IOperation operation);
         void OnError(Exception exc);
         void OnDispose();
     }
@@ -19,11 +25,11 @@ namespace ObserveThing
     public class Observer : IObserver
     {
         public bool immediate { get; }
-        private Action<object> _onNext;
+        private Action<IOperation> _onNext;
         private Action<Exception> _onError;
         private Action _onDispose;
 
-        public Observer(Action<object> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+        public Observer(Action<IOperation> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
         {
             _onNext = onNext;
             _onError = onError;
@@ -31,7 +37,7 @@ namespace ObserveThing
             this.immediate = immediate;
         }
 
-        public void OnNext(object onNext)
+        public void OnNext(IOperation onNext)
         {
             try
             {
@@ -50,7 +56,7 @@ namespace ObserveThing
     public interface IObserver<in T>
     {
         bool immediate { get; }
-        void OnNext(T args);
+        void OnNext(T operation);
         void OnError(Exception exc);
         void OnDispose();
     }

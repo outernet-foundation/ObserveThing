@@ -1,0 +1,75 @@
+using System;
+
+namespace ObserveThing
+{
+    public class ShallowCopyValueObservable<T> : IDisposable
+    {
+        private IDisposable _sourceStream;
+        private IObserver<IValueOperation<T>> _receiver;
+        private IDisposable _nestedSubscription = default;
+        private Observer<IValueOperation<T>> _nestedObserver;
+        private T _latest;
+        private bool _disposed;
+
+        public ShallowCopyValueObservable(IValueObservable<IValueObservable<T>> source, IObserver<IValueOperation<T>> receiver)
+        {
+            _receiver = receiver;
+
+            _nestedObserver = new Observer<IValueOperation<T>>(
+                onNext: x =>
+                {
+                    // TODO: FIX ME
+                    if (!Equals(x, _latest))
+                    {
+                        _latest = x.value;
+                        _receiver.OnNext(x);
+                    }
+                },
+                onError: _receiver.OnError,
+                immediate: receiver.immediate
+            );
+
+            _sourceStream = source.Subscribe(
+                onNext: HandleNext,
+                onError: _receiver.OnError,
+                onDispose: Dispose,
+                immediate: receiver.immediate
+            );
+
+            if (Equals(_latest, default(T)))
+                _receiver.OnNext(default);
+        }
+
+        private void HandleNext(IValueObservable<T> value)
+        {
+            _nestedSubscription?.Dispose();
+            _nestedSubscription = null;
+
+            if (value == null)
+            {
+                if (!Equals(_latest, default(T)))
+                {
+                    _latest = default;
+                    _receiver.OnNext(default);
+                }
+
+                return;
+            }
+
+            _nestedSubscription = value?.Subscribe(_nestedObserver);
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+
+            _sourceStream.Dispose();
+            _nestedSubscription?.Dispose();
+
+            _receiver.OnDispose();
+        }
+    }
+}

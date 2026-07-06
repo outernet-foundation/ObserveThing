@@ -5,27 +5,37 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public struct ListOpArgs<T>
+    public interface IListOperation : ICollectionOperation
     {
-        public uint id { get; }
-        public int index { get; }
-        public T element { get; }
-        public bool isRemove { get; }
-
-        public ListOpArgs(uint id, int index, T element, bool isRemove)
-        {
-            this.id = id;
-            this.index = index;
-            this.element = element;
-            this.isRemove = isRemove;
-        }
+        int index { get; }
     }
 
-    public class ObservableListBase<T> : Observable<ListOpArgs<T>>, IListObservable<T>
+    public interface IListOperation<out T> : IListOperation, ICollectionOperation<T> { }
+
+    public class ObservableListBase<T> : Observable<IListOperation<T>>, IListObservable<T>
     {
+        private class ListOperation : IListOperation<T>
+        {
+            public IObservable source { get; set; }
+            public uint elementId { get; set; }
+            public OpType opType { get; set; }
+            public int index { get; set; }
+            public T element { get; set; }
+
+            public void Reset()
+            {
+                source = default;
+                elementId = default;
+                opType = default;
+                index = default;
+                element = default;
+            }
+        }
+
         private List<(uint id, T value)> _list = new List<(uint id, T value)>();
         private CollectionIdProvider _idProvider;
 
+        public ObservableListBase(ObservationContext context) : this(context, null) { }
         public ObservableListBase(ObservationContext context, IEnumerable<T> value) : base(context)
         {
             _idProvider = new CollectionIdProvider(x => _list.Any(item => item.id == x));
@@ -37,14 +47,32 @@ namespace ObserveThing
                 _list.Add(new(_idProvider.GetUnusedId(), element));
         }
 
+        private ListOperation AllocateOperation(uint id, int index, OpType opType, T element)
+        {
+            var op = context.AllocatePooledOperation<ListOperation>();
+            op.source = this;
+            op.elementId = id;
+            op.index = index;
+            op.opType = opType;
+            op.element = element;
+            return op;
+        }
+
         protected int GetCountInternal()
             => _list.Count;
 
         protected IEnumerable<(uint id, T value)> ElementsInternal()
             => _list;
 
-        protected override IReadOnlyList<ListOpArgs<T>> GetInitializationOperations()
-            => _list.Select((element, index) => new ListOpArgs<T>(element.id, index, element.value, false)).ToArray();
+        protected override IReadOnlyList<IListOperation<T>> GetInitializationOperations()
+            => _list.Select((element, index) => AllocateOperation(element.id, index, OpType.Add, element.value)).ToArray();
+
+        protected override void HandleOperationNotificationsComplete(IListOperation<T> operation)
+        {
+            var op = (ListOperation)operation;
+            op.Reset();
+            context.DeallocatePooledOperation(op);
+        }
 
         protected void AddInternal(T added)
             => InsertInternal(_list.Count, added);
@@ -70,14 +98,14 @@ namespace ObserveThing
         {
             var removed = _list[index];
             _list.RemoveAt(index);
-            EnqueuePendingOperation(new ListOpArgs<T>(removed.id, index, removed.value, true));
+            EnqueuePendingOperation(AllocateOperation(removed.id, index, OpType.Remove, removed.value));
         }
 
         protected void InsertInternal(int index, T item)
         {
             (uint id, T value) inserted = new(_idProvider.GetUnusedId(), item);
             _list.Insert(index, inserted);
-            EnqueuePendingOperation(new ListOpArgs<T>(inserted.id, index, inserted.value, false));
+            EnqueuePendingOperation(AllocateOperation(inserted.id, index, OpType.Add, inserted.value));
         }
 
         protected void ClearInternal()
@@ -98,96 +126,28 @@ namespace ObserveThing
         protected bool ContainsInternal(T item)
             => _list.Any(x => Equals(x.value, item));
 
-        public IDisposable Subscribe(IListObserver<T> observer)
-            => Subscribe(
-                new Observer<ListOpArgs<T>>(
-                    onOperation: ops =>
-                    {
-                        foreach (var op in ops)
-                        {
-                            if (op.isRemove)
-                            {
-                                observer.OnRemove(op.id, op.index, op.element);
-                            }
-                            else
-                            {
-                                observer.OnAdd(op.id, op.index, op.element);
-                            }
-                        }
-                    },
-                    onError: observer.OnError,
-                    onDispose: observer.OnDispose,
-                    immediate: observer.immediate
-                )
-            );
+        public IDisposable Subscribe(IObserver<IListOperation> observer)
+            => Subscribe(new Observer<IListOperation<T>>(
+                immediate: observer.immediate,
+                onNext: observer.OnNext,
+                onError: observer.OnError,
+                onDispose: observer.OnDispose
+            ));
 
-        public IDisposable Subscribe(ICollectionObserver<T> observer)
-            => Subscribe(
-                new Observer<ListOpArgs<T>>(
-                    onOperation: ops =>
-                    {
-                        foreach (var op in ops)
-                        {
-                            if (op.isRemove)
-                            {
-                                observer.OnRemove(op.id, op.element);
-                            }
-                            else
-                            {
-                                observer.OnAdd(op.id, op.element);
-                            }
-                        }
-                    },
-                    onError: observer.OnError,
-                    onDispose: observer.OnDispose,
-                    immediate: observer.immediate
-                )
-            );
+        public IDisposable Subscribe(IObserver<ICollectionOperation<T>> observer)
+            => Subscribe(new Observer<IListOperation<T>>(
+                immediate: observer.immediate,
+                onNext: observer.OnNext,
+                onError: observer.OnError,
+                onDispose: observer.OnDispose
+            ));
 
-        public IDisposable Subscribe(ICollectionObserver observer)
-            => Subscribe(
-                new Observer<ListOpArgs<T>>(
-                    onOperation: ops =>
-                    {
-                        foreach (var op in ops)
-                        {
-                            if (op.isRemove)
-                            {
-                                observer.OnRemove(op.id, op.element);
-                            }
-                            else
-                            {
-                                observer.OnAdd(op.id, op.element);
-                            }
-                        }
-                    },
-                    onError: observer.OnError,
-                    onDispose: observer.OnDispose,
-                    immediate: observer.immediate
-                )
-            );
-
-        public IDisposable Subscribe(IListObserver observer)
-            => Subscribe(
-                new Observer<ListOpArgs<T>>(
-                    onOperation: ops =>
-                    {
-                        foreach (var op in ops)
-                        {
-                            if (op.isRemove)
-                            {
-                                observer.OnRemove(op.id, op.index, op.element);
-                            }
-                            else
-                            {
-                                observer.OnAdd(op.id, op.index, op.element);
-                            }
-                        }
-                    },
-                    onError: observer.OnError,
-                    onDispose: observer.OnDispose,
-                    immediate: observer.immediate
-                )
-            );
+        public IDisposable Subscribe(IObserver<ICollectionOperation> observer)
+            => Subscribe(new Observer<IListOperation<T>>(
+                immediate: observer.immediate,
+                onNext: observer.OnNext,
+                onError: observer.OnError,
+                onDispose: observer.OnDispose
+            ));
     }
 }

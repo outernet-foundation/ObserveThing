@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
-using NUnit.Framework.Constraints;
 
 namespace ObserveThing
 {
     public interface IObservable
     {
+        ObservationContext context { get; }
         IDisposable Subscribe(IObserver observer);
     }
 
@@ -14,44 +14,54 @@ namespace ObserveThing
         IDisposable Subscribe(IObserver<T> observer);
     }
 
-    public interface IValueObservable
+    public interface IValueObservable : IObservable
     {
-        IDisposable Subscribe(IValueObserver observer);
+        IDisposable Subscribe(IObserver<IValueOperation> observer);
     }
 
     public interface IValueObservable<out T> : IValueObservable
     {
-        IDisposable Subscribe(IValueObserver<T> observer);
+        IDisposable Subscribe(IObserver<IValueOperation<T>> observer);
     }
 
-    public interface ICollectionObservable
+    public interface ICollectionObservable : IObservable
     {
-        IDisposable Subscribe(ICollectionObserver observer);
+        IDisposable Subscribe(IObserver<ICollectionOperation> observer);
     }
 
     public interface ICollectionObservable<out T> : ICollectionObservable
     {
-        IDisposable Subscribe(ICollectionObserver<T> observer);
+        IDisposable Subscribe(IObserver<ICollectionOperation<T>> observer);
+    }
+
+    public interface ISetObservable : ICollectionObservable
+    {
+        IDisposable Subscribe(IObserver<ISetOperation> observer);
     }
 
     public interface ISetObservable<out T> : ICollectionObservable<T>
     {
-        IDisposable Subscribe(ISetObserver<T> observer);
+        IDisposable Subscribe(IObserver<ISetOperation<T>> observer);
+    }
+
+    public interface IDictionaryObservable : ICollectionObservable
+    {
+        IDisposable Subscribe(IObserver<IDictionaryOperation> observer);
     }
 
     public interface IDictionaryObservable<TKey, TValue> : ICollectionObservable<KeyValuePair<TKey, TValue>>
     {
-        IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer);
+        IDisposable Subscribe(IObserver<IDictionaryOperation<TKey, TValue>> observer);
     }
 
     public interface IListObservable : ICollectionObservable
     {
-        IDisposable Subscribe(IListObserver observer);
+        IDisposable Subscribe(IObserver<IListOperation> observer);
     }
 
     public interface IListObservable<out T> : ICollectionObservable<T>, IListObservable
     {
-        IDisposable Subscribe(IListObserver<T> observer);
+        IDisposable Subscribe(IObserver<IListOperation<T>> observer);
     }
 
     public static class Observables
@@ -84,9 +94,9 @@ namespace ObserveThing
             => new CombineObservable(context, source, disposeOnSourceEmpty);
 
         public static IValueObservable<T> ObservableThen<T>(this IValueObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default)
-            => new ValueOperator<T>(receiver => new ThenObservable<T>(source, new ValueObserver<T>(onNext, onError, onDispose), receiver));
+            => new ValueOperator<T>(receiver => new ThenObservable<T>(source, new Observer<IValueOperation<T>>(onNext, onError, onDispose), receiver));
 
-        public static IValueObservable<T> ObservableThen<T>(this IValueObservable<T> source, IValueObserver<T> thenObserver)
+        public static IValueObservable<T> ObservableThen<T>(this IValueObservable<T> source, IObserver<IValueOperation<T>> thenObserver)
             => new ValueOperator<T>(receiver => new ThenObservable<T>(source, thenObserver, receiver));
 
         public static IValueObservable<TResult> ObservableCombineValues<T1, T2, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, Func<T1, T2, IValueObservable<TResult>> select, ObservationContext context = default)
@@ -162,17 +172,16 @@ namespace ObserveThing
             => new CollectionOperator<T>(context, receiver => new ShallowCopyCollectionObservable<T>(source, receiver));
 
         public static ICollectionObservable<T> ObservableForEach<T>(this ICollectionObservable<T> source, Action<T> onAdd = default, Action<T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
-            => source.ObservableForEach(new CollectionObserver<T>(
-                onAdd == null ? null : (_, value) => onAdd(value),
-                onRemove == null ? null : (_, value) => onRemove(value),
+            => source.ObservableForEach(new Observer<ICollectionOperation<T>>(
+                onNext: x => (x.opType == OpType.Add ? onAdd : onRemove)?.Invoke(x.element),
                 onError,
                 onDispose
             ));
 
         public static ICollectionObservable<T> ObservableForEachWithIds<T>(this ICollectionObservable<T> source, Action<uint, T> onAdd = default, Action<uint, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
-            => source.ObservableForEach(new CollectionObserver<T>(onAdd, onRemove, onError, onDispose));
+            => source.ObservableForEach(new Observer<ICollectionOperation<T>>(onAdd, onRemove, onError, onDispose));
 
-        public static ICollectionObservable<T> ObservableForEach<T>(this ICollectionObservable<T> source, ICollectionObserver<T> forEachObserver)
+        public static ICollectionObservable<T> ObservableForEach<T>(this ICollectionObservable<T> source, IObserver<ICollectionOperation<T>> forEachObserver)
             => new CollectionOperator<T>(receiver => new ForEachCollectionObservable<T>(source, forEachObserver, receiver));
 
         public static ICollectionObservable<U> ObservableSelect<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> select, ObservationContext context = default)
@@ -236,7 +245,7 @@ namespace ObserveThing
             => new ValueOperator<(bool found, T value)>(context, receiver => new FirstObservable<T>(source, validate, receiver));
 
         public static IDictionaryObservable<TKey, TValue> ObservableForEach<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<KeyValuePair<TKey, TValue>> onAdd = default, Action<KeyValuePair<TKey, TValue>> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
-                    => source.ObservableForEach(new DictionaryObserver<TKey, TValue>(
+                    => source.ObservableForEach(new Observer<IDictionaryOperation<TKey, TValue>>(
                         onAdd == null ? null : (_, value) => onAdd(value),
                         onRemove == null ? null : (_, value) => onRemove(value),
                         onError,
@@ -244,9 +253,9 @@ namespace ObserveThing
                     ));
 
         public static IDictionaryObservable<TKey, TValue> ObservableForEachWithIds<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<uint, KeyValuePair<TKey, TValue>> onAdd = default, Action<uint, KeyValuePair<TKey, TValue>> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
-            => source.ObservableForEach(new DictionaryObserver<TKey, TValue>(onAdd, onRemove, onError, onDispose));
+            => source.ObservableForEach(new Observer<IDictionaryOperation<TKey, TValue>>(onAdd, onRemove, onError, onDispose));
 
-        public static IDictionaryObservable<TKey, TValue> ObservableForEach<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, IDictionaryObserver<TKey, TValue> forEachObserver)
+        public static IDictionaryObservable<TKey, TValue> ObservableForEach<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, IObserver<IDictionaryOperation<TKey, TValue>> forEachObserver)
             => new DictionaryOperator<TKey, TValue>(receiver => new ForEachDictionaryObservable<TKey, TValue>(source, forEachObserver, receiver));
 
         public static IValueObservable<(bool keyPresent, TValue value)> ObservableTrack<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, TKey key, ObservationContext context = default)
@@ -262,17 +271,17 @@ namespace ObserveThing
             => new ListOperator<T>(context, receiver => new ShallowCopyListObservable<T>(source, receiver));
 
         public static IListObservable<T> ObservableForEach<T>(this IListObservable<T> source, Action<int, T> onAdd = default, Action<int, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
-                    => source.ObservableForEach(new ListObserver<T>(
-                        onAdd == null ? null : (_, index, value) => onAdd(index, value),
-                        onRemove == null ? null : (_, index, value) => onRemove(index, value),
-                        onError,
-                        onDispose
-                    ));
+            => source.ObservableForEach(new Observer<IListOperation<T>>(
+                onAdd == null ? null : (_, index, value) => onAdd(index, value),
+                onRemove == null ? null : (_, index, value) => onRemove(index, value),
+                onError,
+                onDispose
+            ));
 
         public static IListObservable<T> ObservableForEachWithIds<T>(this IListObservable<T> source, Action<uint, int, T> onAdd = default, Action<uint, int, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default)
-            => source.ObservableForEach(new ListObserver<T>(onAdd, onRemove, onError, onDispose));
+            => source.ObservableForEach(new Observer<IListOperation<T>>(x => (x.opType == OpType.Add ? onAdd : onRemove)?.Invoke(x.elementId, x.index, x.element), onError, onDispose));
 
-        public static IListObservable<T> ObservableForEach<T>(this IListObservable<T> source, IListObserver<T> forEachObserver)
+        public static IListObservable<T> ObservableForEach<T>(this IListObservable<T> source, IObserver<IListOperation<T>> forEachObserver)
             => new ListOperator<T>(receiver => new ForEachListObservable<T>(source, forEachObserver, receiver));
 
         public static IListObservable<U> ObservableSelect<T, U>(this IListObservable<T> source, Func<T, U> select, ObservationContext context = default)
@@ -306,24 +315,16 @@ namespace ObserveThing
             return result;
         }
 
-        public static IDisposable Subscribe(this IObservable source, Action<IReadOnlyList<IOperation>> onOperation = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+        public static IDisposable Subscribe(this IObservable source, Action<IOperation> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
             => source.Subscribe(new Observer(
-                onOperation: onOperation,
+                onNext: onNext,
                 onError: onError,
                 onDispose: onDispose,
                 immediate: immediate
             ));
 
-        public static IDisposable Subscribe<T>(this IObservable<T> source, Action<IReadOnlyList<T>> onOperation = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+        public static IDisposable Subscribe<T>(this IObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
             => source.Subscribe(new Observer<T>(
-                onOperation: onOperation,
-                onError: onError,
-                onDispose: onDispose,
-                immediate: immediate
-            ));
-
-        public static IDisposable Subscribe(this IValueObservable source, Action<object> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new ValueObserver(
                 onNext: onNext,
                 onError: onError,
                 onDispose: onDispose,
@@ -331,7 +332,23 @@ namespace ObserveThing
             ));
 
         public static IDisposable Subscribe<T>(this IValueObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new ValueObserver<T>(
+            => source.Subscribe(new Observer<IValueOperation<T>>(
+                onNext: onNext == null ? null : x => onNext.Invoke(x.value),
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable Subscribe(this IValueObservable source, Action<object> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new Observer<IValueOperation>(
+                onNext: onNext == null ? null : x => onNext.Invoke(x.value),
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable Subscribe<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<IDictionaryOperation<TKey, TValue>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new Observer<IDictionaryOperation<TKey, TValue>>(
                 onNext: onNext,
                 onError: onError,
                 onDispose: onDispose,
@@ -339,130 +356,207 @@ namespace ObserveThing
             ));
 
         public static IDisposable Subscribe<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<KeyValuePair<TKey, TValue>> onAdd = default, Action<KeyValuePair<TKey, TValue>> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new DictionaryObserver<TKey, TValue>(
-                onAdd: onAdd == null ? null : (_, x) => onAdd(x),
-                onRemove: onRemove == null ? null : (_, x) => onRemove(x),
+            => source.Subscribe(new Observer<IDictionaryOperation<TKey, TValue>>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(op.element),
                 onError: onError,
                 onDispose: onDispose,
                 immediate: immediate
             ));
 
         public static IDisposable SubscribeWithId<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<uint, KeyValuePair<TKey, TValue>> onAdd = default, Action<uint, KeyValuePair<TKey, TValue>> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new DictionaryObserver<TKey, TValue>(
-                onAdd: onAdd,
-                onRemove: onRemove,
+            => source.Subscribe(new Observer<IDictionaryOperation<TKey, TValue>>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(op.elementId, op.element),
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable Subscribe(this IDictionaryObservable source, Action<IDictionaryOperation> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new Observer<IDictionaryOperation>(
+                onNext: onNext,
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable Subscribe(this IDictionaryObservable source, Action<KeyValuePair<object, object>> onAdd = default, Action<KeyValuePair<object, object>> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new Observer<IDictionaryOperation>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(KeyValuePair.Create(op.key, op.value)),
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable SubscribeWithId(this IDictionaryObservable source, Action<uint, KeyValuePair<object, object>> onAdd = default, Action<uint, KeyValuePair<object, object>> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new Observer<IDictionaryOperation>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(op.elementId, KeyValuePair.Create(op.key, op.value)),
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable Subscribe<T>(this IListObservable<T> source, Action<IListOperation<T>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new Observer<IListOperation<T>>(
+                onNext: onNext,
                 onError: onError,
                 onDispose: onDispose,
                 immediate: immediate
             ));
 
         public static IDisposable Subscribe<T>(this IListObservable<T> source, Action<int, T> onAdd = default, Action<int, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new ListObserver<T>(
-                onAdd: onAdd == null ? null : (_, index, x) => onAdd(index, x),
-                onRemove: onRemove == null ? null : (_, index, x) => onRemove(index, x),
+            => source.Subscribe(new Observer<IListOperation<T>>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(op.index, op.element),
                 onError: onError,
                 onDispose: onDispose,
                 immediate: immediate
             ));
 
         public static IDisposable SubscribeWithId<T>(this IListObservable<T> source, Action<uint, int, T> onAdd = default, Action<uint, int, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new ListObserver<T>(
-                onAdd: onAdd,
-                onRemove: onRemove,
+            => source.Subscribe(new Observer<IListOperation<T>>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(op.elementId, op.index, op.element),
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable Subscribe(this IListObservable source, Action<IListOperation> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new Observer<IListOperation>(
+                onNext: onNext,
                 onError: onError,
                 onDispose: onDispose,
                 immediate: immediate
             ));
 
         public static IDisposable Subscribe(this IListObservable source, Action<int, object> onAdd = default, Action<int, object> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new ListObserver(
-                onAdd: onAdd == null ? null : (_, index, x) => onAdd(index, x),
-                onRemove: onRemove == null ? null : (_, index, x) => onRemove(index, x),
+            => source.Subscribe(new Observer<IListOperation>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(op.index, op.element),
                 onError: onError,
                 onDispose: onDispose,
                 immediate: immediate
             ));
 
         public static IDisposable SubscribeWithId(this IListObservable source, Action<uint, int, object> onAdd = default, Action<uint, int, object> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new ListObserver(
-                onAdd: onAdd,
-                onRemove: onRemove,
+            => source.Subscribe(new Observer<IListOperation>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(op.elementId, op.index, op.element),
                 onError: onError,
                 onDispose: onDispose,
                 immediate: immediate
             ));
 
+        public static IDisposable Subscribe<T>(this ISetObservable<T> source, Action<ISetOperation<T>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new Observer<ISetOperation<T>>(
+                onNext: onNext,
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+
         public static IDisposable Subscribe<T>(this ISetObservable<T> source, Action<T> onAdd = default, Action<T> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new SetObserver<T>(
-                onAdd: onAdd == null ? null : (_, x) => onAdd(x),
-                onRemove: onRemove == null ? null : (_, x) => onRemove(x),
+            => source.Subscribe(new Observer<ISetOperation<T>>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(op.element),
                 onError: onError,
                 onDispose: onDispose,
                 immediate: immediate
             ));
 
         public static IDisposable SubscribeWithId<T>(this ISetObservable<T> source, Action<uint, T> onAdd = default, Action<uint, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new SetObserver<T>(
-                onAdd: onAdd,
-                onRemove: onRemove,
+            => source.Subscribe(new Observer<ISetOperation<T>>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(op.elementId, op.element),
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable Subscribe(this ISetObservable source, Action<ISetOperation> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new Observer<ISetOperation>(
+                onNext: onNext,
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable Subscribe(this ISetObservable source, Action<object> onAdd = default, Action<object> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new Observer<ISetOperation>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(op.element),
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable SubscribeWithId(this ISetObservable source, Action<uint, object> onAdd = default, Action<uint, object> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new Observer<ISetOperation>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(op.elementId, op.element),
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable Subscribe<T>(this ICollectionObservable<T> source, Action<ICollectionOperation<T>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new Observer<ICollectionOperation<T>>(
+                onNext: onNext,
                 onError: onError,
                 onDispose: onDispose,
                 immediate: immediate
             ));
 
         public static IDisposable Subscribe<T>(this ICollectionObservable<T> source, Action<T> onAdd = default, Action<T> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new CollectionObserver<T>(
-                onAdd: onAdd == null ? null : (_, x) => onAdd(x),
-                onRemove: onRemove == null ? null : (_, x) => onRemove(x),
+            => source.Subscribe(new Observer<ICollectionOperation<T>>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(op.element),
                 onError: onError,
                 onDispose: onDispose,
                 immediate: immediate
             ));
 
         public static IDisposable SubscribeWithId<T>(this ICollectionObservable<T> source, Action<uint, T> onAdd = default, Action<uint, T> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new CollectionObserver<T>(
-                onAdd: onAdd,
-                onRemove: onRemove,
+            => source.Subscribe(new Observer<ICollectionOperation<T>>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(op.elementId, op.element),
+                onError: onError,
+                onDispose: onDispose,
+                immediate: immediate
+            ));
+
+        public static IDisposable Subscribe(this ICollectionObservable source, Action<ICollectionOperation> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+            => source.Subscribe(new Observer<ICollectionOperation>(
+                onNext: onNext,
                 onError: onError,
                 onDispose: onDispose,
                 immediate: immediate
             ));
 
         public static IDisposable Subscribe(this ICollectionObservable source, Action<object> onAdd = default, Action<object> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new CollectionObserver(
-                onAdd: onAdd == null ? null : (_, x) => onAdd(x),
-                onRemove: onRemove == null ? null : (_, x) => onRemove(x),
+            => source.Subscribe(new Observer<ICollectionOperation>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(op.element),
                 onError: onError,
                 onDispose: onDispose,
                 immediate: immediate
             ));
 
         public static IDisposable SubscribeWithId(this ICollectionObservable source, Action<uint, object> onAdd = default, Action<uint, object> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new CollectionObserver(
-                onAdd: onAdd,
-                onRemove: onRemove,
+            => source.Subscribe(new Observer<ICollectionOperation>(
+                onNext: op => (op.opType == OpType.Add ? onAdd : onRemove)?.Invoke(op.elementId, op.element),
                 onError: onError,
                 onDispose: onDispose,
                 immediate: immediate
             ));
 
         public static IDisposable Subscribe<T1, T2>(this IValueObservable<(T1, T2)> source, Action<T1, T2> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new ValueObserver<(T1, T2)>(onNext: x => onNext?.Invoke(x.Item1, x.Item2), onError: onError, onDispose: onDispose, immediate: immediate));
+            => source.Subscribe(new Observer<IValueOperation<(T1, T2)>>(onNext: x => onNext?.Invoke(x.value.Item1, x.value.Item2), onError: onError, onDispose: onDispose, immediate: immediate));
 
         public static IDisposable Subscribe<T1, T2, T3>(this IValueObservable<(T1, T2, T3)> source, Action<T1, T2, T3> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new ValueObserver<(T1, T2, T3)>(onNext: x => onNext?.Invoke(x.Item1, x.Item2, x.Item3), onError: onError, onDispose: onDispose, immediate: immediate));
+            => source.Subscribe(new Observer<IValueOperation<(T1, T2, T3)>>(onNext: x => onNext?.Invoke(x.value.Item1, x.value.Item2, x.value.Item3), onError: onError, onDispose: onDispose, immediate: immediate));
 
         public static IDisposable Subscribe<T1, T2, T3, T4>(this IValueObservable<(T1, T2, T3, T4)> source, Action<T1, T2, T3, T4> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new ValueObserver<(T1, T2, T3, T4)>(onNext: x => onNext?.Invoke(x.Item1, x.Item2, x.Item3, x.Item4), onError: onError, onDispose: onDispose, immediate: immediate));
+            => source.Subscribe(new Observer<IValueOperation<(T1, T2, T3, T4)>>(onNext: x => onNext?.Invoke(x.value.Item1, x.value.Item2, x.value.Item3, x.value.Item4), onError: onError, onDispose: onDispose, immediate: immediate));
 
         public static IDisposable Subscribe<T1, T2, T3, T4, T5>(this IValueObservable<(T1, T2, T3, T4, T5)> source, Action<T1, T2, T3, T4, T5> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new ValueObserver<(T1, T2, T3, T4, T5)>(onNext: x => onNext?.Invoke(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5), onError: onError, onDispose: onDispose, immediate: immediate));
+            => source.Subscribe(new Observer<IValueOperation<(T1, T2, T3, T4, T5)>>(onNext: x => onNext?.Invoke(x.value.Item1, x.value.Item2, x.value.Item3, x.value.Item4, x.value.Item5), onError: onError, onDispose: onDispose, immediate: immediate));
 
         public static IDisposable Subscribe<T1, T2, T3, T4, T5, T6>(this IValueObservable<(T1, T2, T3, T4, T5, T6)> source, Action<T1, T2, T3, T4, T5, T6> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new ValueObserver<(T1, T2, T3, T4, T5, T6)>(onNext: x => onNext?.Invoke(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5, x.Item6), onError: onError, onDispose: onDispose, immediate: immediate));
+            => source.Subscribe(new Observer<IValueOperation<(T1, T2, T3, T4, T5, T6)>>(onNext: x => onNext?.Invoke(x.value.Item1, x.value.Item2, x.value.Item3, x.value.Item4, x.value.Item5, x.value.Item6), onError: onError, onDispose: onDispose, immediate: immediate));
 
         public static IDisposable Subscribe<T1, T2, T3, T4, T5, T6, T7>(this IValueObservable<(T1, T2, T3, T4, T5, T6, T7)> source, Action<T1, T2, T3, T4, T5, T6, T7> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
-            => source.Subscribe(new ValueObserver<(T1, T2, T3, T4, T5, T6, T7)>(onNext: x => onNext?.Invoke(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5, x.Item6, x.Item7), onError: onError, onDispose: onDispose, immediate: immediate));
+            => source.Subscribe(new Observer<IValueOperation<(T1, T2, T3, T4, T5, T6, T7)>>(onNext: x => onNext?.Invoke(x.value.Item1, x.value.Item2, x.value.Item3, x.value.Item4, x.value.Item5, x.value.Item6, x.value.Item7), onError: onError, onDispose: onDispose, immediate: immediate));
     }
 
     public class Disposable : IDisposable

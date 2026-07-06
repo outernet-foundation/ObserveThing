@@ -1,30 +1,35 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace ObserveThing
 {
-    public struct SetOpArgs<T>
-    {
-        public uint id { get; }
-        public T element { get; }
-        public bool isRemove { get; }
+    public interface ISetOperation : ICollectionOperation { }
 
-        public SetOpArgs(uint id, T element, bool isRemove)
+    public interface ISetOperation<out T> : ISetOperation, ICollectionOperation<T> { }
+
+    public class ObservableSetBase<T> : Observable<ISetOperation<T>>, ISetObservable<T>
+    {
+        private class SetOperation : ISetOperation<T>
         {
-            this.id = id;
-            this.element = element;
-            this.isRemove = isRemove;
-        }
-    }
+            public IObservable source { get; set; }
+            public uint elementId { get; set; }
+            public OpType opType { get; set; }
+            public T element { get; set; }
 
-    public class ObservableSetBase<T> : Observable<SetOpArgs<T>>, ISetObservable<T>
-    {
+            public void Reset()
+            {
+                source = default;
+                elementId = default;
+                opType = default;
+                element = default;
+            }
+        }
+
         private Dictionary<T, uint> _set = new Dictionary<T, uint>();
         private CollectionIdProvider _idProvider;
-        private List<SetOpArgs<T>> _initOps = new List<SetOpArgs<T>>();
 
+        public ObservableSetBase(ObservationContext context) : this(context, null) { }
         public ObservableSetBase(ObservationContext context, IEnumerable<T> values) : base(context)
         {
             _idProvider = new CollectionIdProvider(x => _set.ContainsValue(x));
@@ -36,14 +41,31 @@ namespace ObserveThing
                 _set.Add(value, _idProvider.GetUnusedId());
         }
 
+        private SetOperation AllocateOperation(uint id, OpType opType, T element)
+        {
+            var op = context.AllocatePooledOperation<SetOperation>();
+            op.source = this;
+            op.elementId = id;
+            op.opType = opType;
+            op.element = element;
+            return op;
+        }
+
+        protected override IReadOnlyList<ISetOperation<T>> GetInitializationOperations()
+            => _set.Select(x => AllocateOperation(x.Value, OpType.Add, x.Key)).ToArray();
+
+        protected override void HandleOperationNotificationsComplete(ISetOperation<T> operation)
+        {
+            var op = (SetOperation)operation;
+            op.Reset();
+            context.DeallocatePooledOperation(op);
+        }
+
         protected int GetCountInternal()
             => _set.Count;
 
         protected IEnumerable<KeyValuePair<T, uint>> GetElementsInternal()
             => _set;
-
-        protected override IReadOnlyList<SetOpArgs<T>> GetInitializationOperations()
-            => _set.Select(x => new SetOpArgs<T>(x.Value, x.Key, false)).ToArray();
 
         protected bool AddInternal(T element)
         {
@@ -52,7 +74,7 @@ namespace ObserveThing
 
             var id = _idProvider.GetUnusedId();
             _set.Add(element, id);
-            EnqueuePendingOperation(new SetOpArgs<T>(id, element, false));
+            EnqueuePendingOperation(AllocateOperation(id, OpType.Add, element));
             return true;
         }
 
@@ -68,7 +90,7 @@ namespace ObserveThing
                 return false;
 
             _set.Remove(element);
-            EnqueuePendingOperation(new SetOpArgs<T>(id, element, true));
+            EnqueuePendingOperation(AllocateOperation(id, OpType.Add, element));
 
             return true;
         }
@@ -78,81 +100,27 @@ namespace ObserveThing
             foreach (var kvp in _set.ToArray())
             {
                 _set.Remove(kvp.Key);
-                EnqueuePendingOperation(new SetOpArgs<T>(kvp.Value, kvp.Key, true));
+                EnqueuePendingOperation(AllocateOperation(kvp.Value, OpType.Remove, kvp.Key));
             }
         }
 
         protected bool ContainsInternal(T element)
             => _set.ContainsKey(element);
 
-        public IDisposable Subscribe(ISetObserver<T> observer)
-            => Subscribe(
-                new Observer<SetOpArgs<T>>(
-                    onOperation: ops =>
-                    {
-                        foreach (var op in ops)
-                        {
-                            if (op.isRemove)
-                            {
-                                observer.OnRemove(op.id, op.element);
-                            }
-                            else
-                            {
-                                observer.OnAdd(op.id, op.element);
-                            }
-                        }
-                    },
-                    onError: observer.OnError,
-                    onDispose: observer.OnDispose,
-                    immediate: observer.immediate
-                )
-            );
+        public IDisposable Subscribe(IObserver<ICollectionOperation<T>> observer)
+            => Subscribe(new Observer<ISetOperation<T>>(
+                immediate: observer.immediate,
+                onNext: observer.OnNext,
+                onError: observer.OnError,
+                onDispose: observer.OnDispose
+            ));
 
-        public IDisposable Subscribe(ICollectionObserver<T> observer)
-            => Subscribe(
-                new Observer<SetOpArgs<T>>(
-                    onOperation: ops =>
-                    {
-                        foreach (var op in ops)
-                        {
-                            if (op.isRemove)
-                            {
-                                observer.OnRemove(op.id, op.element);
-                            }
-                            else
-                            {
-                                observer.OnAdd(op.id, op.element);
-                            }
-                        }
-                    },
-                    onError: observer.OnError,
-                    onDispose: observer.OnDispose,
-                    immediate: observer.immediate
-                )
-            );
-
-
-        public IDisposable Subscribe(ICollectionObserver observer)
-            => Subscribe(
-                new Observer<SetOpArgs<T>>(
-                    onOperation: ops =>
-                    {
-                        foreach (var op in ops)
-                        {
-                            if (op.isRemove)
-                            {
-                                observer.OnRemove(op.id, op.element);
-                            }
-                            else
-                            {
-                                observer.OnAdd(op.id, op.element);
-                            }
-                        }
-                    },
-                    onError: observer.OnError,
-                    onDispose: observer.OnDispose,
-                    immediate: observer.immediate
-                )
-            );
+        public IDisposable Subscribe(IObserver<ICollectionOperation> observer)
+            => Subscribe(new Observer<ISetOperation<T>>(
+                immediate: observer.immediate,
+                onNext: observer.OnNext,
+                onError: observer.OnError,
+                onDispose: observer.OnDispose
+            ));
     }
 }

@@ -5,22 +5,42 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public struct DictionaryOpArgs<TKey, TValue>
+    public interface IDictionaryOperation : ICollectionOperation
     {
-        public uint id { get; }
-        public KeyValuePair<TKey, TValue> kvp { get; }
-        public bool isRemove { get; }
-
-        public DictionaryOpArgs(uint id, KeyValuePair<TKey, TValue> kvp, bool isRemove)
-        {
-            this.id = id;
-            this.kvp = kvp;
-            this.isRemove = isRemove;
-        }
+        object key { get; }
+        object value { get; }
     }
 
-    public class ObservableDictionaryBase<TKey, TValue> : Observable<DictionaryOpArgs<TKey, TValue>>, IDictionaryObservable<TKey, TValue>
+    public interface IDictionaryOperation<TKey, TValue> : IDictionaryOperation, ICollectionOperation<KeyValuePair<TKey, TValue>>
     {
+        new TKey key { get; }
+        new TValue value { get; }
+
+        object IDictionaryOperation.key => key;
+        object IDictionaryOperation.value => value;
+    }
+
+    public class ObservableDictionaryBase<TKey, TValue> : Observable<IDictionaryOperation<TKey, TValue>>, IDictionaryObservable<TKey, TValue>
+    {
+        private class DictionaryOperation : IDictionaryOperation<TKey, TValue>
+        {
+            public IObservable source { get; set; }
+            public uint elementId { get; set; }
+            public OpType opType { get; set; }
+            public TKey key { get; set; }
+            public TValue value { get; set; }
+            public KeyValuePair<TKey, TValue> element => new KeyValuePair<TKey, TValue>(key, value);
+
+            public void Reset()
+            {
+                source = default;
+                elementId = default;
+                opType = default;
+                key = default;
+                value = default;
+            }
+        }
+
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
         private CollectionIdProvider _idProvider;
 
@@ -35,6 +55,17 @@ namespace ObserveThing
                 _dictionary.Add(kvp.Key, new(_idProvider.GetUnusedId(), kvp.Value));
         }
 
+        private DictionaryOperation AllocateOperation(uint id, OpType opType, TKey key, TValue value)
+        {
+            var op = context.AllocatePooledOperation<DictionaryOperation>();
+            op.source = this;
+            op.elementId = id;
+            op.opType = opType;
+            op.key = key;
+            op.value = value;
+            return op;
+        }
+
         protected int GetCountInternal()
             => _dictionary.Count;
 
@@ -47,8 +78,15 @@ namespace ObserveThing
         protected IEnumerable<KeyValuePair<TKey, (uint id, TValue value)>> ElementsInternal()
             => _dictionary;
 
-        protected override IReadOnlyList<DictionaryOpArgs<TKey, TValue>> GetInitializationOperations()
-            => _dictionary.Select(x => new DictionaryOpArgs<TKey, TValue>(x.Value.id, KeyValuePair.Create(x.Key, x.Value.value), false)).ToArray();
+        protected override IReadOnlyList<IDictionaryOperation<TKey, TValue>> GetInitializationOperations()
+            => _dictionary.Select(x => AllocateOperation(x.Value.id, OpType.Add, x.Key, x.Value.value)).ToArray();
+
+        protected override void HandleOperationNotificationsComplete(IDictionaryOperation<TKey, TValue> operation)
+        {
+            var op = (DictionaryOperation)operation;
+            op.Reset();
+            context.DeallocatePooledOperation(op);
+        }
 
         protected void SetInternal(TKey key, TValue value)
         {
@@ -60,7 +98,7 @@ namespace ObserveThing
         {
             var id = _idProvider.GetUnusedId();
             _dictionary.Add(key, (id, value));
-            EnqueuePendingOperation(new DictionaryOpArgs<TKey, TValue>(id, new(key, value), false));
+            EnqueuePendingOperation(AllocateOperation(id, OpType.Add, key, value));
         }
 
         protected bool RemoveInternal(TKey key)
@@ -69,7 +107,7 @@ namespace ObserveThing
                 return false;
 
             _dictionary.Remove(key);
-            EnqueuePendingOperation(new DictionaryOpArgs<TKey, TValue>(data.id, new(key, data.value), true));
+            EnqueuePendingOperation(AllocateOperation(data.id, OpType.Remove, key, data.value));
 
             return true;
         }
@@ -79,7 +117,7 @@ namespace ObserveThing
             foreach (var kvp in _dictionary.ToArray())
             {
                 _dictionary.Remove(kvp.Key);
-                EnqueuePendingOperation(new DictionaryOpArgs<TKey, TValue>(kvp.Value.id, new(kvp.Key, kvp.Value.value), true));
+                EnqueuePendingOperation(AllocateOperation(kvp.Value.id, OpType.Remove, kvp.Key, kvp.Value.value));
             }
         }
 
@@ -110,73 +148,20 @@ namespace ObserveThing
         protected bool ContainsValueInternal(TValue value)
             => _dictionary.Values.Select(x => x.value).Contains(value);
 
-        public IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer)
-            => Subscribe(
-                new Observer<DictionaryOpArgs<TKey, TValue>>(
-                    onOperation: ops =>
-                    {
-                        foreach (var op in ops)
-                        {
-                            if (op.isRemove)
-                            {
-                                observer.OnRemove(op.id, op.kvp);
-                            }
-                            else
-                            {
-                                observer.OnAdd(op.id, op.kvp);
-                            }
-                        }
-                    },
-                    onError: observer.OnError,
-                    onDispose: observer.OnDispose,
-                    immediate: observer.immediate
-                )
-            );
+        public IDisposable Subscribe(IObserver<ICollectionOperation<KeyValuePair<TKey, TValue>>> observer)
+            => Subscribe(new Observer<IDictionaryOperation<TKey, TValue>>(
+                immediate: observer.immediate,
+                onNext: observer.OnNext,
+                onError: observer.OnError,
+                onDispose: observer.OnDispose
+            ));
 
-        public IDisposable Subscribe(ICollectionObserver<KeyValuePair<TKey, TValue>> observer)
-            => Subscribe(
-                new Observer<DictionaryOpArgs<TKey, TValue>>(
-                    onOperation: ops =>
-                    {
-                        foreach (var op in ops)
-                        {
-                            if (op.isRemove)
-                            {
-                                observer.OnRemove(op.id, op.kvp);
-                            }
-                            else
-                            {
-                                observer.OnAdd(op.id, op.kvp);
-                            }
-                        }
-                    },
-                    onError: observer.OnError,
-                    onDispose: observer.OnDispose,
-                    immediate: observer.immediate
-                )
-            );
-
-        public IDisposable Subscribe(ICollectionObserver observer)
-            => Subscribe(
-                new Observer<DictionaryOpArgs<TKey, TValue>>(
-                    onOperation: ops =>
-                    {
-                        foreach (var op in ops)
-                        {
-                            if (op.isRemove)
-                            {
-                                observer.OnRemove(op.id, op.kvp);
-                            }
-                            else
-                            {
-                                observer.OnAdd(op.id, op.kvp);
-                            }
-                        }
-                    },
-                    onError: observer.OnError,
-                    onDispose: observer.OnDispose,
-                    immediate: observer.immediate
-                )
-            );
+        public IDisposable Subscribe(IObserver<ICollectionOperation> observer)
+            => Subscribe(new Observer<IDictionaryOperation<TKey, TValue>>(
+                immediate: observer.immediate,
+                onNext: observer.OnNext,
+                onError: observer.OnError,
+                onDispose: observer.OnDispose
+            ));
     }
 }
