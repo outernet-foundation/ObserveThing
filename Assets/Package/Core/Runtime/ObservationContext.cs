@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace ObserveThing
 {
@@ -14,8 +13,8 @@ namespace ObserveThing
 
     public class ObservationContext
     {
-        private PriorityQueue<IPendingObserver, uint> _pendingImmediateObservers = new PriorityQueue<IPendingObserver, uint>();
-        private PriorityQueue<IPendingObserver, uint> _pendingObservers = new PriorityQueue<IPendingObserver, uint>();
+        private PriorityQueue<IPendingObserver, ObserverOrder> _pendingImmediateObservers = new PriorityQueue<IPendingObserver, ObserverOrder>(new ObserverOrderComparer());
+        private PriorityQueue<IPendingObserver, ObserverOrder> _pendingObservers = new PriorityQueue<IPendingObserver, ObserverOrder>(new ObserverOrderComparer());
 
         private HashSet<uint> _allocatedPriorties = new HashSet<uint>();
         private CollectionIdProvider _idProvider;
@@ -23,6 +22,24 @@ namespace ObserveThing
         private bool _notifyingImmediateObservers = false;
         private bool _notifyingObservers = false;
         private bool _executingBatch = false;
+        private int _registrationOrder = 0;
+
+        private struct ObserverOrder
+        {
+            public uint priority;
+            public int registrationOrder;
+        }
+
+        private class ObserverOrderComparer : IComparer<ObserverOrder>
+        {
+            public int Compare(ObserverOrder x, ObserverOrder y)
+            {
+                if (x.priority != y.priority)
+                    return x.priority.CompareTo(y.priority);
+
+                return x.registrationOrder.CompareTo(y.registrationOrder);
+            }
+        }
 
         public ObservationContext()
         {
@@ -77,12 +94,14 @@ namespace ObserveThing
         {
             if (observer.immediate)
             {
-                _pendingImmediateObservers.Enqueue(observer, observer.priority);
+                _pendingImmediateObservers.Enqueue(observer, new() { priority = observer.priority, registrationOrder = _registrationOrder });
             }
             else
             {
-                _pendingObservers.Enqueue(observer, observer.priority);
+                _pendingObservers.Enqueue(observer, new() { priority = observer.priority, registrationOrder = _registrationOrder });
             }
+
+            _registrationOrder++;
         }
 
         public void NotifyPendingObserversIfNecessary()
@@ -91,7 +110,7 @@ namespace ObserveThing
                 return;
 
             _notifyingImmediateObservers = true;
-            DrainPendingImmediateObserverQueue(); // immediate notifications should get sent even in we're in a batch
+            DrainPendingImmediateObserverQueue(); // immediate notifications should get sent even if we're in a batch
             _notifyingImmediateObservers = false;
 
             if (_notifyingObservers || _executingBatch)
@@ -100,6 +119,8 @@ namespace ObserveThing
             _notifyingObservers = true;
             DrainPendingObserverQueue();
             _notifyingObservers = false;
+
+            _registrationOrder = 0;
         }
     }
 }
