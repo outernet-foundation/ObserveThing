@@ -10,6 +10,7 @@ namespace ObserveThing
         private T _latest = default;
         private List<T> _list = new List<T>();
         private IDisposable _subscriptions;
+        private bool _active;
 
         public IndexOfObservable(IListObservable<T> source, IValueObservable<T> value) : base(source.context)
         {
@@ -20,12 +21,13 @@ namespace ObserveThing
 
         protected override void OnFirstObserverAdded()
         {
+            _active = true;
             _subscriptions = new ComposedDisposable(
 
                 _valueSource.Subscribe(
                     onNext: HandleNext,
                     onError: OnError,
-                    onDispose: Dispose,
+                    onDispose: HandleSourceDisposed,
                     immediate: true
                 ),
 
@@ -33,7 +35,7 @@ namespace ObserveThing
                     onAdd: HandleAdd,
                     onRemove: HandleRemove,
                     onError: OnError,
-                    onDispose: Dispose,
+                    onDispose: HandleSourceDisposed,
                     immediate: true
                 )
 
@@ -42,9 +44,18 @@ namespace ObserveThing
 
         protected override void OnLastObserverRemoved()
         {
+            _active = false;
             _subscriptions?.Dispose();
             _subscriptions = null;
             SetValueInternal(-1);
+        }
+
+        private void HandleSourceDisposed()
+        {
+            if (!_active)
+                return;
+
+            Dispose();
         }
 
         private void HandleAdd(int index, T element)

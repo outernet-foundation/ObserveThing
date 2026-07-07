@@ -10,37 +10,42 @@ namespace ObserveThing
         private Dictionary<T, (uint id, int count)> _dataByElement = new Dictionary<T, (uint id, int count)>();
         private CollectionIdProvider _idProvider;
         private IDisposable _subscriptions;
+        private bool _active;
 
         public DistinctObservable(ICollectionObservable<T> source) : base(source.context)
         {
+            _source = source;
             _idProvider = new CollectionIdProvider(x => _dataByElement.Values.Any(y => y.id == x));
-            _subscriptions = source.SubscribeWithId(
-                onAdd: HandleAdd,
-                onRemove: HandleRemove,
-                onError: OnError,
-                onDispose: Dispose,
-                immediate: true
-            );
         }
 
         protected override void OnFirstObserverAdded()
         {
+            _active = true;
             _subscriptions = _source.SubscribeWithId(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
                 onError: OnError,
-                onDispose: Dispose,
+                onDispose: HandleSourceDisposed,
                 immediate: true
             );
         }
 
         protected override void OnLastObserverRemoved()
         {
+            _active = false;
             _subscriptions?.Dispose();
             _subscriptions = null;
             _dataByElement.Clear();
             _idProvider.Reset();
             ClearInternal();
+        }
+
+        private void HandleSourceDisposed()
+        {
+            if (!_active)
+                return;
+
+            Dispose();
         }
 
         private void HandleAdd(uint id, T value)

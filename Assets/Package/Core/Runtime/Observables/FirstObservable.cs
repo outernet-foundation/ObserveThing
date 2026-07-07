@@ -3,13 +3,14 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class FirstObservable<T> : ObservableValueBase<T>
+    public class FirstObservable<T> : ObservableValueBase<(bool found, T value)>
     {
         private ICollectionObservable<T> _source;
         private Func<T, IValueObservable<bool>> _validate;
         private List<(uint id, T value)> _sortedList = new List<(uint id, T value)>();
         private (uint id, T value) _latest;
         private IDisposable _subscriptions;
+        private bool _active;
 
         public FirstObservable(ICollectionObservable<T> source, Func<T, IValueObservable<bool>> validate) : base(source.context)
         {
@@ -19,6 +20,7 @@ namespace ObserveThing
 
         protected override void OnFirstObserverAdded()
         {
+            _active = true;
             _subscriptions = _source.ObservableWhere(x => _validate(x)).SubscribeWithId(
                 onAdd: (id, value) =>
                 {
@@ -32,27 +34,37 @@ namespace ObserveThing
                     SetValueIfNecessary();
                 },
                 onError: OnError,
-                onDispose: Dispose,
+                onDispose: HandleSourceDisposed,
                 immediate: true
             );
         }
 
         protected override void OnLastObserverRemoved()
         {
+            _active = false;
             _subscriptions?.Dispose();
             _subscriptions = null;
             SetValueInternal(default);
         }
 
+        private void HandleSourceDisposed()
+        {
+            if (!_active)
+                return;
+
+            Dispose();
+        }
+
         private void SetValueIfNecessary()
         {
+            bool found = _sortedList.Count != 0;
             var next = _sortedList.Count == 0 ? new(0, default) : _sortedList[0];
 
             if (_latest.id == next.id && Equals(_latest.value, next.value))
                 return;
 
             _latest = next;
-            SetValueInternal(_latest.value);
+            SetValueInternal(new(found, _latest.value));
         }
 
         protected override void DisposeInternal()

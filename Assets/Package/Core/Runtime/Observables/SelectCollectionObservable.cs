@@ -1,53 +1,52 @@
 using System;
-using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class SelectCollectionObservable<T, U> : IDisposable
+    public class SelectCollectionObservable<T, U> : ObservableCollectionBase<U>
     {
-        private IDisposable _sourceStream;
+        private ICollectionObservable<T> _source;
         private Func<T, U> _select;
-        private IObserver<ICollectionOperation<U>> _receiver;
-        private Dictionary<uint, U> _selected = new Dictionary<uint, U>();
-        private bool _disposed;
+        private IDisposable _subscriptions;
+        private bool _active;
 
-        public SelectCollectionObservable(ICollectionObservable<T> source, Func<T, U> select, IObserver<ICollectionOperation<U>> receiver)
+        public SelectCollectionObservable(ICollectionObservable<T> source, Func<T, U> select) : base(source.context)
         {
-            _receiver = receiver;
+            _source = source;
             _select = select;
-            _sourceStream = source.SubscribeWithId(
-                onAdd: HandleAdd,
-                onRemove: HandleRemove,
-                onError: _receiver.OnError,
-                onDispose: Dispose,
-                immediate: receiver.immediate
+        }
+
+        protected override void OnFirstObserverAdded()
+        {
+            _active = true;
+            _subscriptions = _source.SubscribeWithId(
+                onAdd: (id, value) => AddInternal(id, _select(value)),
+                onRemove: (id, _) => RemoveInternal(id),
+                onError: OnError,
+                onDispose: HandleSourceDisposed,
+                immediate: true
             );
         }
 
-        private void HandleAdd(uint id, T value)
+        protected override void OnLastObserverRemoved()
         {
-            var selected = _select(value);
-            _selected[id] = selected;
-            _receiver.OnAdd(id, selected);
+            _active = false;
+            _subscriptions?.Dispose();
+            _subscriptions = null;
+            ClearInternal();
         }
 
-        private void HandleRemove(uint id, T value)
+        private void HandleSourceDisposed()
         {
-            var selected = _selected[id];
-            _selected.Remove(id);
-            _receiver.OnRemove(id, selected);
-        }
-
-        public void Dispose()
-        {
-            if (_disposed)
+            if (!_active)
                 return;
 
-            _disposed = true;
+            Dispose();
+        }
 
-            _sourceStream.Dispose();
-
-            _receiver.OnDispose();
+        protected override void DisposeInternal()
+        {
+            _subscriptions?.Dispose();
+            _subscriptions = null;
         }
     }
 }

@@ -3,33 +3,58 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ShallowCopyListObservable<T> : IDisposable
+    public class ShallowCopyListObservable<T> : ObservableListBase<T>
     {
-        private IDisposable _sourceStream;
-        private IObserver<IListOperation<T>> _receiver;
+        private IListObservable<IValueObservable<T>> _source;
         private List<EntryData> _data = new List<EntryData>();
-        private bool _disposed;
+        private IDisposable _subscriptions;
+        private bool _active;
 
         private class EntryData
         {
-            public T latest;
             public IDisposable subscription;
             public bool initialized;
         }
 
-        public ShallowCopyListObservable(IListObservable<IValueObservable<T>> source, IObserver<IListOperation<T>> receiver)
+        public ShallowCopyListObservable(IListObservable<IValueObservable<T>> source) : base(source.context)
         {
-            _receiver = receiver;
-            _sourceStream = source.SubscribeWithId(
+            _source = source;
+        }
+
+        protected override void OnFirstObserverAdded()
+        {
+            _active = true;
+            _subscriptions = _source.Subscribe(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
-                onError: _receiver.OnError,
-                onDispose: Dispose,
-                immediate: receiver.immediate
+                onError: OnError,
+                onDispose: HandleSourceDisposed,
+                immediate: true
             );
         }
 
-        private void HandleAdd(uint id, int index, IValueObservable<T> element)
+        protected override void OnLastObserverRemoved()
+        {
+            _active = false;
+            _subscriptions?.Dispose();
+            _subscriptions = null;
+
+            foreach (var data in _data)
+                data.subscription.Dispose();
+
+            _data.Clear();
+            ClearInternal();
+        }
+
+        private void HandleSourceDisposed()
+        {
+            if (!_active)
+                return;
+
+            Dispose();
+        }
+
+        private void HandleAdd(int index, IValueObservable<T> element)
         {
             var data = new EntryData();
             _data.Insert(index, data);
@@ -38,44 +63,32 @@ namespace ObserveThing
                 {
                     var index = _data.IndexOf(data);
 
-                    if (!data.initialized)
-                    {
-                        data.latest = x;
-                        _receiver.OnAdd(id, index, data.latest);
-                        data.initialized = true;
-                        return;
-                    }
+                    if (data.initialized)
+                        RemoveAtInternal(index);
 
-                    _receiver.OnRemove(id, index, data.latest);
-                    data.latest = x;
-                    _receiver.OnAdd(id, index, data.latest);
+                    data.initialized = true;
+                    InsertInternal(index, x);
                 },
-                onError: _receiver.OnError,
-                immediate: _receiver.immediate
+                onError: OnError,
+                immediate: true
             );
         }
 
-        private void HandleRemove(uint id, int index, IValueObservable<T> element)
+        private void HandleRemove(int index, IValueObservable<T> element)
         {
             var data = _data[index];
             _data.RemoveAt(index);
             data.subscription.Dispose();
-            _receiver.OnRemove(id, index, data.latest);
+            RemoveAtInternal(index);
         }
 
-        public void Dispose()
+        protected override void DisposeInternal()
         {
-            if (_disposed)
-                return;
-
-            _disposed = true;
-
-            _sourceStream.Dispose();
+            _subscriptions?.Dispose();
+            _subscriptions = null;
 
             foreach (var data in _data)
                 data.subscription.Dispose();
-
-            _receiver.OnDispose();
         }
     }
 }

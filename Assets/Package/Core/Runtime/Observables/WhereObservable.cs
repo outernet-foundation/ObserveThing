@@ -1,17 +1,15 @@
 using System;
 using System.Collections.Generic;
-using UnityEngine.UIElements;
 
 namespace ObserveThing
 {
-    public class WhereObservable<T> : IDisposable
+    public class WhereObservable<T> : ObservableCollectionBase<T>
     {
-        private IDisposable _sourceStream;
-        private IObserver<ICollectionOperation<T>> _receiver;
+        private ICollectionObservable<T> _source;
         private Func<T, IValueObservable<bool>> _where;
         private Dictionary<uint, EntryData> _dataById = new Dictionary<uint, EntryData>();
-        public CollectionIdProvider _idProvider;
-        private bool _disposed;
+        private IDisposable _subscriptions;
+        private bool _active;
 
         private class EntryData
         {
@@ -21,18 +19,44 @@ namespace ObserveThing
             public IDisposable subscription;
         }
 
-        public WhereObservable(ICollectionObservable<T> source, Func<T, IValueObservable<bool>> where, IObserver<ICollectionOperation<T>> receiver)
+        public WhereObservable(ICollectionObservable<T> source, Func<T, IValueObservable<bool>> where) : base(source.context)
         {
-            _receiver = receiver;
+            _source = source;
             _where = where;
-            _idProvider = new CollectionIdProvider(x => _dataById.ContainsKey(x));
-            _sourceStream = source.SubscribeWithId(
-                HandleAdd,
-                HandleRemove,
-                _receiver.OnError,
-                Dispose,
-                immediate: receiver.immediate
+        }
+
+        protected override void OnFirstObserverAdded()
+        {
+            _active = true;
+            _subscriptions = _source.SubscribeWithId(
+                onAdd: HandleAdd,
+                onRemove: HandleRemove,
+                onDispose: HandleSourceDisposed,
+                onError: OnError,
+                immediate: true
             );
+        }
+
+        protected override void OnLastObserverRemoved()
+        {
+            _active = false;
+            _subscriptions?.Dispose();
+            _subscriptions = null;
+
+            foreach (var data in _dataById.Values)
+                data.subscription.Dispose();
+
+            _dataById.Clear();
+
+            ClearInternal();
+        }
+
+        private void HandleSourceDisposed()
+        {
+            if (!_active)
+                return;
+
+            Dispose();
         }
 
         private void HandleAdd(uint id, T value)
@@ -54,15 +78,15 @@ namespace ObserveThing
 
                     if (included)
                     {
-                        _receiver.OnAdd(id, data.value);
+                        AddInternal(id, data.value);
                     }
                     else if (data.initialized)
                     {
-                        _receiver.OnRemove(id, data.value);
+                        RemoveInternal(id);
                     }
                 },
-                onError: _receiver.OnError,
-                immediate: _receiver.immediate
+                onError: OnError,
+                immediate: true
             );
         }
 
@@ -73,22 +97,16 @@ namespace ObserveThing
             _dataById.Remove(id);
 
             if (data.included)
-                _receiver.OnRemove(id, value);
+                RemoveInternal(id);
         }
 
-        public void Dispose()
+        protected override void DisposeInternal()
         {
-            if (_disposed)
-                return;
-
-            _disposed = true;
-
-            _sourceStream.Dispose();
+            _subscriptions?.Dispose();
+            _subscriptions = null;
 
             foreach (var data in _dataById.Values)
                 data.subscription.Dispose();
-
-            _receiver.OnDispose();
         }
     }
 }

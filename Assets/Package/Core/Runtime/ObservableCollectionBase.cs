@@ -39,6 +39,17 @@ namespace ObserveThing
                 opType = default;
                 element = default;
             }
+
+            public IOperation Clone()
+            {
+                return new CollectionOperation()
+                {
+                    source = source,
+                    elementId = elementId,
+                    opType = opType,
+                    element = element,
+                };
+            }
         }
 
         private Dictionary<uint, T> _collection = new Dictionary<uint, T>();
@@ -58,7 +69,7 @@ namespace ObserveThing
         protected override IReadOnlyList<ICollectionOperation<T>> GetInitializationOperations()
             => _collection.Select(x => AllocateOperation(x.Key, OpType.Add, x.Value)).ToArray();
 
-        protected override void HandleOperationNotificationsComplete(ICollectionOperation<T> operation)
+        protected override void OnOperationNotificationsCompleted(ICollectionOperation<T> operation)
         {
             var op = (CollectionOperation)operation;
             op.Reset();
@@ -104,6 +115,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IObserver<ICollectionOperation> observer)
             => Subscribe(new Observer<ICollectionOperation<T>>(
+                overridePriority: observer.overridePriority,
                 immediate: observer.immediate,
                 onNext: observer.OnNext,
                 onError: observer.OnError,

@@ -2,42 +2,53 @@ using System;
 
 namespace ObserveThing
 {
-    public class ShallowCopyValueObservable<T> : IDisposable
+    public class ShallowCopyValueObservable<T> : ObservableValueBase<T>
     {
-        private IDisposable _sourceStream;
-        private IObserver<IValueOperation<T>> _receiver;
-        private IDisposable _nestedSubscription = default;
+        private IValueObservable<IValueObservable<T>> _source;
         private Observer<IValueOperation<T>> _nestedObserver;
-        private T _latest;
-        private bool _disposed;
+        private IDisposable _nestedSubscription;
+        private IDisposable _subscriptions;
+        private bool _active;
 
-        public ShallowCopyValueObservable(IValueObservable<IValueObservable<T>> source, IObserver<IValueOperation<T>> receiver)
+        public ShallowCopyValueObservable(IValueObservable<IValueObservable<T>> source) : base(source.context)
         {
-            _receiver = receiver;
-
+            _source = source;
             _nestedObserver = new Observer<IValueOperation<T>>(
-                onNext: x =>
-                {
-                    // TODO: FIX ME
-                    if (!Equals(x, _latest))
-                    {
-                        _latest = x.value;
-                        _receiver.OnNext(x);
-                    }
-                },
-                onError: _receiver.OnError,
-                immediate: receiver.immediate
+                onNext: x => SetValueInternal(x.value),
+                onError: OnError,
+                immediate: true
             );
+        }
 
-            _sourceStream = source.Subscribe(
+        protected override void OnFirstObserverAdded()
+        {
+            _active = true;
+            _subscriptions = _source.Subscribe(
                 onNext: HandleNext,
-                onError: _receiver.OnError,
-                onDispose: Dispose,
-                immediate: receiver.immediate
+                onDispose: HandleSourceDisposed,
+                onError: OnError,
+                immediate: true
             );
+        }
 
-            if (Equals(_latest, default(T)))
-                _receiver.OnNext(default);
+        protected override void OnLastObserverRemoved()
+        {
+            _active = false;
+            _subscriptions?.Dispose();
+            _subscriptions = null;
+
+            _nestedSubscription?.Dispose();
+            _nestedSubscription = null;
+
+            SetValueInternal(default);
+        }
+
+        private void HandleSourceDisposed()
+        {
+            if (!_active)
+                return;
+
+            Dispose();
         }
 
         private void HandleNext(IValueObservable<T> value)
@@ -47,29 +58,20 @@ namespace ObserveThing
 
             if (value == null)
             {
-                if (!Equals(_latest, default(T)))
-                {
-                    _latest = default;
-                    _receiver.OnNext(default);
-                }
-
+                SetValueInternal(default);
                 return;
             }
 
-            _nestedSubscription = value?.Subscribe(_nestedObserver);
+            _nestedSubscription = value.Subscribe(_nestedObserver);
         }
 
-        public void Dispose()
+        protected override void DisposeInternal()
         {
-            if (_disposed)
-                return;
+            _subscriptions?.Dispose();
+            _subscriptions = null;
 
-            _disposed = true;
-
-            _sourceStream.Dispose();
             _nestedSubscription?.Dispose();
-
-            _receiver.OnDispose();
+            _nestedSubscription = null;
         }
     }
 }

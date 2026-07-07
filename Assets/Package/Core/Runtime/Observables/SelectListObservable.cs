@@ -1,53 +1,52 @@
 using System;
-using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class SelectListObservable<T, U> : IDisposable
+    public class SelectListObservable<T, U> : ObservableListBase<U>
     {
-        private IDisposable _sourceStream;
+        private IListObservable<T> _source;
         private Func<T, U> _select;
-        private IObserver<IListOperation<U>> _receiver;
-        private List<U> _selectedElements = new List<U>();
-        private bool _disposed;
+        private IDisposable _subscriptions;
+        private bool _active;
 
-        public SelectListObservable(IListObservable<T> source, Func<T, U> select, IObserver<IListOperation<U>> receiver)
+        public SelectListObservable(IListObservable<T> source, Func<T, U> select) : base(source.context)
         {
-            _receiver = receiver;
+            _source = source;
             _select = select;
-            _sourceStream = source.Subscribe(new IObserver<IListOperation<T>>(
-                onAdd: HandleAdd,
-                onRemove: HandleRemove,
-                onError: receiver.OnError,
-                onDispose: Dispose,
-                immediate: receiver.immediate
-            ));
         }
 
-        private void HandleAdd(uint id, int index, T value)
+        protected override void OnFirstObserverAdded()
         {
-            var selected = _select(value);
-            _selectedElements.Insert(index, selected);
-            _receiver.OnAdd(id, index, selected);
+            _active = true;
+            _subscriptions = _source.Subscribe(
+                onAdd: (index, value) => InsertInternal(index, _select(value)),
+                onRemove: (index, _) => RemoveAtInternal(index),
+                onError: OnError,
+                onDispose: HandleSourceDisposed,
+                immediate: true
+            );
         }
 
-        private void HandleRemove(uint id, int index, T _)
+        protected override void OnLastObserverRemoved()
         {
-            var selected = _selectedElements[index];
-            _selectedElements.RemoveAt(index);
-            _receiver.OnRemove(id, index, selected);
+            _active = false;
+            _subscriptions?.Dispose();
+            _subscriptions = null;
+            ClearInternal();
         }
 
-        public void Dispose()
+        private void HandleSourceDisposed()
         {
-            if (_disposed)
+            if (!_active)
                 return;
 
-            _disposed = true;
+            Dispose();
+        }
 
-            _sourceStream.Dispose();
-
-            _receiver.OnDispose();
+        protected override void DisposeInternal()
+        {
+            _subscriptions?.Dispose();
+            _subscriptions = null;
         }
     }
 }

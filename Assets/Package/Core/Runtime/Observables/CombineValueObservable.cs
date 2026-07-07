@@ -7,6 +7,7 @@ namespace ObserveThing
         private IValueObservable<T1> _source1;
         private IValueObservable<T2> _source2;
         private IDisposable _subscriptions;
+        private bool _active;
 
         public CombineValueObservable(IValueObservable<T1> source1, IValueObservable<T2> source2) : base(source1.context)
         {
@@ -16,19 +17,20 @@ namespace ObserveThing
 
         protected override void OnFirstObserverAdded()
         {
+            _active = true;
             _subscriptions = new ComposedDisposable(
 
                 _source1.Subscribe(
                     onNext: x => SetValueInternal(new(x, _value.Item2)),
                     onError: OnError,
-                    onDispose: Dispose,
+                    onDispose: HandleSourceDisposed,
                     immediate: true
                 ),
 
                 _source2.Subscribe(
                     onNext: x => SetValueInternal(new(_value.Item1, x)),
                     onError: OnError,
-                    onDispose: Dispose,
+                    onDispose: HandleSourceDisposed,
                     immediate: true
                 )
 
@@ -37,9 +39,18 @@ namespace ObserveThing
 
         protected override void OnLastObserverRemoved()
         {
+            _active = false;
             _subscriptions?.Dispose();
             _subscriptions = null;
             SetValueInternal(default);
+        }
+
+        private void HandleSourceDisposed()
+        {
+            if (!_active)
+                return;
+
+            Dispose();
         }
 
         protected override void DisposeInternal()

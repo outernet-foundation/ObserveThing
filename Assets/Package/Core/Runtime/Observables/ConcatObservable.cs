@@ -13,6 +13,7 @@ namespace ObserveThing
         private Dictionary<uint, uint> _source2IdMap = new Dictionary<uint, uint>();
 
         private IDisposable _subscription;
+        private bool _active;
 
         public ConcatObservable(ICollectionObservable<T> source1, ICollectionObservable<T> source2) : base(source1.context)
         {
@@ -23,13 +24,14 @@ namespace ObserveThing
 
         protected override void OnFirstObserverAdded()
         {
+            _active = true;
             _subscription = new ComposedDisposable(
 
                 _source1.SubscribeWithId(
                     onAdd: Source1HandleAdd,
                     onRemove: Source1HandleRemove,
                     onError: OnError,
-                    onDispose: Dispose,
+                    onDispose: HandleSourceDisposed,
                     immediate: true
                 ),
 
@@ -37,7 +39,7 @@ namespace ObserveThing
                     onAdd: Source2HandleAdd,
                     onRemove: Source2HandleRemove,
                     onError: OnError,
-                    onDispose: Dispose,
+                    onDispose: HandleSourceDisposed,
                     immediate: true
                 )
 
@@ -46,6 +48,7 @@ namespace ObserveThing
 
         protected override void OnLastObserverRemoved()
         {
+            _active = false;
             _subscription?.Dispose();
             _subscription = null;
 
@@ -53,6 +56,14 @@ namespace ObserveThing
             _idProvider.Reset();
             _source1IdMap.Clear();
             _source2IdMap.Clear();
+        }
+
+        private void HandleSourceDisposed()
+        {
+            if (!_active)
+                return;
+
+            Dispose();
         }
 
         private void Source1HandleAdd(uint id, T value)

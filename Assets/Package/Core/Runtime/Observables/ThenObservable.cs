@@ -1,49 +1,63 @@
 using System;
+using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ThenObservable<T> : IDisposable
+    public class OnEachObservable<T> : Observable<T> where T : IOperation
     {
-        private IDisposable _sourceStream;
-        public IObserver<IValueOperation<T>> _thenReceiver;
-        private IObserver<IValueOperation<T>> _receiver;
-        private bool _initialized;
-        private bool _disposed;
+        private IObservable<T> _source;
+        private List<T> _initOperations = new List<T>();
+        private IObserver<T> _then;
+        private IDisposable _subscriptions;
+        private bool _active;
 
-        public ThenObservable(IValueObservable<T> source, IObserver<IValueOperation<T>> thenReceiver, IObserver<IValueOperation<T>> receiver)
+        public OnEachObservable(IObservable<T> source, IObserver<T> then) : base(source.context)
         {
-            _thenReceiver = thenReceiver;
-            _receiver = receiver;
-            _sourceStream = source.Subscribe(
-                onNext: HandleNext,
-                onError: _receiver.OnError,
-                onDispose: Dispose,
-                immediate: receiver.immediate
+            _source = source;
+            _then = then;
+        }
+
+        protected override IReadOnlyList<T> GetInitializationOperations()
+            => _initOperations;
+
+        protected override void OnFirstObserverAdded()
+        {
+            _active = true;
+            _subscriptions = _source.Subscribe(
+                onOperation: op =>
+                {
+                    _then.OnNext(op);
+                    EnqueuePendingOperation((T)op.Clone());
+                },
+                onError: exc =>
+                {
+                    _then.OnError(exc);
+                    OnError(exc);
+                },
+                onDispose: HandleSourceDisposed
             );
-
-            // Always send init call
-            if (!_initialized)
-                HandleNext(default);
         }
 
-        private void HandleNext(T value)
+        protected override void OnLastObserverRemoved()
         {
-            _initialized = true;
-            _thenReceiver.OnNext(value);
-            _receiver.OnNext(value);
+            _active = false;
+            _subscriptions?.Dispose();
+            _subscriptions = null;
         }
 
-        public void Dispose()
+        private void HandleSourceDisposed()
         {
-            if (_disposed)
+            if (!_active)
                 return;
 
-            _disposed = true;
+            _then.OnDispose();
+            Dispose();
+        }
 
-            _sourceStream.Dispose();
-
-            _thenReceiver.OnDispose();
-            _receiver.OnDispose();
+        protected override void DisposeInternal()
+        {
+            _subscriptions?.Dispose();
+            _subscriptions = null;
         }
     }
 }

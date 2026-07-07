@@ -26,6 +26,15 @@ namespace ObserveThing
                 source = default;
                 value = default;
             }
+
+            public IOperation Clone()
+            {
+                return new ValueOperation()
+                {
+                    source = source,
+                    value = value,
+                };
+            }
         }
 
         protected T _value { get; private set; }
@@ -52,7 +61,7 @@ namespace ObserveThing
             return _initOperations;
         }
 
-        protected override void HandleOperationNotificationsComplete(IValueOperation<T> operation)
+        protected override void OnOperationNotificationsCompleted(IValueOperation<T> operation)
         {
             var op = (ValueOperation)operation;
             op.Reset();
@@ -70,6 +79,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IObserver<IValueOperation> observer)
             => Subscribe(new Observer<IValueOperation<T>>(
+                overridePriority: observer.overridePriority,
                 immediate: observer.immediate,
                 onNext: observer.OnNext,
                 onError: observer.OnError,

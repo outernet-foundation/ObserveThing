@@ -2,41 +2,56 @@ using System;
 
 namespace ObserveThing
 {
-    public class SkipWhileObservable<T> : IDisposable
+    public class SkipWhileObservable<T> : ObservableValueBase<T>
     {
-        private IDisposable _sourceStream;
-        private IObserver<IValueOperation<T>> _receiver;
+        private IValueObservable<T> _source;
         private Func<bool> _skipWhile;
-        private bool _disposed;
+        private IDisposable _subscriptions;
+        private bool _active;
 
-        public SkipWhileObservable(IValueObservable<T> source, Func<bool> skipWhile, IObserver<IValueOperation<T>> receiver)
+        public SkipWhileObservable(IValueObservable<T> source, Func<bool> skipWhile) : base(source.context)
         {
-            _receiver = receiver;
+            _source = source;
             _skipWhile = skipWhile;
+        }
 
-            _sourceStream = source.Subscribe(
+        protected override void OnFirstObserverAdded()
+        {
+            _active = true;
+            _subscriptions = _source.Subscribe(
                 onNext: HandleSourceChanged,
-                onError: receiver.OnError,
-                onDispose: Dispose
+                onError: OnError,
+                onDispose: HandleSourceDisposed,
+                immediate: true
             );
+        }
+
+        protected override void OnLastObserverRemoved()
+        {
+            _active = false;
+            _subscriptions?.Dispose();
+            _subscriptions = null;
+            SetValueInternal(default);
+        }
+
+        private void HandleSourceDisposed()
+        {
+            if (!_active)
+                return;
+
+            Dispose();
+        }
+
+        protected override void DisposeInternal()
+        {
+            _subscriptions?.Dispose();
+            _subscriptions = null;
         }
 
         private void HandleSourceChanged(T value)
         {
             if (!_skipWhile())
-                _receiver.OnNext(value);
-        }
-
-        public void Dispose()
-        {
-            if (_disposed)
-                return;
-
-            _disposed = true;
-
-            _sourceStream.Dispose();
-
-            _receiver.OnDispose();
+                SetValueInternal(value);
         }
     }
 }

@@ -4,12 +4,12 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public abstract class Observable<T> : IObservable<T>, IDisposable
+    public abstract class Observable<T> : IObservable<T>, IDisposable where T : IOperation
     {
         private class ObserverData : IPendingObserver, IDisposable
         {
             public IObserver<T> observer { get; }
-            public uint priority { get; }
+            public uint priority => observer.overridePriority ?? _priority;
             public bool immediate => observer.immediate;
             public bool disposed { get; private set; }
 
@@ -18,11 +18,13 @@ namespace ObserveThing
             private Action<T> _onOperationSent;
             private Action<ObserverData> _onDispose;
 
+            private uint _priority;
+
             public ObserverData(IObserver<T> observer, uint priority, Action<T> onOperationSent, Action<ObserverData> onDispose)
             {
                 this.observer = observer;
-                this.priority = priority;
 
+                _priority = priority;
                 _onOperationSent = onOperationSent;
                 _onDispose = onDispose;
             }
@@ -110,7 +112,7 @@ namespace ObserveThing
         }
 
         protected abstract IReadOnlyList<T> GetInitializationOperations();
-        protected virtual void HandleOperationNotificationsComplete(T operation) { }
+        protected virtual void OnOperationNotificationsCompleted(T operation) { }
         protected virtual void OnFirstObserverAdded() { }
         protected virtual void OnLastObserverRemoved() { }
         protected virtual void DisposeInternal() { }
@@ -141,7 +143,7 @@ namespace ObserveThing
             foreach (var op in GetInitializationOperations())
             {
                 observer.OnNext(op);
-                HandleOperationNotificationsComplete(op);
+                OnOperationNotificationsCompleted(op);
             }
 
             return observerData;
@@ -155,7 +157,7 @@ namespace ObserveThing
             if (referenceCount == 0)
             {
                 _operationReferences.Remove(operation);
-                HandleOperationNotificationsComplete(operation);
+                OnOperationNotificationsCompleted(operation);
                 return;
             }
 
@@ -164,6 +166,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IObserver observer)
             => Subscribe(new Observer<T>(
+                overridePriority: observer.overridePriority,
                 onNext: x => observer.OnNext(x),
                 onError: observer.OnError,
                 onDispose: observer.OnDispose

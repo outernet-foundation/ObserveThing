@@ -3,81 +3,99 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class TrackObservable<TKey, TValue> : IDisposable
+    public class TrackObservable<TKey, TValue> : ObservableValueBase<(bool present, TValue value)>
     {
-        private IDisposable _sourceStream;
-        private IDisposable _keyStream;
-        private IObserver<IValueOperation<(bool present, TValue value)>> _receiver;
-
+        private IDictionaryObservable<TKey, TValue> _source;
+        private IValueObservable<TKey> _keySource;
         private Dictionary<TKey, TValue> _dict = new Dictionary<TKey, TValue>();
         private TKey _key = default;
         private bool _present = false;
 
-        private bool _disposed;
+        private IDisposable _subscriptions;
+        private bool _active;
 
-        public TrackObservable(IDictionaryObservable<TKey, TValue> source, IValueObservable<TKey> key, IObserver<IValueOperation<(bool present, TValue value)>> receiver)
+        public TrackObservable(IDictionaryObservable<TKey, TValue> source, IValueObservable<TKey> key) : base(source.context)
         {
-            _receiver = receiver;
-            _sourceStream = source.Subscribe(
-                onAdd: kvp =>
-                {
-                    _dict.Add(kvp.Key, kvp.Value);
-                    if (Equals(kvp.Key, _key))
-                    {
-                        _present = true;
-                        _receiver.OnNext(new(_present, kvp.Value));
-                    }
-                },
-                onRemove: kvp =>
-                {
-                    if (_dict.Remove(kvp.Key) && Equals(kvp.Key, _key))
-                    {
-                        _present = false;
-                        _receiver.OnNext(new(_present, default));
-                    }
-                },
-                onError: _receiver.OnError,
-                onDispose: Dispose,
-                immediate: receiver.immediate
-            );
-
-            _keyStream = key.Subscribe(
-                onNext: key =>
-                {
-                    _key = key;
-
-                    if (_dict.TryGetValue(key, out var value))
-                    {
-                        _present = true;
-                        _receiver.OnNext(new(_present, value));
-                    }
-                    else if (_present)
-                    {
-                        _present = false;
-                        _receiver.OnNext(new(_present, default));
-                    }
-                },
-                onError: _receiver.OnError,
-                onDispose: Dispose,
-                immediate: receiver.immediate
-            );
-
-            // always send an init call
-            if (!_present)
-                _receiver.OnNext(new(_present, default));
+            _source = source;
+            _keySource = key;
         }
 
-        public void Dispose()
+        protected override void OnFirstObserverAdded()
         {
-            if (_disposed)
+            _active = true;
+            _subscriptions = new ComposedDisposable(
+
+                _source.Subscribe(
+                    onAdd: kvp =>
+                    {
+                        _dict.Add(kvp.Key, kvp.Value);
+                        if (Equals(kvp.Key, _key))
+                        {
+                            _present = true;
+                            SetValueInternal(new(_present, kvp.Value));
+                        }
+                    },
+                    onRemove: kvp =>
+                    {
+                        if (_dict.Remove(kvp.Key) && Equals(kvp.Key, _key))
+                        {
+                            _present = false;
+                            SetValueInternal(new(_present, default));
+                        }
+                    },
+                    onError: OnError,
+                    onDispose: Dispose,
+                    immediate: true
+                ),
+
+                _keySource.Subscribe(
+                    onNext: key =>
+                    {
+                        _key = key;
+
+                        if (_dict.TryGetValue(_key, out var value))
+                        {
+                            _present = true;
+                            SetValueInternal(new(_present, value));
+                        }
+                        else
+                        {
+                            _present = false;
+                            SetValueInternal(new(_present, default));
+                        }
+                    },
+                    onError: OnError,
+                    onDispose: HandleSourceDisposed,
+                    immediate: true
+                )
+
+            );
+        }
+
+        protected override void OnLastObserverRemoved()
+        {
+            _active = false;
+            _subscriptions?.Dispose();
+            _subscriptions = null;
+
+            _key = default;
+            _dict.Clear();
+
+            SetValueInternal(default);
+        }
+
+        private void HandleSourceDisposed()
+        {
+            if (!_active)
                 return;
 
-            _disposed = true;
+            Dispose();
+        }
 
-            _sourceStream.Dispose();
-            _keyStream.Dispose();
-
-            _receiver.OnDispose();
+        protected override void DisposeInternal()
+        {
+            _subscriptions?.Dispose();
+            _subscriptions = null;
         }
     }
 }

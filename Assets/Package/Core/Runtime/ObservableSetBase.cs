@@ -24,6 +24,17 @@ namespace ObserveThing
                 opType = default;
                 element = default;
             }
+
+            public IOperation Clone()
+            {
+                return new SetOperation()
+                {
+                    source = source,
+                    elementId = elementId,
+                    opType = opType,
+                    element = element,
+                };
+            }
         }
 
         private Dictionary<T, uint> _set = new Dictionary<T, uint>();
@@ -54,7 +65,7 @@ namespace ObserveThing
         protected override IReadOnlyList<ISetOperation<T>> GetInitializationOperations()
             => _set.Select(x => AllocateOperation(x.Value, OpType.Add, x.Key)).ToArray();
 
-        protected override void HandleOperationNotificationsComplete(ISetOperation<T> operation)
+        protected override void OnOperationNotificationsCompleted(ISetOperation<T> operation)
         {
             var op = (SetOperation)operation;
             op.Reset();
@@ -90,7 +101,7 @@ namespace ObserveThing
                 return false;
 
             _set.Remove(element);
-            EnqueuePendingOperation(AllocateOperation(id, OpType.Add, element));
+            EnqueuePendingOperation(AllocateOperation(id, OpType.Remove, element));
 
             return true;
         }
@@ -109,6 +120,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IObserver<ICollectionOperation<T>> observer)
             => Subscribe(new Observer<ISetOperation<T>>(
+                overridePriority: observer.overridePriority,
                 immediate: observer.immediate,
                 onNext: observer.OnNext,
                 onError: observer.OnError,
@@ -117,6 +129,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IObserver<ICollectionOperation> observer)
             => Subscribe(new Observer<ISetOperation<T>>(
+                overridePriority: observer.overridePriority,
                 immediate: observer.immediate,
                 onNext: observer.OnNext,
                 onError: observer.OnError,

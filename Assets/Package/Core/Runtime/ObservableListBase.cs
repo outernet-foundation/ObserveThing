@@ -30,6 +30,18 @@ namespace ObserveThing
                 index = default;
                 element = default;
             }
+
+            public IOperation Clone()
+            {
+                return new ListOperation()
+                {
+                    source = source,
+                    elementId = elementId,
+                    opType = opType,
+                    index = index,
+                    element = element,
+                };
+            }
         }
 
         private List<(uint id, T value)> _list = new List<(uint id, T value)>();
@@ -67,7 +79,7 @@ namespace ObserveThing
         protected override IReadOnlyList<IListOperation<T>> GetInitializationOperations()
             => _list.Select((element, index) => AllocateOperation(element.id, index, OpType.Add, element.value)).ToArray();
 
-        protected override void HandleOperationNotificationsComplete(IListOperation<T> operation)
+        protected override void OnOperationNotificationsCompleted(IListOperation<T> operation)
         {
             var op = (ListOperation)operation;
             op.Reset();
@@ -128,6 +140,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IObserver<IListOperation> observer)
             => Subscribe(new Observer<IListOperation<T>>(
+                overridePriority: observer.overridePriority,
                 immediate: observer.immediate,
                 onNext: observer.OnNext,
                 onError: observer.OnError,
@@ -136,6 +149,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IObserver<ICollectionOperation<T>> observer)
             => Subscribe(new Observer<IListOperation<T>>(
+                overridePriority: observer.overridePriority,
                 immediate: observer.immediate,
                 onNext: observer.OnNext,
                 onError: observer.OnError,
@@ -144,6 +158,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IObserver<ICollectionOperation> observer)
             => Subscribe(new Observer<IListOperation<T>>(
+                overridePriority: observer.overridePriority,
                 immediate: observer.immediate,
                 onNext: observer.OnNext,
                 onError: observer.OnError,

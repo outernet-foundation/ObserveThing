@@ -4,33 +4,61 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class SelectManyObservable<T, U> : IDisposable
+    public class SelectManyObservable<T, U> : ObservableCollectionBase<U>
     {
         private class ElementData
         {
             public IDisposable subscription;
-            public Dictionary<uint, (uint id, U element)> elements = new Dictionary<uint, (uint id, U element)>();
+            public Dictionary<uint, uint> elementIds = new Dictionary<uint, uint>();
         }
 
-        private IDisposable _sourceStream;
+        private ICollectionObservable<T> _source;
         private Func<T, ICollectionObservable<U>> _select;
-        private IObserver<ICollectionOperation<U>> _receiver;
         private Dictionary<uint, ElementData> _dataById = new Dictionary<uint, ElementData>();
         private CollectionIdProvider _idProvider;
-        private bool _disposed;
+        private IDisposable _subscriptions;
+        private bool _active;
 
-        public SelectManyObservable(ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> select, IObserver<ICollectionOperation<U>> receiver)
+        public SelectManyObservable(ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> select) : base(source.context)
         {
-            _receiver = receiver;
+            _source = source;
             _select = select;
-            _idProvider = new CollectionIdProvider(x => _dataById.Values.Any(y => y.elements.ContainsKey(x)));
-            _sourceStream = source.SubscribeWithId(
+            _idProvider = new CollectionIdProvider(x => _dataById.Values.Any(y => y.elementIds.ContainsKey(x)));
+        }
+
+        protected override void OnFirstObserverAdded()
+        {
+            _active = true;
+            _subscriptions = _source.SubscribeWithId(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
-                onError: receiver.OnError,
-                onDispose: Dispose,
-                immediate: receiver.immediate
+                onError: OnError,
+                onDispose: HandleSourceDisposed,
+                immediate: true
             );
+        }
+
+        protected override void OnLastObserverRemoved()
+        {
+            _active = false;
+            _subscriptions?.Dispose();
+            _subscriptions = null;
+
+            foreach (var data in _dataById.Values)
+                data.subscription.Dispose();
+
+            _dataById.Clear();
+            _idProvider.Reset();
+
+            ClearInternal();
+        }
+
+        private void HandleSourceDisposed()
+        {
+            if (!_active)
+                return;
+
+            Dispose();
         }
 
         private void HandleAdd(uint id, T element)
@@ -41,17 +69,17 @@ namespace ObserveThing
                 onAdd: (subId, subElement) =>
                 {
                     var newId = _idProvider.GetUnusedId();
-                    data.elements.Add(subId, (newId, subElement));
-                    _receiver.OnAdd(newId, subElement);
+                    data.elementIds.Add(subId, newId);
+                    AddInternal(newId, subElement);
                 },
                 onRemove: (subId, subElement) =>
                 {
-                    var subData = data.elements[subId];
-                    data.elements.Remove(subId);
-                    _receiver.OnRemove(subData.id, subData.element);
+                    var elementId = data.elementIds[subId];
+                    data.elementIds.Remove(subId);
+                    RemoveInternal(elementId);
                 },
-                onError: _receiver.OnError,
-                immediate: _receiver.immediate
+                onError: OnError,
+                immediate: true
             );
         }
 
@@ -60,23 +88,18 @@ namespace ObserveThing
             var data = _dataById[id];
             _dataById.Remove(id);
             data.subscription.Dispose();
-            foreach (var subElement in data.elements.Values)
-                _receiver.OnRemove(subElement.id, subElement.element);
+
+            foreach (var elementId in data.elementIds.Values)
+                RemoveInternal(elementId);
         }
 
-        public void Dispose()
+        protected override void DisposeInternal()
         {
-            if (_disposed)
-                return;
-
-            _disposed = true;
-
-            _sourceStream.Dispose();
+            _subscriptions?.Dispose();
+            _subscriptions = null;
 
             foreach (var data in _dataById.Values)
                 data.subscription.Dispose();
-
-            _receiver.OnDispose();
         }
     }
 }

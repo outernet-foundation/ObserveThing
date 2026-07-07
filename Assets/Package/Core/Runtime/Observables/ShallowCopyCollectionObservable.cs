@@ -3,48 +3,73 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ShallowCopyCollectionObservable<T> : IDisposable
+    public class ShallowCopyCollectionObservable<T> : ObservableCollectionBase<T>
     {
-        private IDisposable _sourceStream;
-        private IObserver<ICollectionOperation<T>> _receiver;
+        private ICollectionObservable<IValueObservable<T>> _source;
         private Dictionary<uint, EntryData> _dataById = new Dictionary<uint, EntryData>();
-        private bool _disposed;
+        private IDisposable _subscriptions;
+        private bool _active;
 
         private class EntryData
         {
             public IDisposable subscription;
-            public T latest;
             public bool initialized;
         }
 
-        public ShallowCopyCollectionObservable(ICollectionObservable<IValueObservable<T>> source, IObserver<ICollectionOperation<T>> receiver)
+        public ShallowCopyCollectionObservable(ICollectionObservable<IValueObservable<T>> source) : base(source.context)
         {
-            _receiver = receiver;
-            _sourceStream = source.SubscribeWithId(
+            _source = source;
+        }
+
+        protected override void OnFirstObserverAdded()
+        {
+            _active = true;
+            _subscriptions = _source.SubscribeWithId(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
-                onError: _receiver.OnError,
-                onDispose: Dispose,
-                immediate: receiver.immediate
+                onError: OnError,
+                onDispose: HandleSourceDisposed,
+                immediate: true
             );
+        }
+
+        protected override void OnLastObserverRemoved()
+        {
+            _active = false;
+            foreach (var data in _dataById.Values)
+                data.subscription.Dispose();
+
+            _dataById.Clear();
+
+            _subscriptions?.Dispose();
+            _subscriptions = null;
+
+            ClearInternal();
+        }
+
+        private void HandleSourceDisposed()
+        {
+            if (!_active)
+                return;
+
+            Dispose();
         }
 
         private void HandleAdd(uint id, IValueObservable<T> observable)
         {
             var data = new EntryData();
             _dataById.Add(id, data);
-            data.subscription = observable.ObservableWithPrevious().Subscribe(
+            data.subscription = observable.Subscribe(
                 onNext: x =>
                 {
                     if (data.initialized)
-                        _receiver.OnRemove(id, x.previous);
+                        RemoveInternal(id);
 
                     data.initialized = true;
-                    data.latest = x.current;
-                    _receiver.OnAdd(id, x.current);
+                    AddInternal(id, x);
                 },
-                onError: _receiver.OnError,
-                immediate: _receiver.immediate
+                onError: OnError,
+                immediate: true
             );
         }
 
@@ -53,22 +78,16 @@ namespace ObserveThing
             var data = _dataById[id];
             _dataById.Remove(id);
             data.subscription.Dispose();
-            _receiver.OnRemove(id, data.latest);
+            RemoveInternal(id);
         }
 
-        public void Dispose()
+        protected override void DisposeInternal()
         {
-            if (_disposed)
-                return;
-
-            _disposed = true;
-
-            _sourceStream.Dispose();
-
             foreach (var data in _dataById.Values)
                 data.subscription.Dispose();
 
-            _receiver.OnDispose();
+            _subscriptions?.Dispose();
+            _subscriptions = null;
         }
     }
 }

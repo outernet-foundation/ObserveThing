@@ -2,51 +2,50 @@ using System;
 
 namespace ObserveThing
 {
-    public class SelectValueObservable<T, U> : IDisposable
+    public class SelectValueObservable<T, U> : ObservableValueBase<U>
     {
-        private IDisposable _sourceStream;
+        private IValueObservable<T> _source;
+        private IDisposable _subscriptions;
         private Func<T, U> _select;
-        private IObserver<IValueOperation<U>> _receiver;
-        private U _selected;
-        private bool _disposed;
+        private bool _active;
 
-        public SelectValueObservable(IValueObservable<T> source, Func<T, U> select, IObserver<IValueOperation<U>> receiver)
+        public SelectValueObservable(IValueObservable<T> source, Func<T, U> select) : base(source.context)
         {
-            _receiver = receiver;
+            _source = source;
             _select = select;
-            _sourceStream = source.Subscribe(
-                onNext: HandleNext,
-                onError: _receiver.OnError,
-                onDispose: Dispose,
-                immediate: receiver.immediate
+        }
+
+        protected override void OnFirstObserverAdded()
+        {
+            _active = true;
+            _subscriptions = _source.Subscribe(
+                onNext: x => SetValueInternal(_select(x)),
+                onError: OnError,
+                onDispose: HandleSourceDisposed,
+                immediate: true
             );
-
-            // Always send init call
-            if (Equals(_selected, default(U)))
-                _receiver.OnNext(default);
         }
 
-        private void HandleNext(T value)
+        protected override void OnLastObserverRemoved()
         {
-            var nextSelect = _select(value);
-
-            if (Equals(nextSelect, _selected))
-                return;
-
-            _selected = nextSelect;
-            _receiver.OnNext(_selected);
+            _active = false;
+            _subscriptions?.Dispose();
+            _subscriptions = null;
+            SetValueInternal(default);
         }
 
-        public void Dispose()
+        private void HandleSourceDisposed()
         {
-            if (_disposed)
+            if (!_active)
                 return;
 
-            _disposed = true;
+            Dispose();
+        }
 
-            _sourceStream.Dispose();
-
-            _receiver.OnDispose();
+        protected override void DisposeInternal()
+        {
+            _subscriptions?.Dispose();
+            _subscriptions = null;
         }
     }
 }

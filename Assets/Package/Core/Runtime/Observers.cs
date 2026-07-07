@@ -12,10 +12,12 @@ namespace ObserveThing
     public interface IOperation
     {
         IObservable source { get; }
+        IOperation Clone();
     }
 
     public interface IObserver
     {
+        uint? overridePriority { get; }
         bool immediate { get; }
         void OnNext(IOperation operation);
         void OnError(Exception exc);
@@ -24,16 +26,18 @@ namespace ObserveThing
 
     public class Observer : IObserver
     {
+        public uint? overridePriority { get; }
         public bool immediate { get; }
         private Action<IOperation> _onNext;
         private Action<Exception> _onError;
         private Action _onDispose;
 
-        public Observer(Action<IOperation> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+        public Observer(Action<IOperation> onNext = default, Action<Exception> onError = default, Action onDispose = default, uint? overridePriority = default, bool immediate = false)
         {
             _onNext = onNext;
             _onError = onError;
             _onDispose = onDispose;
+            this.overridePriority = overridePriority;
             this.immediate = immediate;
         }
 
@@ -55,6 +59,7 @@ namespace ObserveThing
 
     public interface IObserver<in T>
     {
+        uint? overridePriority { get; }
         bool immediate { get; }
         void OnNext(T operation);
         void OnError(Exception exc);
@@ -63,16 +68,18 @@ namespace ObserveThing
 
     public class Observer<T> : IObserver<T>
     {
+        public uint? overridePriority { get; }
         public bool immediate { get; }
         private Action<T> _onNext;
         private Action<Exception> _onError;
         private Action _onDispose;
 
-        public Observer(Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = false)
+        public Observer(Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, uint? overridePriority = default, bool immediate = false)
         {
             _onNext = onNext;
             _onError = onError;
             _onDispose = onDispose;
+            this.overridePriority = overridePriority;
             this.immediate = immediate;
         }
 

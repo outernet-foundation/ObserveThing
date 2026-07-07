@@ -39,6 +39,18 @@ namespace ObserveThing
                 key = default;
                 value = default;
             }
+
+            public IOperation Clone()
+            {
+                return new DictionaryOperation()
+                {
+                    source = source,
+                    elementId = elementId,
+                    opType = opType,
+                    key = key,
+                    value = value,
+                };
+            }
         }
 
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
@@ -81,7 +93,7 @@ namespace ObserveThing
         protected override IReadOnlyList<IDictionaryOperation<TKey, TValue>> GetInitializationOperations()
             => _dictionary.Select(x => AllocateOperation(x.Value.id, OpType.Add, x.Key, x.Value.value)).ToArray();
 
-        protected override void HandleOperationNotificationsComplete(IDictionaryOperation<TKey, TValue> operation)
+        protected override void OnOperationNotificationsCompleted(IDictionaryOperation<TKey, TValue> operation)
         {
             var op = (DictionaryOperation)operation;
             op.Reset();
@@ -150,6 +162,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IObserver<ICollectionOperation<KeyValuePair<TKey, TValue>>> observer)
             => Subscribe(new Observer<IDictionaryOperation<TKey, TValue>>(
+                overridePriority: observer.overridePriority,
                 immediate: observer.immediate,
                 onNext: observer.OnNext,
                 onError: observer.OnError,
@@ -158,6 +171,7 @@ namespace ObserveThing
 
         public IDisposable Subscribe(IObserver<ICollectionOperation> observer)
             => Subscribe(new Observer<IDictionaryOperation<TKey, TValue>>(
+                overridePriority: observer.overridePriority,
                 immediate: observer.immediate,
                 onNext: observer.OnNext,
                 onError: observer.OnError,
