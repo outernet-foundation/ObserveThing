@@ -539,67 +539,64 @@ namespace ObserveThing.Tests
             Assert.IsFalse(receivedCall);
         }
 
-        // [Test]
-        // public void TestShallowCopy()
-        // {
-        //     bool disposed = false;
-        //     bool callReceived = false;
-        //     var result = new List<float>();
-        //     var source = new ObservableList<ObservableValue<float>>(
-        //         new ObservableValue<float>(1),
-        //         new ObservableValue<float>(2),
-        //         new ObservableValue<float>(3)
-        //     );
+        [Test]
+        public void TestShallowCopy()
+        {
+            bool disposed = false;
+            bool callReceived = false;
+            var result = new List<float>();
+            var source = new ObservableList<ObservableValue<float>>(
+                new ObservableValue<float>(1),
+                new ObservableValue<float>(2),
+                new ObservableValue<float>(3)
+            );
 
-        //     var stream = new ShallowCopyCollectionObservable<float>(
-        //         source.ObservableCast<IValueObservable<float>>(),
-        //         new CollectionObserver<float>(
-        //             onAdd: (_, x) =>
-        //             {
-        //                 result.Add(x);
-        //                 callReceived = true;
-        //             },
-        //             onRemove: (_, x) =>
-        //             {
-        //                 result.Remove(x);
-        //                 callReceived = true;
-        //             },
-        //             onDispose: () => disposed = true
-        //         )
-        //     );
+            var stream = source.ObservableShallowCopy().Subscribe(
+                onAdd: (_, x) =>
+                {
+                    result.Add(x);
+                    callReceived = true;
+                },
+                onRemove: (_, x) =>
+                {
+                    result.Remove(x);
+                    callReceived = true;
+                },
+                onDispose: () => disposed = true
+            );
 
-        //     Assert.That(result, Is.EquivalentTo(new float[] { 1, 2, 3 }));
+            Assert.That(result, Is.EquivalentTo(new float[] { 1, 2, 3 }));
 
-        //     source[1].value = 3;
+            source[1].value = 3;
 
-        //     Assert.That(result, Is.EquivalentTo(new float[] { 1, 3, 3 }));
+            Assert.That(result, Is.EquivalentTo(new float[] { 1, 3, 3 }));
 
-        //     var removed = source[1];
-        //     source.RemoveAt(1);
+            var removed = source[1];
+            source.RemoveAt(1);
 
-        //     Assert.That(result, Is.EquivalentTo(new float[] { 1, 3 }));
+            Assert.That(result, Is.EquivalentTo(new float[] { 1, 3 }));
 
-        //     removed.value = 100;
+            removed.value = 100;
 
-        //     Assert.That(result, Is.EquivalentTo(new float[] { 1, 3 }));
+            Assert.That(result, Is.EquivalentTo(new float[] { 1, 3 }));
 
-        //     source.Add(new ObservableValue<float>(55));
-        //     source.Add(new ObservableValue<float>(55));
-        //     source.Add(new ObservableValue<float>(1));
+            source.Add(new ObservableValue<float>(55));
+            source.Add(new ObservableValue<float>(55));
+            source.Add(new ObservableValue<float>(1));
 
-        //     Assert.That(result, Is.EquivalentTo(new float[] { 1, 1, 3, 55, 55 }));
+            Assert.That(result, Is.EquivalentTo(new float[] { 1, 1, 3, 55, 55 }));
 
-        //     source.Clear();
+            source.Clear();
 
-        //     Assert.That(result, Is.EquivalentTo(new float[] { }));
+            Assert.That(result, Is.EquivalentTo(new float[] { }));
 
-        //     callReceived = false;
-        //     stream.Dispose();
+            callReceived = false;
+            stream.Dispose();
 
-        //     source.Add(new ObservableValue<float>(100));
-        //     Assert.IsTrue(disposed);
-        //     Assert.IsFalse(callReceived);
-        // }
+            source.Add(new ObservableValue<float>(100));
+            Assert.IsTrue(disposed);
+            Assert.IsFalse(callReceived);
+        }
 
         public class TestElement
         {
