@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class SelectManyObservable<T, U> : ObservableCollectionBase<U>
+    public class SelectManyObservable<T, U> : IDisposable
     {
         private class ElementData
         {
@@ -12,53 +12,24 @@ namespace ObserveThing
             public Dictionary<uint, uint> elementIds = new Dictionary<uint, uint>();
         }
 
-        private ICollectionObservable<T> _source;
+        private ICollectionOperand<U> _operand;
         private Func<T, ICollectionObservable<U>> _select;
         private Dictionary<uint, ElementData> _dataById = new Dictionary<uint, ElementData>();
         private CollectionIdProvider _idProvider;
         private IDisposable _subscriptions;
-        private bool _active;
 
-        public SelectManyObservable(ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> select) : base(source.context)
+        public SelectManyObservable(ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> select, ICollectionOperand<U> operand)
         {
-            _source = source;
             _select = select;
+            _operand = operand;
             _idProvider = new CollectionIdProvider(x => _dataById.Values.Any(y => y.elementIds.ContainsKey(x)));
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscriptions = _source.SubscribeWithId(
+            _subscriptions = source.SubscribeWithId(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
-                onError: OnError,
-                onDispose: HandleSourceDisposed,
+                onError: operand.OnError,
+                onDispose: Dispose,
                 immediate: true
             );
-        }
-
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-
-            foreach (var data in _dataById.Values)
-                data.subscription.Dispose();
-
-            _dataById.Clear();
-            _idProvider.Reset();
-
-            ClearInternal();
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
         }
 
         private void HandleAdd(uint id, T element)
@@ -70,15 +41,15 @@ namespace ObserveThing
                 {
                     var newId = _idProvider.GetUnusedId();
                     data.elementIds.Add(subId, newId);
-                    AddInternal(newId, subElement);
+                    _operand.Add(newId, subElement);
                 },
                 onRemove: (subId, subElement) =>
                 {
                     var elementId = data.elementIds[subId];
                     data.elementIds.Remove(subId);
-                    RemoveInternal(elementId);
+                    _operand.Remove(elementId);
                 },
-                onError: OnError,
+                onError: _operand.OnError,
                 immediate: true
             );
         }
@@ -90,16 +61,18 @@ namespace ObserveThing
             data.subscription.Dispose();
 
             foreach (var elementId in data.elementIds.Values)
-                RemoveInternal(elementId);
+                _operand.Remove(elementId);
         }
 
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
 
             foreach (var data in _dataById.Values)
                 data.subscription.Dispose();
+
+            _operand.OnDisposed();
         }
     }
 }

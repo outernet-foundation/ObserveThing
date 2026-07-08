@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -22,16 +21,7 @@ namespace ObserveThing
             public int index { get; set; }
             public T element { get; set; }
 
-            public void Reset()
-            {
-                source = default;
-                elementId = default;
-                opType = default;
-                index = default;
-                element = default;
-            }
-
-            public IOperation Clone()
+            public IOperation AllocateCopy()
             {
                 return new ListOperation()
                 {
@@ -41,6 +31,17 @@ namespace ObserveThing
                     index = index,
                     element = element,
                 };
+            }
+
+            public void Deallocate()
+            {
+                var context = source.context;
+                source = default;
+                elementId = default;
+                opType = default;
+                index = default;
+                element = default;
+                context.DeallocateOperation(this);
             }
         }
 
@@ -61,7 +62,7 @@ namespace ObserveThing
 
         private ListOperation AllocateOperation(uint id, int index, OpType opType, T element)
         {
-            var op = context.AllocatePooledOperation<ListOperation>();
+            var op = context.AllocateOperation<ListOperation>();
             op.source = this;
             op.elementId = id;
             op.index = index;
@@ -76,15 +77,8 @@ namespace ObserveThing
         protected IEnumerable<(uint id, T value)> ElementsInternal()
             => _list;
 
-        protected override IReadOnlyList<IListOperation<T>> GetInitializationOperations()
+        public override IReadOnlyList<IListOperation<T>> GetInitializationOperations()
             => _list.Select((element, index) => AllocateOperation(element.id, index, OpType.Add, element.value)).ToArray();
-
-        protected override void OnOperationNotificationsCompleted(IListOperation<T> operation)
-        {
-            var op = (ListOperation)operation;
-            op.Reset();
-            context.DeallocatePooledOperation(op);
-        }
 
         protected void AddInternal(T added)
             => InsertInternal(_list.Count, added);

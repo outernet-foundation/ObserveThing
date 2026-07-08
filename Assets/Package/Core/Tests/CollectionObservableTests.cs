@@ -136,7 +136,7 @@ namespace ObserveThing.Tests
 
             source
                 .ObservableSelect(x => x)
-                .ObservableOrderBy(x => source.ObservableIndexOf(x))
+                .ObservableOrderBy(x => source.ObservableIndexOf(x).ObservableSelect(x => x.found ? x.index : -1))
                 .Subscribe(
                     onAdd: (index, value) => destination.Insert(index, value),
                     onRemove: (index, value) => destination.RemoveAt(index)
@@ -169,7 +169,7 @@ namespace ObserveThing.Tests
             source
                 .ObservableSelect(x => x)
                 .ObservableWhere(x => true)
-                .ObservableOrderBy(x => source.ObservableIndexOf(x))
+                .ObservableOrderBy(x => source.ObservableIndexOf(x).ObservableSelect(x => x.found ? x.index : -1))
                 .Subscribe(
                     onAdd: (index, value) => destination.Insert(index, value),
                     onRemove: (index, value) => destination.RemoveAt(index)

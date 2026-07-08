@@ -3,25 +3,17 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class FirstObservable<T> : ObservableValueBase<(bool found, T value)>
+    public class FirstObservable<T> : IDisposable
     {
-        private ICollectionObservable<T> _source;
-        private Func<T, IValueObservable<bool>> _validate;
+        private IValueOperand<(bool found, T value)> _operand;
         private List<(uint id, T value)> _sortedList = new List<(uint id, T value)>();
         private (uint id, T value) _latest;
         private IDisposable _subscriptions;
-        private bool _active;
 
-        public FirstObservable(ICollectionObservable<T> source, Func<T, IValueObservable<bool>> validate) : base(source.context)
+        public FirstObservable(ICollectionObservable<T> source, Func<T, IValueObservable<bool>> validate, IValueOperand<(bool found, T value)> operand)
         {
-            _source = source;
-            _validate = validate;
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscriptions = _source.ObservableWhere(x => _validate(x)).SubscribeWithId(
+            _operand = operand;
+            _subscriptions = source.ObservableWhere(x => validate(x)).SubscribeWithId(
                 onAdd: (id, value) =>
                 {
                     _sortedList.Add(new(id, value));
@@ -33,26 +25,10 @@ namespace ObserveThing
                     _sortedList.Remove(new(id, value));
                     SetValueIfNecessary();
                 },
-                onError: OnError,
-                onDispose: HandleSourceDisposed,
+                onError: operand.OnError,
+                onDispose: Dispose,
                 immediate: true
             );
-        }
-
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-            SetValueInternal(default);
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
         }
 
         private void SetValueIfNecessary()
@@ -64,13 +40,14 @@ namespace ObserveThing
                 return;
 
             _latest = next;
-            SetValueInternal(new(found, _latest.value));
+            _operand.value = new(found, _latest.value);
         }
 
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
+            _operand.OnDisposed();
         }
     }
 }

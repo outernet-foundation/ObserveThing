@@ -17,15 +17,7 @@ namespace ObserveThing
             public OpType opType { get; set; }
             public T element { get; set; }
 
-            public void Reset()
-            {
-                source = default;
-                elementId = default;
-                opType = default;
-                element = default;
-            }
-
-            public IOperation Clone()
+            public IOperation AllocateCopy()
             {
                 return new SetOperation()
                 {
@@ -34,6 +26,16 @@ namespace ObserveThing
                     opType = opType,
                     element = element,
                 };
+            }
+
+            public void Deallocate()
+            {
+                var context = source.context;
+                source = default;
+                elementId = default;
+                opType = default;
+                element = default;
+                context.DeallocateOperation(this);
             }
         }
 
@@ -54,7 +56,7 @@ namespace ObserveThing
 
         private SetOperation AllocateOperation(uint id, OpType opType, T element)
         {
-            var op = context.AllocatePooledOperation<SetOperation>();
+            var op = context.AllocateOperation<SetOperation>();
             op.source = this;
             op.elementId = id;
             op.opType = opType;
@@ -62,15 +64,8 @@ namespace ObserveThing
             return op;
         }
 
-        protected override IReadOnlyList<ISetOperation<T>> GetInitializationOperations()
+        public override IReadOnlyList<ISetOperation<T>> GetInitializationOperations()
             => _set.Select(x => AllocateOperation(x.Value, OpType.Add, x.Key)).ToArray();
-
-        protected override void OnOperationNotificationsCompleted(ISetOperation<T> operation)
-        {
-            var op = (SetOperation)operation;
-            op.Reset();
-            context.DeallocatePooledOperation(op);
-        }
 
         protected int GetCountInternal()
             => _set.Count;

@@ -3,13 +3,12 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class WhereObservable<T> : ObservableCollectionBase<T>
+    public class WhereObservable<T> : IDisposable
     {
-        private ICollectionObservable<T> _source;
+        private ICollectionOperand<T> _operand;
         private Func<T, IValueObservable<bool>> _where;
         private Dictionary<uint, EntryData> _dataById = new Dictionary<uint, EntryData>();
         private IDisposable _subscriptions;
-        private bool _active;
 
         private class EntryData
         {
@@ -19,44 +18,17 @@ namespace ObserveThing
             public IDisposable subscription;
         }
 
-        public WhereObservable(ICollectionObservable<T> source, Func<T, IValueObservable<bool>> where) : base(source.context)
+        public WhereObservable(ICollectionObservable<T> source, Func<T, IValueObservable<bool>> where, ICollectionOperand<T> operand)
         {
-            _source = source;
+            _operand = operand;
             _where = where;
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscriptions = _source.SubscribeWithId(
+            _subscriptions = source.SubscribeWithId(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
-                onDispose: HandleSourceDisposed,
-                onError: OnError,
+                onDispose: Dispose,
+                onError: _operand.OnError,
                 immediate: true
             );
-        }
-
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-
-            foreach (var data in _dataById.Values)
-                data.subscription.Dispose();
-
-            _dataById.Clear();
-
-            ClearInternal();
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
         }
 
         private void HandleAdd(uint id, T value)
@@ -78,14 +50,14 @@ namespace ObserveThing
 
                     if (included)
                     {
-                        AddInternal(id, data.value);
+                        _operand.Add(id, data.value);
                     }
                     else if (data.initialized)
                     {
-                        RemoveInternal(id);
+                        _operand.Remove(id);
                     }
                 },
-                onError: OnError,
+                onError: _operand.OnError,
                 immediate: true
             );
         }
@@ -97,16 +69,17 @@ namespace ObserveThing
             _dataById.Remove(id);
 
             if (data.included)
-                RemoveInternal(id);
+                _operand.Remove(id);
         }
 
-        protected override void DisposeInternal()
+        public void Dispose()
         {
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-
             foreach (var data in _dataById.Values)
                 data.subscription.Dispose();
+
+            _subscriptions?.Dispose();
+            _subscriptions = null;
+            _operand.OnDisposed();
         }
     }
 }

@@ -125,7 +125,7 @@ namespace ObserveThing
             _registrationOrder = 0;
         }
 
-        public T AllocatePooledOperation<T>() where T : class, IOperation, new()
+        public T AllocateOperation<T>() where T : class, IOperation, new()
         {
             var pool = _operationPools.TryGetValue(typeof(T), out var poolObj) ? (Queue<T>)poolObj : new Queue<T>();
 
@@ -135,7 +135,7 @@ namespace ObserveThing
             return instance;
         }
 
-        public void DeallocatePooledOperation<T>(T operation) where T : class, IOperation, new()
+        public void DeallocateOperation<T>(T operation) where T : class, IOperation, new()
         {
             var pool = _operationPools.TryGetValue(typeof(T), out var poolObj) ? (Queue<T>)poolObj : new Queue<T>();
             pool.Enqueue(operation);

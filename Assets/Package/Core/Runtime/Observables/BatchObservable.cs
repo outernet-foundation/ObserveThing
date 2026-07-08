@@ -20,7 +20,7 @@ namespace ObserveThing
     }
 
 
-    public class BatchObservable<T> : Observable<IBatchOperation<T>>, IPendingObserver where T : IOperation
+    public class BatchObservable<T> : IInitializationOperationsProvider<IBatchOperation<T>>, IPendingObserver where T : IOperation
     {
         private class BatchOperation : IBatchOperation<T>
         {
@@ -28,124 +28,101 @@ namespace ObserveThing
             public IObservable<T> originatingSource { get; set; }
             public IReadOnlyList<T> operations { get; set; }
 
-            public IOperation Clone()
+            public IOperation AllocateCopy()
             {
-                return new BatchOperation()
-                {
-                    source = source,
-                    originatingSource = originatingSource,
-                    operations = operations.Select(x => (T)x.Clone()).ToArray()
-                };
+                var copy = source.context.AllocateOperation<BatchOperation>();
+
+                copy.source = source;
+                copy.originatingSource = originatingSource;
+                copy.operations = operations.Select(x => (T)x.AllocateCopy()).ToArray();
+
+                return copy;
             }
 
-            public void Reset()
+            public void Deallocate()
             {
+                foreach (var op in operations)
+                    op.Deallocate();
+
+                var context = source.context;
                 source = default;
                 originatingSource = default;
                 operations = default;
+                context.DeallocateOperation(this);
             }
         }
 
         public bool immediate { get; } = false;
         public uint priority { get; private set; }
+        public bool disposed { get; private set; }
 
         private IObservable<T> _source;
+        private IObservableOperand<IBatchOperation<T>> _operand;
         private IDisposable _subscriptions;
-        private bool _active;
-        private bool _initialized;
         private bool _pending;
 
         private List<T> _batchedOperations = new List<T>();
 
-        public BatchObservable(IObservable<T> source) : base(source.context)
+        public BatchObservable(IObservable<T> source, IObservableOperand<IBatchOperation<T>> operand)
         {
-            _source = source;
-        }
+            priority = source.context.AllocateObserverPriority();
 
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscriptions = _source.Subscribe(
+            _source = source;
+            _operand = operand;
+
+            _subscriptions = source.Subscribe(
                 onOperation: HandleSourceOperation,
-                onError: OnError,
-                onDispose: HandleSourceDisposed,
+                onError: operand.OnError,
+                onDispose: Dispose,
                 immediate: true
             );
-
-            priority = _source.context.AllocateObserverPriority();
-            _initialized = true;
-        }
-
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            context.DeallocateObserverPriority(priority);
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-            _initialized = false;
-        }
-
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
-        }
-
-        protected override void OnOperationNotificationsCompleted(IBatchOperation<T> operation)
-        {
-            var op = (BatchOperation)operation;
-            op.Reset();
-            context.DeallocatePooledOperation(op);
         }
 
         private void HandleSourceOperation(T operation)
         {
-            _batchedOperations.Add((T)operation.Clone());
+            _batchedOperations.Add((T)operation.AllocateCopy());
 
-            if (_pending || !_initialized)
+            if (_pending)
                 return;
 
             _pending = true;
-            context.RegisterPendingObserver(this);
-            context.NotifyPendingObserversIfNecessary();
+            _source.context.RegisterPendingObserver(this);
+            _source.context.NotifyPendingObserversIfNecessary();
+        }
+
+        public IReadOnlyList<IBatchOperation<T>> GetInitializationOperations()
+        {
+            var operation = _source.context.AllocateOperation<BatchOperation>();
+
+            operation.source = _operand.operationSource;
+            operation.originatingSource = _source;
+            operation.operations = _source.GetInitializationOperations();
+
+            return new IBatchOperation<T>[] { operation };
         }
 
         public void SendNext()
         {
             _pending = false;
 
-            var operation = context.AllocatePooledOperation<BatchOperation>();
+            var operation = _source.context.AllocateOperation<BatchOperation>();
 
-            operation.source = this;
+            operation.source = _operand.operationSource;
             operation.originatingSource = _source;
             operation.operations = _batchedOperations.ToArray();
 
             _batchedOperations.Clear();
 
-            EnqueuePendingOperation(operation);
+            _operand.EnqueuePendingOperation(operation);
         }
 
-        protected override void DisposeInternal()
+        public void Dispose()
         {
-            context.DeallocateObserverPriority(priority);
+            disposed = true;
+            _source.context.DeallocateObserverPriority(priority);
             _subscriptions?.Dispose();
             _subscriptions = null;
-        }
-
-        protected override IReadOnlyList<IBatchOperation<T>> GetInitializationOperations()
-        {
-            var operation = context.AllocatePooledOperation<BatchOperation>();
-
-            operation.source = this;
-            operation.originatingSource = _source;
-            operation.operations = _batchedOperations.ToArray();
-
-            _batchedOperations.Clear();
-
-            return new IBatchOperation<T>[] { operation };
+            _operand.OnDisposed();
         }
     }
 }

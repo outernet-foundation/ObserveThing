@@ -32,15 +32,7 @@ namespace ObserveThing
             public OpType opType { get; set; }
             public T element { get; set; }
 
-            public void Reset()
-            {
-                source = default;
-                elementId = default;
-                opType = default;
-                element = default;
-            }
-
-            public IOperation Clone()
+            public IOperation AllocateCopy()
             {
                 return new CollectionOperation()
                 {
@@ -50,6 +42,16 @@ namespace ObserveThing
                     element = element,
                 };
             }
+
+            public void Deallocate()
+            {
+                var context = source.context;
+                source = default;
+                elementId = default;
+                opType = default;
+                element = default;
+                context.DeallocateOperation(this);
+            }
         }
 
         private Dictionary<uint, T> _collection = new Dictionary<uint, T>();
@@ -58,7 +60,7 @@ namespace ObserveThing
 
         private CollectionOperation AllocateOperation(uint id, OpType opType, T element)
         {
-            var op = context.AllocatePooledOperation<CollectionOperation>();
+            var op = context.AllocateOperation<CollectionOperation>();
             op.source = this;
             op.elementId = id;
             op.opType = opType;
@@ -66,15 +68,8 @@ namespace ObserveThing
             return op;
         }
 
-        protected override IReadOnlyList<ICollectionOperation<T>> GetInitializationOperations()
+        public override IReadOnlyList<ICollectionOperation<T>> GetInitializationOperations()
             => _collection.Select(x => AllocateOperation(x.Key, OpType.Add, x.Value)).ToArray();
-
-        protected override void OnOperationNotificationsCompleted(ICollectionOperation<T> operation)
-        {
-            var op = (CollectionOperation)operation;
-            op.Reset();
-            context.DeallocatePooledOperation(op);
-        }
 
         protected IEnumerable<(uint id, T element)> GetElementsWithIdsInternal()
             => _collection.Select<KeyValuePair<uint, T>, (uint id, T element)>(x => new(x.Key, x.Value));

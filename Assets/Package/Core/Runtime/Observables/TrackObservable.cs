@@ -3,36 +3,28 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class TrackObservable<TKey, TValue> : ObservableValueBase<(bool present, TValue value)>
+    public class TrackObservable<TKey, TValue> : IDisposable
     {
-        private IDictionaryObservable<TKey, TValue> _source;
-        private IValueObservable<TKey> _keySource;
+        private IValueOperand<(bool keyPresent, TValue value)> _operand;
         private Dictionary<TKey, TValue> _dict = new Dictionary<TKey, TValue>();
         private TKey _key = default;
         private bool _present = false;
 
         private IDisposable _subscriptions;
-        private bool _active;
 
-        public TrackObservable(IDictionaryObservable<TKey, TValue> source, IValueObservable<TKey> key) : base(source.context)
+        public TrackObservable(IDictionaryObservable<TKey, TValue> source, IValueObservable<TKey> key, IValueOperand<(bool keyPresent, TValue value)> operand)
         {
-            _source = source;
-            _keySource = key;
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
+            _operand = operand;
             _subscriptions = new ComposedDisposable(
 
-                _source.Subscribe(
+                source.Subscribe(
                     onAdd: kvp =>
                     {
                         _dict.Add(kvp.Key, kvp.Value);
                         if (Equals(kvp.Key, _key))
                         {
                             _present = true;
-                            SetValueInternal(new(_present, kvp.Value));
+                            _operand.value = new(_present, kvp.Value);
                         }
                     },
                     onRemove: kvp =>
@@ -40,15 +32,15 @@ namespace ObserveThing
                         if (_dict.Remove(kvp.Key) && Equals(kvp.Key, _key))
                         {
                             _present = false;
-                            SetValueInternal(new(_present, default));
+                            _operand.value = new(_present, default);
                         }
                     },
-                    onError: OnError,
+                    onError: _operand.OnError,
                     onDispose: Dispose,
                     immediate: true
                 ),
 
-                _keySource.Subscribe(
+                key.Subscribe(
                     onNext: key =>
                     {
                         _key = key;
@@ -56,46 +48,27 @@ namespace ObserveThing
                         if (_dict.TryGetValue(_key, out var value))
                         {
                             _present = true;
-                            SetValueInternal(new(_present, value));
+                            _operand.value = new(_present, value);
                         }
                         else
                         {
                             _present = false;
-                            SetValueInternal(new(_present, default));
+                            _operand.value = new(_present, default);
                         }
                     },
-                    onError: OnError,
-                    onDispose: HandleSourceDisposed,
+                    onError: _operand.OnError,
+                    onDispose: Dispose,
                     immediate: true
                 )
 
             );
         }
 
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-
-            _key = default;
-            _dict.Clear();
-
-            SetValueInternal(default);
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
-        }
-
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
+            _operand.OnDisposed();
         }
     }
 }

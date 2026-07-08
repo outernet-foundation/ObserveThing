@@ -2,58 +2,35 @@ using System;
 
 namespace ObserveThing
 {
-    public class WithPreviousObservable<T> : ObservableValueBase<(T current, T previous)>
+    public class WithPreviousObservable<T> : IDisposable
     {
-        private IValueObservable<T> _source;
+        private IValueOperand<(T previous, T current)> _operand;
         private T _previousValue;
         private IDisposable _subscriptions;
-        private bool _active;
 
-        public WithPreviousObservable(IValueObservable<T> source) : base(source.context)
+        public WithPreviousObservable(IValueObservable<T> source, IValueOperand<(T previous, T current)> operand)
         {
-            _source = source;
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscriptions = _source.Subscribe(
+            _operand = operand;
+            _subscriptions = source.Subscribe(
                 onNext: HandleNext,
-                onError: OnError,
-                onDispose: HandleSourceDisposed,
+                onError: _operand.OnError,
+                onDispose: Dispose,
                 immediate: true
             );
-        }
-
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-
-            SetValueInternal(default);
-            _previousValue = default;
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
         }
 
         private void HandleNext(T value)
         {
             var pair = (value, _previousValue);
             _previousValue = value;
-            SetValueInternal(pair);
+            _operand.value = pair;
         }
 
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
+            _operand.OnDisposed();
         }
     }
 }

@@ -2,49 +2,28 @@ using System;
 
 namespace ObserveThing
 {
-    public class CastCollectionObservable<T> : ObservableCollectionBase<T>
+    public class CastCollectionObservable<T> : IDisposable
     {
-        private ICollectionObservable _source;
+        private ICollectionOperand<T> _operand;
         private IDisposable _subscription;
-        private bool _active;
 
-        public CastCollectionObservable(ICollectionObservable source) : base(source.context)
+        public CastCollectionObservable(ICollectionObservable source, ICollectionOperand<T> operand)
         {
-            _source = source;
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscription = _source.SubscribeWithId(
-                onAdd: (id, x) => AddInternal(id, (T)x),
-                onRemove: (id, x) => RemoveInternal(id),
-                onError: OnError,
-                onDispose: HandleSourceDisposed,
+            _operand = operand;
+            _subscription = source.SubscribeWithId(
+                onAdd: (id, x) => _operand.Add(id, (T)x),
+                onRemove: (id, x) => _operand.Remove(id),
+                onError: _operand.OnError,
+                onDispose: Dispose,
                 immediate: true
             );
         }
 
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _subscription?.Dispose();
-            _subscription = null;
-            ClearInternal();
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
-        }
-
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             _subscription?.Dispose();
             _subscription = null;
+            _operand.OnDisposed();
         }
     }
 }

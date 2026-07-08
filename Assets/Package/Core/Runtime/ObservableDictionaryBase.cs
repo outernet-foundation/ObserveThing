@@ -31,16 +31,7 @@ namespace ObserveThing
             public TValue value { get; set; }
             public KeyValuePair<TKey, TValue> element => new KeyValuePair<TKey, TValue>(key, value);
 
-            public void Reset()
-            {
-                source = default;
-                elementId = default;
-                opType = default;
-                key = default;
-                value = default;
-            }
-
-            public IOperation Clone()
+            public IOperation AllocateCopy()
             {
                 return new DictionaryOperation()
                 {
@@ -51,11 +42,23 @@ namespace ObserveThing
                     value = value,
                 };
             }
+
+            public void Deallocate()
+            {
+                var context = source.context;
+                source = default;
+                elementId = default;
+                opType = default;
+                key = default;
+                value = default;
+                context.DeallocateOperation(this);
+            }
         }
 
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
         private CollectionIdProvider _idProvider;
 
+        public ObservableDictionaryBase(ObservationContext context) : this(context, null) { }
         public ObservableDictionaryBase(ObservationContext context, IEnumerable<KeyValuePair<TKey, TValue>> value) : base(context)
         {
             _idProvider = new CollectionIdProvider(x => _dictionary.Values.Any(y => y.id == x));
@@ -69,7 +72,7 @@ namespace ObserveThing
 
         private DictionaryOperation AllocateOperation(uint id, OpType opType, TKey key, TValue value)
         {
-            var op = context.AllocatePooledOperation<DictionaryOperation>();
+            var op = context.AllocateOperation<DictionaryOperation>();
             op.source = this;
             op.elementId = id;
             op.opType = opType;
@@ -90,15 +93,8 @@ namespace ObserveThing
         protected IEnumerable<KeyValuePair<TKey, (uint id, TValue value)>> ElementsInternal()
             => _dictionary;
 
-        protected override IReadOnlyList<IDictionaryOperation<TKey, TValue>> GetInitializationOperations()
+        public override IReadOnlyList<IDictionaryOperation<TKey, TValue>> GetInitializationOperations()
             => _dictionary.Select(x => AllocateOperation(x.Value.id, OpType.Add, x.Key, x.Value.value)).ToArray();
-
-        protected override void OnOperationNotificationsCompleted(IDictionaryOperation<TKey, TValue> operation)
-        {
-            var op = (DictionaryOperation)operation;
-            op.Reset();
-            context.DeallocatePooledOperation(op);
-        }
 
         protected void SetInternal(TKey key, TValue value)
         {

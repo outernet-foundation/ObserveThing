@@ -3,91 +3,69 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ContainsObservable<T> : ObservableValueBase<bool>
+    public class ContainsObservable<T> : IDisposable
     {
-        private ICollectionObservable<T> _source;
-        private IValueObservable<T> _valueSource;
+        private IValueOperand<bool> _operand;
         private List<T> _list = new List<T>();
         private T _latest = default;
         private IDisposable _subscriptions;
-        private bool _active;
 
-        public ContainsObservable(ICollectionObservable<T> source, IValueObservable<T> value) : base(source.context, default)
+        public ContainsObservable(ICollectionObservable<T> source, IValueObservable<T> value, IValueOperand<bool> operand)
         {
-            _source = source;
-            _valueSource = value;
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
+            _operand = operand;
             _subscriptions = new ComposedDisposable(
 
-                _source.Subscribe(
+                source.Subscribe(
                     onAdd: HandleAdd,
                     onRemove: HandleRemove,
-                    onError: OnError,
-                    onDispose: HandleSourceDisposed,
+                    onError: _operand.OnError,
+                    onDispose: Dispose,
                     immediate: true
                 ),
 
-                _valueSource.Subscribe(
+                value.Subscribe(
                     onNext: HandleNext,
-                    onError: OnError,
-                    onDispose: HandleSourceDisposed,
+                    onError: _operand.OnError,
+                    onDispose: Dispose,
                     immediate: true
                 )
 
             );
         }
 
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-            SetValueInternal(false);
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
-        }
-
         private void HandleAdd(T element)
         {
             _list.Add(element);
 
-            if (_value)
+            if (_operand.value)
                 return;
 
             if (Equals(element, _latest))
-                SetValueInternal(true);
+                _operand.value = true;
         }
 
         private void HandleRemove(T element)
         {
             _list.Remove(element);
 
-            if (!_value)
+            if (!_operand.value)
                 return;
 
             if (Equals(element, _latest) && !_list.Contains(element))
-                SetValueInternal(false);
+                _operand.value = false;
         }
 
         private void HandleNext(T value)
         {
             _latest = value;
-            SetValueInternal(_list.Contains(value));
+            _operand.value = _list.Contains(value);
         }
 
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             _subscriptions?.Dispose();
+            _subscriptions = null;
+            _operand.OnDisposed();
         }
     }
 }

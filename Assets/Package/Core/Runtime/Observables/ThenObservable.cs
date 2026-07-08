@@ -3,61 +3,43 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class OnEachObservable<T> : Observable<T> where T : IOperation
+    public class OnEachObservable<T> : IInitializationOperationsProvider<T> where T : IOperation
     {
         private IObservable<T> _source;
-        private List<T> _initOperations = new List<T>();
         private IObserver<T> _then;
+        private IObservableOperand<T> _operand;
         private IDisposable _subscriptions;
-        private bool _active;
 
-        public OnEachObservable(IObservable<T> source, IObserver<T> then) : base(source.context)
+        public OnEachObservable(IObservable<T> source, IObserver<T> then, IObservableOperand<T> operand)
         {
             _source = source;
             _then = then;
-        }
-
-        protected override IReadOnlyList<T> GetInitializationOperations()
-            => _initOperations;
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
+            _operand = operand;
             _subscriptions = _source.Subscribe(
                 onOperation: op =>
                 {
                     _then.OnNext(op);
-                    EnqueuePendingOperation((T)op.Clone());
+                    _operand.EnqueuePendingOperation((T)op.AllocateCopy());
                 },
                 onError: exc =>
                 {
                     _then.OnError(exc);
-                    OnError(exc);
+                    _operand.OnError(exc);
                 },
-                onDispose: HandleSourceDisposed
+                onDispose: Dispose
             );
         }
 
-        protected override void OnLastObserverRemoved()
+        public IReadOnlyList<T> GetInitializationOperations()
+            => _source.GetInitializationOperations();
+
+        public void Dispose()
         {
-            _active = false;
             _subscriptions?.Dispose();
             _subscriptions = null;
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
 
             _then.OnDispose();
-            Dispose();
-        }
-
-        protected override void DisposeInternal()
-        {
-            _subscriptions?.Dispose();
-            _subscriptions = null;
+            _operand.OnDisposed();
         }
     }
 }

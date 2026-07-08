@@ -2,53 +2,29 @@ using System;
 
 namespace ObserveThing
 {
-    public class ShallowCopyValueObservable<T> : ObservableValueBase<T>
+    public class ShallowCopyValueObservable<T> : IDisposable
     {
-        private IValueObservable<IValueObservable<T>> _source;
+        private IValueOperand<T> _operand;
         private Observer<IValueOperation<T>> _nestedObserver;
         private IDisposable _nestedSubscription;
         private IDisposable _subscriptions;
-        private bool _active;
 
-        public ShallowCopyValueObservable(IValueObservable<IValueObservable<T>> source) : base(source.context)
+        public ShallowCopyValueObservable(IValueObservable<IValueObservable<T>> source, IValueOperand<T> operand)
         {
-            _source = source;
+            _operand = operand;
+
             _nestedObserver = new Observer<IValueOperation<T>>(
-                onNext: x => SetValueInternal(x.value),
-                onError: OnError,
+                onNext: x => operand.value = x.value,
+                onError: operand.OnError,
                 immediate: true
             );
-        }
 
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscriptions = _source.Subscribe(
+            _subscriptions = source.Subscribe(
                 onNext: HandleNext,
-                onDispose: HandleSourceDisposed,
-                onError: OnError,
+                onDispose: Dispose,
+                onError: operand.OnError,
                 immediate: true
             );
-        }
-
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-
-            _nestedSubscription?.Dispose();
-            _nestedSubscription = null;
-
-            SetValueInternal(default);
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
         }
 
         private void HandleNext(IValueObservable<T> value)
@@ -58,20 +34,22 @@ namespace ObserveThing
 
             if (value == null)
             {
-                SetValueInternal(default);
+                _operand.value = default;
                 return;
             }
 
             _nestedSubscription = value.Subscribe(_nestedObserver);
         }
 
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
 
             _nestedSubscription?.Dispose();
             _nestedSubscription = null;
+
+            _operand.OnDisposed();
         }
     }
 }

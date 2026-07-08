@@ -2,49 +2,28 @@ using System;
 
 namespace ObserveThing
 {
-    public class CountObservable<T> : ObservableValueBase<int>
+    public class CountObservable<T> : IDisposable
     {
-        private ICollectionObservable<T> _source;
+        private IValueOperand<int> _operand;
         private IDisposable _subscriptions;
-        private bool _active;
 
-        public CountObservable(ICollectionObservable<T> source) : base(source.context)
+        public CountObservable(ICollectionObservable<T> source, IValueOperand<int> operand)
         {
-            _source = source;
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscriptions = _source.Subscribe(
-                onAdd: _ => SetValueInternal(_value + 1),
-                onRemove: _ => SetValueInternal(_value - 1),
-                onError: OnError,
-                onDispose: HandleSourceDisposed,
+            _operand = operand;
+            _subscriptions = source.Subscribe(
+                onAdd: _ => operand.value = operand.value + 1,
+                onRemove: _ => operand.value = operand.value - 1,
+                onError: operand.OnError,
+                onDispose: Dispose,
                 immediate: true
             );
         }
 
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-            SetValueInternal(default);
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
-        }
-
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
+            _operand.OnDisposed();
         }
     }
 }

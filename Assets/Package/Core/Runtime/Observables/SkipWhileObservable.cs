@@ -2,56 +2,31 @@ using System;
 
 namespace ObserveThing
 {
-    public class SkipWhileObservable<T> : ObservableValueBase<T>
+    public class SkipWhileObservable<T> : IDisposable
     {
-        private IValueObservable<T> _source;
-        private Func<bool> _skipWhile;
+        private IValueOperand<T> _operand;
         private IDisposable _subscriptions;
-        private bool _active;
 
-        public SkipWhileObservable(IValueObservable<T> source, Func<bool> skipWhile) : base(source.context)
+        public SkipWhileObservable(IValueObservable<T> source, Func<bool> skipWhile, IValueOperand<T> operand)
         {
-            _source = source;
-            _skipWhile = skipWhile;
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscriptions = _source.Subscribe(
-                onNext: HandleSourceChanged,
-                onError: OnError,
-                onDispose: HandleSourceDisposed,
+            _operand = operand;
+            _subscriptions = source.Subscribe(
+                onNext: value =>
+                {
+                    if (!skipWhile())
+                        _operand.value = value;
+                },
+                onError: _operand.OnError,
+                onDispose: Dispose,
                 immediate: true
             );
         }
 
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-            SetValueInternal(default);
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
-        }
-
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-        }
-
-        private void HandleSourceChanged(T value)
-        {
-            if (!_skipWhile())
-                SetValueInternal(value);
+            _operand.OnDisposed();
         }
     }
 }

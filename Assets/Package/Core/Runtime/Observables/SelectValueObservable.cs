@@ -2,50 +2,27 @@ using System;
 
 namespace ObserveThing
 {
-    public class SelectValueObservable<T, U> : ObservableValueBase<U>
+    public class SelectValueOperator<T, U> : IDisposable
     {
-        private IValueObservable<T> _source;
+        private IValueOperand<U> _operand;
         private IDisposable _subscriptions;
-        private Func<T, U> _select;
-        private bool _active;
 
-        public SelectValueObservable(IValueObservable<T> source, Func<T, U> select) : base(source.context)
+        public SelectValueOperator(IValueObservable<T> source, Func<T, U> select, IValueOperand<U> operand)
         {
-            _source = source;
-            _select = select;
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscriptions = _source.Subscribe(
-                onNext: x => SetValueInternal(_select(x)),
-                onError: OnError,
-                onDispose: HandleSourceDisposed,
+            _operand = operand;
+            _subscriptions = source.Subscribe(
+                onNext: x => operand.value = select(x),
+                onError: operand.OnError,
+                onDispose: operand.OnDisposed,
                 immediate: true
             );
         }
 
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-            SetValueInternal(default);
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
-        }
-
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
+            _operand.OnDisposed();
         }
     }
 }

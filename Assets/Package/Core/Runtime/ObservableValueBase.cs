@@ -21,13 +21,7 @@ namespace ObserveThing
             public IObservable source { get; set; }
             public T value { get; set; }
 
-            public void Reset()
-            {
-                source = default;
-                value = default;
-            }
-
-            public IOperation Clone()
+            public IOperation AllocateCopy()
             {
                 return new ValueOperation()
                 {
@@ -35,37 +29,40 @@ namespace ObserveThing
                     value = value,
                 };
             }
+
+            public void Deallocate()
+            {
+                var context = source.context;
+                source = default;
+                value = default;
+                context.DeallocateOperation(this);
+            }
         }
 
         protected T _value { get; private set; }
-        private List<ValueOperation> _initOperations = new List<ValueOperation>();
+        private ValueOperation[] _initOperations = new ValueOperation[1];
 
         public ObservableValueBase(ObservationContext context) : this(context, default) { }
         public ObservableValueBase(ObservationContext context, T value) : base(context)
         {
             _value = value;
-            _initOperations.Add(new ValueOperation() { source = this });
         }
 
         private ValueOperation AllocateOperation(T value)
         {
-            var op = context.AllocatePooledOperation<ValueOperation>();
+            var op = context.AllocateOperation<ValueOperation>();
             op.source = this;
             op.value = value;
             return op;
         }
 
-        protected override IReadOnlyList<IValueOperation<T>> GetInitializationOperations()
+        public override IReadOnlyList<IValueOperation<T>> GetInitializationOperations()
         {
-            _initOperations[0].value = _value;
+            var op = context.AllocateOperation<ValueOperation>();
+            op.source = this;
+            op.value = _value;
+            _initOperations[0] = op;
             return _initOperations;
-        }
-
-        protected override void OnOperationNotificationsCompleted(IValueOperation<T> operation)
-        {
-            var op = (ValueOperation)operation;
-            op.Reset();
-            context.DeallocatePooledOperation(op);
         }
 
         protected void SetValueInternal(T value)

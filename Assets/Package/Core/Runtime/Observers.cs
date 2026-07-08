@@ -12,7 +12,8 @@ namespace ObserveThing
     public interface IOperation
     {
         IObservable source { get; }
-        IOperation Clone();
+        IOperation AllocateCopy();
+        void Deallocate();
     }
 
     public interface IObserver

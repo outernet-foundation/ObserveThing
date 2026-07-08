@@ -1,85 +1,55 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace ObserveThing
 {
-    public class DistinctObservable<T> : ObservableSetBase<T>
+    public class DistinctObservable<T> : IDisposable
     {
-        private ICollectionObservable<T> _source;
-        private Dictionary<T, (uint id, int count)> _dataByElement = new Dictionary<T, (uint id, int count)>();
-        private CollectionIdProvider _idProvider;
+        private ISetOperand<T> _operand;
+        private Dictionary<T, int> _countByElement = new Dictionary<T, int>();
         private IDisposable _subscriptions;
-        private bool _active;
 
-        public DistinctObservable(ICollectionObservable<T> source) : base(source.context)
+        public DistinctObservable(ICollectionObservable<T> source, ISetOperand<T> operand)
         {
-            _source = source;
-            _idProvider = new CollectionIdProvider(x => _dataByElement.Values.Any(y => y.id == x));
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscriptions = _source.SubscribeWithId(
+            _operand = operand;
+            _subscriptions = source.Subscribe(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
-                onError: OnError,
-                onDispose: HandleSourceDisposed,
+                onError: _operand.OnError,
+                onDispose: Dispose,
                 immediate: true
             );
         }
 
-        protected override void OnLastObserverRemoved()
+        private void HandleAdd(T value)
         {
-            _active = false;
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-            _dataByElement.Clear();
-            _idProvider.Reset();
-            ClearInternal();
+            bool isNew = !_countByElement.TryGetValue(value, out var count);
+            _countByElement[value] = count + 1;
+
+            if (isNew)
+                _operand.Add(value);
         }
 
-        private void HandleSourceDisposed()
+        private void HandleRemove(T value)
         {
-            if (!_active)
-                return;
+            var count = _countByElement[value];
 
-            Dispose();
-        }
-
-        private void HandleAdd(uint id, T value)
-        {
-            if (!_dataByElement.TryGetValue(value, out var data))
-                data = new(_idProvider.GetUnusedId(), 0);
-
-            _dataByElement[value] = new(data.id, data.count + 1);
-
-            if (data.count == 0) // data here is the old version before incrementing
-                AddInternal(value);
-        }
-
-        private void HandleRemove(uint id, T value)
-        {
-            var data = _dataByElement[value];
-
-            if (data.count == 1)
+            if (count > 1)
             {
-                _dataByElement.Remove(value);
+                _countByElement[value] = count - 1;
             }
             else
             {
-                _dataByElement[value] = new(data.id, data.count - 1);
+                _countByElement.Remove(value);
+                _operand.Remove(value);
             }
-
-            if (data.count == 1)
-                RemoveInternal(value);
         }
 
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
+            _operand.OnDisposed();
         }
     }
 }

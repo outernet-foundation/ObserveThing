@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 namespace ObserveThing
@@ -111,8 +112,6 @@ namespace ObserveThing
             context.NotifyPendingObserversIfNecessary();
         }
 
-        protected abstract IReadOnlyList<T> GetInitializationOperations();
-        protected virtual void OnOperationNotificationsCompleted(T operation) { }
         protected virtual void OnFirstObserverAdded() { }
         protected virtual void OnLastObserverRemoved() { }
         protected virtual void DisposeInternal() { }
@@ -122,6 +121,8 @@ namespace ObserveThing
             foreach (var observer in _observers.OrderByDescending(x => x.immediate).ThenBy(x => x.priority))
                 observer.observer.OnError(error);
         }
+
+        public abstract IReadOnlyList<T> GetInitializationOperations();
 
         public IDisposable Subscribe(IObserver<T> observer)
         {
@@ -143,7 +144,7 @@ namespace ObserveThing
             foreach (var op in GetInitializationOperations())
             {
                 observer.OnNext(op);
-                OnOperationNotificationsCompleted(op);
+                op.Deallocate();
             }
 
             return observerData;
@@ -157,7 +158,7 @@ namespace ObserveThing
             if (referenceCount == 0)
             {
                 _operationReferences.Remove(operation);
-                OnOperationNotificationsCompleted(operation);
+                operation.Deallocate();
                 return;
             }
 

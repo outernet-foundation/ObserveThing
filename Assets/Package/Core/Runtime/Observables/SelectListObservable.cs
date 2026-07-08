@@ -2,51 +2,28 @@ using System;
 
 namespace ObserveThing
 {
-    public class SelectListObservable<T, U> : ObservableListBase<U>
+    public class SelectListObservable<T, U> : IDisposable
     {
-        private IListObservable<T> _source;
-        private Func<T, U> _select;
+        private IListOperand<U> _operand;
         private IDisposable _subscriptions;
-        private bool _active;
 
-        public SelectListObservable(IListObservable<T> source, Func<T, U> select) : base(source.context)
+        public SelectListObservable(IListObservable<T> source, Func<T, U> select, IListOperand<U> operand)
         {
-            _source = source;
-            _select = select;
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscriptions = _source.Subscribe(
-                onAdd: (index, value) => InsertInternal(index, _select(value)),
-                onRemove: (index, _) => RemoveAtInternal(index),
-                onError: OnError,
-                onDispose: HandleSourceDisposed,
+            _operand = operand;
+            _subscriptions = source.Subscribe(
+                onAdd: (index, value) => _operand.Insert(index, select(value)),
+                onRemove: (index, _) => _operand.RemoveAt(index),
+                onError: _operand.OnError,
+                onDispose: Dispose,
                 immediate: true
             );
         }
 
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-            ClearInternal();
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
-        }
-
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
+            _operand.OnDisposed();
         }
     }
 }

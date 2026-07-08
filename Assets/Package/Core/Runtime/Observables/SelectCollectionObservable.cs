@@ -2,51 +2,28 @@ using System;
 
 namespace ObserveThing
 {
-    public class SelectCollectionObservable<T, U> : ObservableCollectionBase<U>
+    public class SelectCollectionObservable<T, U> : IDisposable
     {
-        private ICollectionObservable<T> _source;
-        private Func<T, U> _select;
+        private ICollectionOperand<U> _operand;
         private IDisposable _subscriptions;
-        private bool _active;
 
-        public SelectCollectionObservable(ICollectionObservable<T> source, Func<T, U> select) : base(source.context)
+        public SelectCollectionObservable(ICollectionObservable<T> source, Func<T, U> select, ICollectionOperand<U> operand)
         {
-            _source = source;
-            _select = select;
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscriptions = _source.SubscribeWithId(
-                onAdd: (id, value) => AddInternal(id, _select(value)),
-                onRemove: (id, _) => RemoveInternal(id),
-                onError: OnError,
-                onDispose: HandleSourceDisposed,
+            _operand = operand;
+            _subscriptions = source.SubscribeWithId(
+                onAdd: (id, value) => operand.Add(id, select(value)),
+                onRemove: (id, _) => operand.Remove(id),
+                onError: operand.OnError,
+                onDispose: Dispose,
                 immediate: true
             );
         }
 
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-            ClearInternal();
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
-        }
-
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
+            _operand.OnDisposed();
         }
     }
 }

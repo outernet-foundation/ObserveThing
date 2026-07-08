@@ -2,49 +2,28 @@ using System;
 
 namespace ObserveThing
 {
-    public class CastListObservable<T> : ObservableListBase<T>
+    public class CastListObservable<T> : IDisposable
     {
-        private IListObservable _source;
+        private IListOperand<T> _operand;
         private IDisposable _subscription;
-        private bool _active;
 
-        public CastListObservable(IListObservable source) : base(source.context)
+        public CastListObservable(IListObservable source, IListOperand<T> operand)
         {
-            _source = source;
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscription = _source.Subscribe(
-                onAdd: (index, element) => InsertInternal(index, (T)element),
-                onRemove: (index, element) => RemoveAtInternal(index),
-                onError: OnError,
-                onDispose: HandleSourceDisposed,
+            _operand = operand;
+            _subscription = source.Subscribe(
+                onAdd: (index, element) => _operand.Insert(index, (T)element),
+                onRemove: (index, element) => _operand.RemoveAt(index),
+                onError: _operand.OnError,
+                onDispose: Dispose,
                 immediate: true
             );
         }
 
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _subscription?.Dispose();
-            _subscription = null;
-            ClearInternal();
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
-        }
-
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             _subscription?.Dispose();
             _subscription = null;
+            _operand.OnDisposed();
         }
     }
 }

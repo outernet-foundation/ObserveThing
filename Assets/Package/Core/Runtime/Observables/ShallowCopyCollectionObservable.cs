@@ -3,12 +3,11 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ShallowCopyCollectionObservable<T> : ObservableCollectionBase<T>
+    public class ShallowCopyCollectionObservable<T> : IDisposable
     {
-        private ICollectionObservable<IValueObservable<T>> _source;
+        private ICollectionOperand<T> _operand;
         private Dictionary<uint, EntryData> _dataById = new Dictionary<uint, EntryData>();
         private IDisposable _subscriptions;
-        private bool _active;
 
         private class EntryData
         {
@@ -16,43 +15,16 @@ namespace ObserveThing
             public bool initialized;
         }
 
-        public ShallowCopyCollectionObservable(ICollectionObservable<IValueObservable<T>> source) : base(source.context)
+        public ShallowCopyCollectionObservable(ICollectionObservable<IValueObservable<T>> source, ICollectionOperand<T> operand)
         {
-            _source = source;
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscriptions = _source.SubscribeWithId(
+            _operand = operand;
+            _subscriptions = source.SubscribeWithId(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
-                onError: OnError,
-                onDispose: HandleSourceDisposed,
+                onError: operand.OnError,
+                onDispose: Dispose,
                 immediate: true
             );
-        }
-
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            foreach (var data in _dataById.Values)
-                data.subscription.Dispose();
-
-            _dataById.Clear();
-
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-
-            ClearInternal();
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
         }
 
         private void HandleAdd(uint id, IValueObservable<T> observable)
@@ -63,12 +35,12 @@ namespace ObserveThing
                 onNext: x =>
                 {
                     if (data.initialized)
-                        RemoveInternal(id);
+                        _operand.Remove(id);
 
                     data.initialized = true;
-                    AddInternal(id, x);
+                    _operand.Add(id, x);
                 },
-                onError: OnError,
+                onError: _operand.OnError,
                 immediate: true
             );
         }
@@ -78,16 +50,17 @@ namespace ObserveThing
             var data = _dataById[id];
             _dataById.Remove(id);
             data.subscription.Dispose();
-            RemoveInternal(id);
+            _operand.Remove(id);
         }
 
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             foreach (var data in _dataById.Values)
                 data.subscription.Dispose();
 
             _subscriptions?.Dispose();
             _subscriptions = null;
+            _operand.OnDisposed();
         }
     }
 }

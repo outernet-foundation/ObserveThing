@@ -1,67 +1,35 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace ObserveThing
 {
-    public class CombineObservable : Observable<IOperation>
+    public class CombineObservable : IInitializationOperationsProvider<IOperation>
     {
         private ISetObservable<IObservable> _source;
+        private IObservableOperand<IOperation> _operand;
         private bool _disposeOnSourceEmpty;
-        private IDisposable _subscriptions;
-        private Dictionary<IObservable, IDisposable> _observables = new Dictionary<IObservable, IDisposable>();
-        private List<IOperation> _initOperations = new List<IOperation>();
-        private bool _active;
-        private bool _initialized;
         private uint _elementPriority;
+        private Dictionary<IObservable, IDisposable> _observables = new Dictionary<IObservable, IDisposable>();
+        private IDisposable _subscriptions;
 
-        public CombineObservable(ISetObservable<IObservable> source, bool disposeOnSourceEmpty = false) : base(source.context)
+        public CombineObservable(ISetObservable<IObservable> source, IObservableOperand<IOperation> operand, bool disposeOnSourceEmpty = false)
         {
             _source = source;
+            _operand = operand;
             _disposeOnSourceEmpty = disposeOnSourceEmpty;
-        }
-
-        protected override IReadOnlyList<IOperation> GetInitializationOperations()
-            => _initOperations;
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-
-            _elementPriority = context.AllocateObserverPriority();
+            _elementPriority = _source.context.AllocateObserverPriority();
             _subscriptions = _source.Subscribe(
                 onAdd: HandleElementAdded,
                 onRemove: HandleElementRemoved,
-                onError: OnError,
-                onDispose: HandleSourceDisposed,
+                onError: _operand.OnError,
+                onDispose: Dispose,
                 immediate: true
             );
-
-            _initialized = true;
         }
 
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-
-            context.DeallocateObserverPriority(_elementPriority);
-
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-
-            foreach (var subscription in _observables.Values)
-                subscription.Dispose();
-
-            _observables.Clear();
-            _initialized = false;
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
-        }
+        public IReadOnlyList<IOperation> GetInitializationOperations()
+            => _observables.Keys.SelectMany(x => x.GetInitializationOperations()).ToArray();
 
         private void HandleElementAdded(IObservable observable)
         {
@@ -69,7 +37,7 @@ namespace ObserveThing
                 observable,
                 observable.Subscribe(new Observer(
                     onNext: HandleElementChanged,
-                    onError: OnError,
+                    onError: _operand.OnError,
                     onDispose: () => HandleElementRemoved(observable),
                     overridePriority: _elementPriority,
                     immediate: true
@@ -90,23 +58,18 @@ namespace ObserveThing
         }
 
         protected void HandleElementChanged(IOperation operation)
-        {
-            if (!_initialized)
-            {
-                _initOperations.Add(operation.Clone());
-                return;
-            }
+            => _operand.EnqueuePendingOperation(operation.AllocateCopy());
 
-            EnqueuePendingOperation(operation.Clone());
-        }
-
-        protected override void DisposeInternal()
+        public void Dispose()
         {
-            _subscriptions?.Dispose();
-            _subscriptions = null;
+            _source.context.DeallocateObserverPriority(_elementPriority);
 
             foreach (var subscription in _observables.Values)
                 subscription.Dispose();
+
+            _subscriptions?.Dispose();
+            _subscriptions = null;
+            _operand.OnDisposed();
         }
     }
 }

@@ -3,12 +3,11 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ShallowCopyListObservable<T> : ObservableListBase<T>
+    public class ShallowCopyListObservable<T> : IDisposable
     {
-        private IListObservable<IValueObservable<T>> _source;
+        private IListOperand<T> _operand;
         private List<EntryData> _data = new List<EntryData>();
         private IDisposable _subscriptions;
-        private bool _active;
 
         private class EntryData
         {
@@ -16,42 +15,16 @@ namespace ObserveThing
             public bool initialized;
         }
 
-        public ShallowCopyListObservable(IListObservable<IValueObservable<T>> source) : base(source.context)
+        public ShallowCopyListObservable(IListObservable<IValueObservable<T>> source, IListOperand<T> operand)
         {
-            _source = source;
-        }
-
-        protected override void OnFirstObserverAdded()
-        {
-            _active = true;
-            _subscriptions = _source.Subscribe(
+            _operand = operand;
+            _subscriptions = source.Subscribe(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
-                onError: OnError,
-                onDispose: HandleSourceDisposed,
+                onError: _operand.OnError,
+                onDispose: Dispose,
                 immediate: true
             );
-        }
-
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-
-            foreach (var data in _data)
-                data.subscription.Dispose();
-
-            _data.Clear();
-            ClearInternal();
-        }
-
-        private void HandleSourceDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
         }
 
         private void HandleAdd(int index, IValueObservable<T> element)
@@ -64,12 +37,12 @@ namespace ObserveThing
                     var index = _data.IndexOf(data);
 
                     if (data.initialized)
-                        RemoveAtInternal(index);
+                        _operand.RemoveAt(index);
 
                     data.initialized = true;
-                    InsertInternal(index, x);
+                    _operand.Insert(index, x);
                 },
-                onError: OnError,
+                onError: _operand.OnError,
                 immediate: true
             );
         }
@@ -79,16 +52,18 @@ namespace ObserveThing
             var data = _data[index];
             _data.RemoveAt(index);
             data.subscription.Dispose();
-            RemoveAtInternal(index);
+            _operand.RemoveAt(index);
         }
 
-        protected override void DisposeInternal()
+        public void Dispose()
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
 
             foreach (var data in _data)
                 data.subscription.Dispose();
+
+            _operand.OnDisposed();
         }
     }
 }
