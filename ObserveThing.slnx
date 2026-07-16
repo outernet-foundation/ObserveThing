@@ -2,7 +2,6 @@
   <Project Path="Unity.Timeline.csproj" />
   <Project Path="Unity.RenderPipelines.GPUDriven.Runtime.csproj" />
   <Project Path="Unity.PlasticSCM.Editor.csproj" />
-  <Project Path="ObserveThing.csproj" />
   <Project Path="Unity.ShaderGraph.Editor.csproj" />
   <Project Path="Unity.RenderPipelines.Core.Runtime.csproj" />
   <Project Path="Unity.Mathematics.csproj" />
@@ -39,6 +38,7 @@
   <Project Path="Unity.VisualScripting.State.csproj" />
   <Project Path="Unity.AI.Navigation.Updater.csproj" />
   <Project Path="UnityEditor.UI.csproj" />
+  <Project Path="ObserveThing.csproj" />
   <Project Path="Unity.AI.Navigation.Editor.csproj" />
   <Project Path="Stateful.Editor.csproj" />
   <Project Path="Unity.Multiplayer.Center.Common.csproj" />
@@ -58,11 +58,10 @@
   <Project Path="Unity.InputSystem.DocCodeSamples.csproj" />
   <Project Path="Unity.RenderPipelines.Universal.Shaders.csproj" />
   <Project Path="Unity.RenderPipelines.Core.Runtime.Shared.csproj" />
-  <Project Path="ObserveThing.StatefulExtensions.Tests.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
   <Project Path="Unity.PlasticSCM.Editor.Entities.csproj" />
   <Project Path="Unity.Collections.Editor.csproj" />
   <Project Path="Unity.RenderPipelines.Universal.Config.Runtime.csproj" />
-  <Project Path="ObserveThing.StatefulExtensions.csproj" />
   <Project Path="Unity.RenderPipelines.ShaderGraph.ShaderGraphLibrary.csproj" />
   <Project Path="Unity.RenderPipelines.Core.ShaderLibrary.csproj" />
   <Project Path="Unity.RenderPipelines.Core.Editor.Shared.csproj" />

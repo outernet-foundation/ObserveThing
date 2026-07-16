@@ -1,87 +1,38 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 namespace ObserveThing
 {
-    public interface IOperation
-    {
-        IObservable source { get; }
-        object value { get; }
-        IOperation Clone();
-    }
-
-    public interface IOperation<T> : IOperation
-    {
-        new IObservable<T> source { get; }
-        new T value { get; }
-
-        IObservable IOperation.source => source;
-        object IOperation.value => value;
-    }
-
-    public class Operation<T> : IOperation<T>
-    {
-        public IObservable<T> source { get; }
-        public T value { get; set; }
-
-        public Operation(IObservable<T> source)
-        {
-            this.source = source;
-        }
-
-        public IOperation Clone()
-        {
-            return new Operation<T>(source) { value = value };
-        }
-
-        public override string ToString()
-        {
-            return $"Op[{source}: {value}]";
-        }
-    }
-
-    public abstract class Observable<T> : IObservable<T>, IDisposable
+    public abstract class Observable<T> : IObservable<T>, IDisposable where T : IOperation
     {
         private class ObserverData : IPendingObserver, IDisposable
         {
             public IObserver<T> observer { get; }
-            public uint priority { get; }
+            public uint priority => observer.overridePriority ?? _priority;
             public bool immediate => observer.immediate;
-            public bool pending;
             public bool disposed { get; private set; }
 
-            private List<T> _pendingOperations;
-            private List<T> _pendingOperations1 = new List<T>();
-            private List<T> _pendingOperations2 = new List<T>();
+            private Queue<T> _pendingOperations = new Queue<T>();
 
+            private Action<T> _onOperationSent;
             private Action<ObserverData> _onDispose;
 
-            public ObserverData(IObserver<T> observer, uint priority, Action<ObserverData> onDispose)
+            private uint _priority;
+
+            public ObserverData(IObserver<T> observer, uint priority, Action<T> onOperationSent, Action<ObserverData> onDispose)
             {
                 this.observer = observer;
-                this.priority = priority;
 
+                _priority = priority;
+                _onOperationSent = onOperationSent;
                 _onDispose = onDispose;
-
-                SwitchPendingOperationsList();
-            }
-
-            private void SwitchPendingOperationsList()
-            {
-                if (_pendingOperations == _pendingOperations1)
-                {
-                    _pendingOperations = _pendingOperations2;
-                }
-                else
-                {
-                    _pendingOperations = _pendingOperations1;
-                }
             }
 
             public void EnqueuePendingOperation(T operation)
             {
-                _pendingOperations.Add(operation);
+                _pendingOperations.Enqueue(operation);
             }
 
             public void SendNext()
@@ -89,20 +40,20 @@ namespace ObserveThing
                 if (_pendingOperations.Count == 0)
                     return;
 
-                var ops = _pendingOperations;
-                SwitchPendingOperationsList();
-                pending = false;
+                var op = _pendingOperations.Dequeue();
 
                 try
                 {
-                    observer.OnOperation(ops);
+                    observer.OnNext(op);
                 }
                 catch (Exception exc)
                 {
                     observer.OnError(exc);
                 }
-
-                ops.Clear();
+                finally
+                {
+                    _onOperationSent?.Invoke(op);
+                }
             }
 
             public void Dispose()
@@ -121,10 +72,8 @@ namespace ObserveThing
         public ObservationContext context { get; protected set; }
         public bool disposed { get; private set; }
 
-        private Queue<Operation<T>> _operationPool = new Queue<Operation<T>>();
-        private List<Operation<T>> _opList = new List<Operation<T>>();
-
         private List<ObserverData> _observers = new List<ObserverData>();
+        private Dictionary<T, int> _operationReferences = new Dictionary<T, int>();
 
         public Observable(ObservationContext context)
         {
@@ -150,21 +99,19 @@ namespace ObserveThing
             if (disposed)
                 throw new ObjectDisposedException(GetType().Name);
 
+            int referenceCount = 0;
+
             foreach (var observer in _observers)
             {
                 observer.EnqueuePendingOperation(operation);
-
-                if (!observer.pending)
-                {
-                    observer.pending = true;
-                    context.RegisterPendingObserver(observer);
-                }
+                context.RegisterPendingObserver(observer);
+                referenceCount++;
             }
 
+            _operationReferences[operation] = referenceCount;
             context.NotifyPendingObserversIfNecessary();
         }
 
-        protected abstract IReadOnlyList<T> GetInitializationOperations();
         protected virtual void OnFirstObserverAdded() { }
         protected virtual void OnLastObserverRemoved() { }
         protected virtual void DisposeInternal() { }
@@ -175,6 +122,8 @@ namespace ObserveThing
                 observer.observer.OnError(error);
         }
 
+        public abstract IReadOnlyList<T> GetInitializationOperations();
+
         public IDisposable Subscribe(IObserver<T> observer)
         {
             if (disposed)
@@ -184,44 +133,44 @@ namespace ObserveThing
                 return disposed;
             }
 
-            var observerData = new ObserverData(observer, context.AllocateObserverPriority(), HandleObserverDisposed);
-
             if (_observers.Count == 0)
                 OnFirstObserverAdded();
 
-            // do this after calling OnFirstSubscriberAdded so any resulting operations won't be queued (they'll be reflected in GetInitializationOperations)
+            var observerData = new ObserverData(observer, context.AllocateObserverPriority(), HandleOperationSent, HandleObserverDisposed);
+
+            // do this after calling OnFirstObserverAdded so any resulting operations won't be queued (they'll be reflected in GetInitializationOperations)
             _observers.Add(observerData);
-            observer.OnOperation(GetInitializationOperations());
+
+            foreach (var op in GetInitializationOperations())
+            {
+                observer.OnNext(op);
+                op.Deallocate();
+            }
 
             return observerData;
         }
 
+        private void HandleOperationSent(T operation)
+        {
+            var referenceCount = _operationReferences[operation];
+            referenceCount -= 1;
+
+            if (referenceCount == 0)
+            {
+                _operationReferences.Remove(operation);
+                operation.Deallocate();
+                return;
+            }
+
+            _operationReferences[operation] = referenceCount;
+        }
+
         public IDisposable Subscribe(IObserver observer)
             => Subscribe(new Observer<T>(
-                onOperation: ops =>
-                {
-                    foreach (var op in ops)
-                    {
-                        if (!_operationPool.TryDequeue(out var operation))
-                            operation = new Operation<T>(this);
-
-                        operation.value = op;
-                        _opList.Add(operation);
-                    }
-
-                    observer.OnOperation(_opList);
-
-                    foreach (var op in _opList)
-                    {
-                        op.value = default;
-                        _operationPool.Enqueue(op);
-                    }
-
-                    _opList.Clear();
-                },
-                observer.OnError,
-                observer.OnDispose,
-                immediate: observer.immediate
+                overridePriority: observer.overridePriority,
+                onNext: x => observer.OnNext(x),
+                onError: observer.OnError,
+                onDispose: observer.OnDispose
             ));
 
         public void Dispose()

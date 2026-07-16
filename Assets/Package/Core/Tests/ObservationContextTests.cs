@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using NUnit.Framework;
-using UnityEngine.TestTools;
 
 namespace ObserveThing.Tests
 {
@@ -20,15 +19,15 @@ namespace ObserveThing.Tests
 
             int callCount = 0;
 
-            var stream = Observables.ObservableCombine(context, intObservable, stringObservable).Subscribe(
-                onOperation: ops =>
+            var stream = Observables.ObservableCombine(intObservable, stringObservable).Subscribe(
+                onOperation: op =>
                 {
                     callCount++;
-                    operations.AddRange(ops.Select<IOperation, (IObservable source, object value)>(x => new(x.source, x.value)));
+                    operations.Add(new(op.source, ((IValueOperation)op).value));
                 }
             );
 
-            Assert.AreEqual(1, callCount);
+            Assert.AreEqual(2, callCount);
             Assert.AreEqual(
                 new List<(IObservable, object)>
                 {
@@ -50,7 +49,7 @@ namespace ObserveThing.Tests
                 stringObservable.value = "5";
             });
 
-            Assert.AreEqual(1, callCount);
+            Assert.AreEqual(5, callCount);
             Assert.AreEqual(
                 new List<(IObservable, object)>
                 {
@@ -71,7 +70,7 @@ namespace ObserveThing.Tests
 
             ObservableValue<int> intObservable = new ObservableValue<int>(context);
 
-            List<(int observer, object value)> observerCallOrder = new List<(int observer, object value)>();
+            List<(int observer, int value)> observerCallOrder = new List<(int observer, int value)>();
 
             IDisposable subscription1 = default;
             IDisposable subscription2 = default;
@@ -80,31 +79,25 @@ namespace ObserveThing.Tests
             IDisposable subscription5 = default;
 
             subscription1 = intObservable.Subscribe(
-                onOperation: ops =>
-                {
-                    foreach (var op in ops)
-                        observerCallOrder.Add(new(1, op.value));
-                }
+                onNext: value => observerCallOrder.Add(new(1, value))
             );
 
             subscription2 = intObservable.Subscribe(
-                onOperation: ops =>
+                onNext: value =>
                 {
-                    foreach (var op in ops)
-                        observerCallOrder.Add(new(2, op.value));
+                    observerCallOrder.Add(new(2, value));
 
-                    if (intObservable.value == 1)
+                    if (value == 1)
                         intObservable.value = 2;
                 }
             );
 
             subscription3 = intObservable.Subscribe(
-                onOperation: ops =>
+                onNext: value =>
                 {
-                    foreach (var op in ops)
-                        observerCallOrder.Add(new(3, op.value));
+                    observerCallOrder.Add(new(3, value));
 
-                    if (intObservable.value == 2)
+                    if (value == 2)
                     {
                         intObservable.value = 3;
                         subscription4.Dispose();
@@ -113,19 +106,11 @@ namespace ObserveThing.Tests
             );
 
             subscription4 = intObservable.Subscribe(
-                onOperation: ops =>
-                {
-                    foreach (var op in ops)
-                        observerCallOrder.Add(new(4, op.value));
-                }
+                onNext: value => observerCallOrder.Add(new(4, value))
             );
 
             subscription5 = intObservable.Subscribe(
-                onOperation: ops =>
-                {
-                    foreach (var op in ops)
-                        observerCallOrder.Add(new(5, op.value));
-                }
+                onNext: value => observerCallOrder.Add(new(5, value))
             );
 
             intObservable.value = 1;
@@ -133,7 +118,7 @@ namespace ObserveThing.Tests
             Assert.AreEqual(3, intObservable.value);
 
             Assert.AreEqual(
-                new List<(int observer, object value)>()
+                new List<(int observer, int value)>()
                 {
                     new (1, 0), //init observer1
                     new (2, 0), //init observer2
@@ -166,17 +151,14 @@ namespace ObserveThing.Tests
             ObservableValue<int> intObservable = new ObservableValue<int>(context);
             ObservableValue<string> stringObservable = new ObservableValue<string>(context);
 
-            var query = Observables.ObservableCombine(context, intObservable, stringObservable);
+            var query = Observables.ObservableCombine(intObservable, stringObservable);
 
             List<(IObservable source, object value)> observerCallOrder = new List<(IObservable source, object value)>();
 
             IDisposable subscription = query.Subscribe(
-                onOperation: ops =>
+                onOperation: op =>
                 {
-                    UnityEngine.Debug.Log("EP: Batch is\n" + string.Join("\n", ops.Select(x => $"{x.source} {x.value}")));
-
-                    foreach (var op in ops)
-                        observerCallOrder.Add(new(op.source, op.value));
+                    observerCallOrder.Add(new(op.source, ((IValueOperation)op).value));
 
                     if (intObservable.value == 2)
                     {
@@ -196,8 +178,6 @@ namespace ObserveThing.Tests
             intObservable.value = 3;
             intObservable.value = 4;
 
-            UnityEngine.Debug.Log("EP:\n" + string.Join("\n", observerCallOrder.Select(x => $"{x.source} {x.value}")));
-
             Assert.AreEqual(
                 new List<(IObservable source, object value)>()
                 {
@@ -207,6 +187,10 @@ namespace ObserveThing.Tests
                     new(stringObservable, "cat"),
                     new(stringObservable, "dog"),
                     new(intObservable, 2),
+                    new(intObservable, 6),
+                    new(intObservable, 7),
+                    new(intObservable, 8),
+                    new(stringObservable, "mouse"),
                     new(stringObservable, "frog"),
                     new(intObservable, 3),
                     new(intObservable, 4),
@@ -224,7 +208,7 @@ namespace ObserveThing.Tests
             var disposeCallCount = 0;
             var disposed = false;
 
-            var query = Observables.ObservableCombine(context, observable1, observable2);
+            var query = Observables.ObservableCombine(observable1, observable2);
 
             var stream = query.Subscribe(
                 onDispose: () =>
@@ -260,7 +244,7 @@ namespace ObserveThing.Tests
         }
 
         [Test]
-        public void TestObservable()
+        public void TestBatchObservable()
         {
             var context = new ObservationContext();
             var value = new ObservableValue<int>(context, 2);
@@ -269,13 +253,13 @@ namespace ObserveThing.Tests
             var lastValue = 0;
             var callCount = 0;
 
-            value.Subscribe(new Observer<int>(
-                onOperation: ops =>
+            value.ObservableBatch().Subscribe(
+                onOperation: op =>
                 {
                     callCount++;
-                    lastValue = ops.Last();
+                    lastValue = op.operations.Last().value;
                 }
-            ));
+            );
 
             Assert.AreEqual(1, callCount);
             Assert.AreEqual(value.value, lastValue);
@@ -310,18 +294,18 @@ namespace ObserveThing.Tests
             dictionary.Add("dog", 2);
             dictionary.Add("frog", 3);
 
-            List<(IObservable source, object value)> initOps = new List<(IObservable source, object value)>();
+            List<(IObservable source, object value, OpType opType)> initOps = new List<(IObservable source, object value, OpType opType)>();
 
-            dictionary.Subscribe((IReadOnlyList<IOperation> x) => initOps.AddRange(x.Select<IOperation, (IObservable source, object value)>(x => new(x.source, x.value))));
+            Observables.ObservableCombine(dictionary).Subscribe(onOperation: op => initOps.Add(new(op.source, ((ICollectionOperation)op).element, ((ICollectionOperation)op).opType)));
 
             Assert.That(
                 initOps,
-                Is.EquivalentTo(
-                    new List<(IObservable source, object value)>()
+                Is.EqualTo(
+                    new List<(IObservable source, object value, OpType opType)>()
                     {
-                        new(dictionary, new DictionaryOpArgs<string, int>(0, KeyValuePair.Create("cat", 1), false)),
-                        new(dictionary, new DictionaryOpArgs<string, int>(1, KeyValuePair.Create("dog", 2), false)),
-                        new(dictionary, new DictionaryOpArgs<string, int>(2, KeyValuePair.Create("frog", 3), false))
+                        new(dictionary, KeyValuePair.Create("cat", 1), OpType.Add),
+                        new(dictionary, KeyValuePair.Create("dog", 2), OpType.Add),
+                        new(dictionary, KeyValuePair.Create("frog", 3), OpType.Add)
                     }
                 )
             );
@@ -332,23 +316,23 @@ namespace ObserveThing.Tests
 
             list.Add(0.22f);
             list.Add(0.11f);
-            list.Add(-1000);
-            list.Insert(1, 50);
+            list.Add(-1000f);
+            list.Insert(1, 50f);
 
-            var subscription = Observables.ObservableCombine(dictionary, list).Subscribe(x => initOps.AddRange(x.Select<IOperation, (IObservable source, object value)>(x => new(x.source, x.value))));
+            var subscription = Observables.ObservableCombine(dictionary, list).Subscribe(x => initOps.Add(new(x.source, ((ICollectionOperation)x).element, ((ICollectionOperation)x).opType)));
 
             Assert.That(
                 initOps,
-                Is.EquivalentTo(
-                    new List<(IObservable source, object value)>()
+                Is.EqualTo(
+                    new List<(IObservable source, object value, OpType opType)>()
                     {
-                        new(dictionary, new DictionaryOpArgs<string, int>(0, KeyValuePair.Create("cat", 1), false)),
-                        new(dictionary, new DictionaryOpArgs<string, int>(1, KeyValuePair.Create("dog", 2), false)),
-                        new(dictionary, new DictionaryOpArgs<string, int>(2, KeyValuePair.Create("frog", 3), false)),
-                        new(list, new ListOpArgs<float>(0, 0, 0.22f, false)),
-                        new(list, new ListOpArgs<float>(1, 2, 0.11f, false)),
-                        new(list, new ListOpArgs<float>(2, 3, -1000, false)),
-                        new(list, new ListOpArgs<float>(3, 1, 50, false))
+                        new(dictionary, KeyValuePair.Create("cat", 1), OpType.Add),
+                        new(dictionary, KeyValuePair.Create("dog", 2), OpType.Add),
+                        new(dictionary, KeyValuePair.Create("frog", 3), OpType.Add),
+                        new(list, 0.22f, OpType.Add),
+                        new(list, 50f,  OpType.Add),
+                        new(list, 0.11f, OpType.Add),
+                        new(list, -1000f,  OpType.Add)
                     }
                 )
             );

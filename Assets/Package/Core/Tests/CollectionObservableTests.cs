@@ -22,10 +22,10 @@ namespace ObserveThing.Tests
             return result;
         }
 
-        private List<T> Peek<T>(IListObservable<T> observable)
+        private List<T> Peek<T>(IListObservable<T> observable) where T : IOperation
         {
             List<T> result = new List<T>();
-            var observer = observable.Subscribe(x => result.Add(x));
+            var observer = observable.Subscribe(x => result.Add(x.element));
             observer.Dispose();
             return result;
         }
@@ -36,7 +36,7 @@ namespace ObserveThing.Tests
         private void AreEqual<T>(IEnumerable<T> expected, IEnumerable<IValueObservable<T>> actual)
             => Assert.AreEqual(expected, actual.Select(x => Peek(x)));
 
-        private void AreEqual<T>(IEnumerable<T> expected, IListObservable<T> observable)
+        private void AreEqual<T>(IEnumerable<T> expected, IObservable<T> observable) where T : IOperation
             => Assert.AreEqual(expected, observable);
 
         [Test]
@@ -136,7 +136,7 @@ namespace ObserveThing.Tests
 
             source
                 .ObservableSelect(x => x)
-                .ObservableOrderBy(x => source.ObservableIndexOf(x))
+                .ObservableOrderBy(x => source.ObservableIndexOf(x).ObservableSelect(x => x.found ? x.index : -1))
                 .Subscribe(
                     onAdd: (index, value) => destination.Insert(index, value),
                     onRemove: (index, value) => destination.RemoveAt(index)
@@ -169,7 +169,7 @@ namespace ObserveThing.Tests
             source
                 .ObservableSelect(x => x)
                 .ObservableWhere(x => true)
-                .ObservableOrderBy(x => source.ObservableIndexOf(x))
+                .ObservableOrderBy(x => source.ObservableIndexOf(x).ObservableSelect(x => x.found ? x.index : -1))
                 .Subscribe(
                     onAdd: (index, value) => destination.Insert(index, value),
                     onRemove: (index, value) => destination.RemoveAt(index)
@@ -551,21 +551,18 @@ namespace ObserveThing.Tests
                 new ObservableValue<float>(3)
             );
 
-            var stream = new ShallowCopyCollectionObservable<float>(
-                source,
-                new CollectionObserver<float>(
-                    onAdd: (_, x) =>
-                    {
-                        result.Add(x);
-                        callReceived = true;
-                    },
-                    onRemove: (_, x) =>
-                    {
-                        result.Remove(x);
-                        callReceived = true;
-                    },
-                    onDispose: () => disposed = true
-                )
+            var stream = source.ObservableShallowCopy().Subscribe(
+                onAdd: (_, x) =>
+                {
+                    result.Add(x);
+                    callReceived = true;
+                },
+                onRemove: (_, x) =>
+                {
+                    result.Remove(x);
+                    callReceived = true;
+                },
+                onDispose: () => disposed = true
             );
 
             Assert.That(result, Is.EquivalentTo(new float[] { 1, 2, 3 }));
