@@ -7,7 +7,7 @@ namespace ObserveThing
         private IValueOperand<int> _operand;
         private IDisposable _subscriptions;
 
-        public CountObservable(ICollectionObservable<T> source, IValueOperand<int> operand)
+        public CountObservable(IObservable<CollectionOp<T>> source, IValueOperand<int> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(

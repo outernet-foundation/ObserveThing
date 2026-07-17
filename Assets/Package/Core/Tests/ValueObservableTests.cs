@@ -180,7 +180,7 @@ namespace ObserveThing.Tests
             var source = new ObservableValue<ObservableValue<int>>(new ObservableValue<int>(10));
             bool disposed = false;
             bool receivedCall = false;
-            var subscription = source.ObservableCast<IValueObservable<int>>().ObservableShallowCopy().Subscribe(
+            var subscription = source.ObservableShallowCopy().Subscribe(
                 onNext: x =>
                 {
                     result = x;

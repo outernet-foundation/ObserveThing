@@ -7,7 +7,7 @@ namespace ObserveThing
         private IValueOperand<(T1, T2)> _operand;
         private IDisposable _subscriptions;
 
-        public CombineValueObservable(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueOperand<(T1, T2)> operand)
+        public CombineValueObservable(IObservable<T1> source1, IObservable<T2> source2, IValueOperand<(T1, T2)> operand)
         {
             _operand = operand;
             _subscriptions = new ComposedDisposable(
@@ -42,7 +42,7 @@ namespace ObserveThing
         private IValueOperand<(T1, T2, T3)> _operand;
         private IDisposable _subscriptions;
 
-        public CombineValueObservable(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueOperand<(T1, T2, T3)> operand)
+        public CombineValueObservable(IObservable<T1> source1, IObservable<T2> source2, IObservable<T3> source3, IValueOperand<(T1, T2, T3)> operand)
         {
             _operand = operand;
             _subscriptions = new ComposedDisposable(
@@ -84,7 +84,7 @@ namespace ObserveThing
         private IValueOperand<(T1, T2, T3, T4)> _operand;
         private IDisposable _subscriptions;
 
-        public CombineValueObservable(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueOperand<(T1, T2, T3, T4)> operand)
+        public CombineValueObservable(IObservable<T1> source1, IObservable<T2> source2, IObservable<T3> source3, IObservable<T4> source4, IValueOperand<(T1, T2, T3, T4)> operand)
         {
             _operand = operand;
             _subscriptions = new ComposedDisposable(
@@ -133,7 +133,7 @@ namespace ObserveThing
         private IValueOperand<(T1, T2, T3, T4, T5)> _operand;
         private IDisposable _subscriptions;
 
-        public CombineValueObservable(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueOperand<(T1, T2, T3, T4, T5)> operand)
+        public CombineValueObservable(IObservable<T1> source1, IObservable<T2> source2, IObservable<T3> source3, IObservable<T4> source4, IObservable<T5> source5, IValueOperand<(T1, T2, T3, T4, T5)> operand)
         {
             _operand = operand;
             _subscriptions = new ComposedDisposable(
@@ -189,7 +189,7 @@ namespace ObserveThing
         private IValueOperand<(T1, T2, T3, T4, T5, T6)> _operand;
         private IDisposable _subscriptions;
 
-        public CombineValueObservable(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, IValueOperand<(T1, T2, T3, T4, T5, T6)> operand)
+        public CombineValueObservable(IObservable<T1> source1, IObservable<T2> source2, IObservable<T3> source3, IObservable<T4> source4, IObservable<T5> source5, IObservable<T6> source6, IValueOperand<(T1, T2, T3, T4, T5, T6)> operand)
         {
             _operand = operand;
             _subscriptions = new ComposedDisposable(
@@ -252,7 +252,7 @@ namespace ObserveThing
         private IValueOperand<(T1, T2, T3, T4, T5, T6, T7)> _operand;
         private IDisposable _subscriptions;
 
-        public CombineValueObservable(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, IValueObservable<T7> source7, IValueOperand<(T1, T2, T3, T4, T5, T6, T7)> operand)
+        public CombineValueObservable(IObservable<T1> source1, IObservable<T2> source2, IObservable<T3> source3, IObservable<T4> source4, IObservable<T5> source5, IObservable<T6> source6, IObservable<T7> source7, IValueOperand<(T1, T2, T3, T4, T5, T6, T7)> operand)
         {
             _operand = operand;
             _subscriptions = new ComposedDisposable(

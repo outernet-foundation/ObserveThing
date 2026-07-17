@@ -14,7 +14,7 @@ namespace ObserveThing.Tests
             Settings.DefaultExceptionHandler = UnityEngine.Debug.LogException;
         }
 
-        private T Peek<T>(IValueObservable<T> observable)
+        private T Peek<T>(IObservable<T> observable)
         {
             T result = default;
             var observer = observable.Subscribe(x => result = x);
@@ -22,7 +22,7 @@ namespace ObserveThing.Tests
             return result;
         }
 
-        private List<T> Peek<T>(IListObservable<T> observable) where T : IOperation
+        private List<T> Peek<T>(IObservable<CollectionOp<ListData<T>>> observable)
         {
             List<T> result = new List<T>();
             var observer = observable.Subscribe(x => result.Add(x.element));
@@ -30,13 +30,13 @@ namespace ObserveThing.Tests
             return result;
         }
 
-        private void AreEqual<T>(T expected, IValueObservable<T> observable)
+        private void AreEqual<T>(T expected, IObservable<T> observable)
             => Assert.AreEqual(expected, Peek(observable));
 
-        private void AreEqual<T>(IEnumerable<T> expected, IEnumerable<IValueObservable<T>> actual)
+        private void AreEqual<T>(IEnumerable<T> expected, IEnumerable<IObservable<T>> actual)
             => Assert.AreEqual(expected, actual.Select(x => Peek(x)));
 
-        private void AreEqual<T>(IEnumerable<T> expected, IObservable<T> observable) where T : IOperation
+        private void AreEqual<T>(IEnumerable<T> expected, IObservable<T> observable)
             => Assert.AreEqual(expected, observable);
 
         [Test]
@@ -645,11 +645,11 @@ namespace ObserveThing.Tests
                 new ObservableValue<int>(13)
             );
 
-            var subscription = source.ObservableFirst(x => x.ObservableSelect(x => x == 4))
+            var subscription = source.ObservableFirst(x => x.element.ObservableSelect(x => x == 4))
                 .Subscribe(
                     onNext: x =>
                     {
-                        result = x;
+                        result = new(x.found, x.value.element);
                         receivedCall = true;
                     },
                     onDispose: () => disposed = true
@@ -697,11 +697,11 @@ namespace ObserveThing.Tests
                 new ObservableValue<int>(13)
             );
 
-            var subscription = source.ObservableFirstOrDefault(x => x.ObservableSelect(x => x == 4))
+            var subscription = source.ObservableFirstOrDefault(x => x.element.ObservableSelect(x => x == 4))
                 .Subscribe(
                     onNext: x =>
                     {
-                        result = x;
+                        result = x.element;
                         receivedCall = true;
                     },
                     onDispose: () => disposed = true

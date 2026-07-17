@@ -8,7 +8,7 @@ namespace ObserveThing
         private T _previousValue;
         private IDisposable _subscriptions;
 
-        public WithPreviousObservable(IValueObservable<T> source, IValueOperand<(T previous, T current)> operand)
+        public WithPreviousObservable(IObservable<T> source, IValueOperand<(T previous, T current)> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(

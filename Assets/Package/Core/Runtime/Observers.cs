@@ -9,53 +9,40 @@ namespace ObserveThing
         public static ObservationContext DefaultObservationContext = new ObservationContext();
     }
 
-    public interface IOperation
+    // public interface IOperation
+    // {
+    //     object source { get; }
+    //     ObservationContext context { get; }
+
+    //     IOperation AllocateCopy();
+    //     void Deallocate();
+    // }
+
+    // public interface IOperation<out T> : IOperation
+    // {
+    //     new IObservable<IOperation<T>> source { get; }
+
+    //     object IOperation.source => source;
+    //     ObservationContext IOperation.context => source.context;
+    // }
+
+    public struct CollectionOp<T>
     {
-        IObservable source { get; }
-        IOperation AllocateCopy();
-        void Deallocate();
+        public uint elementId;
+        public OpType opType;
+        public T value;
     }
 
-    public interface IObserver
+    public enum OpType
     {
-        uint? overridePriority { get; }
-        bool immediate { get; }
-        void OnNext(IOperation operation);
-        void OnError(Exception exc);
-        void OnDispose();
+        Add,
+        Remove
     }
 
-    public class Observer : IObserver
+    public struct ListData<T>
     {
-        public uint? overridePriority { get; }
-        public bool immediate { get; }
-        private Action<IOperation> _onNext;
-        private Action<Exception> _onError;
-        private Action _onDispose;
-
-        public Observer(Action<IOperation> onNext = default, Action<Exception> onError = default, Action onDispose = default, uint? overridePriority = default, bool immediate = false)
-        {
-            _onNext = onNext;
-            _onError = onError;
-            _onDispose = onDispose;
-            this.overridePriority = overridePriority;
-            this.immediate = immediate;
-        }
-
-        public void OnNext(IOperation onNext)
-        {
-            try
-            {
-                _onNext?.Invoke(onNext);
-            }
-            catch (Exception exc)
-            {
-                OnError(exc);
-            }
-        }
-
-        public void OnDispose() => _onDispose?.Invoke();
-        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+        public T element;
+        public int index;
     }
 
     public interface IObserver<in T>

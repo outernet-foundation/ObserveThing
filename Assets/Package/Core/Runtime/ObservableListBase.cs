@@ -4,47 +4,8 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public interface IListOperation : ICollectionOperation
+    public class ObservableListBase<T> : Observable<CollectionOp<ListData<T>>>
     {
-        int index { get; }
-    }
-
-    public interface IListOperation<out T> : IListOperation, ICollectionOperation<T> { }
-
-    public class ObservableListBase<T> : Observable<IListOperation<T>>, IListObservable<T>
-    {
-        private class ListOperation : IListOperation<T>
-        {
-            public IObservable source { get; set; }
-            public uint elementId { get; set; }
-            public OpType opType { get; set; }
-            public int index { get; set; }
-            public T element { get; set; }
-
-            public IOperation AllocateCopy()
-            {
-                return new ListOperation()
-                {
-                    source = source,
-                    elementId = elementId,
-                    opType = opType,
-                    index = index,
-                    element = element,
-                };
-            }
-
-            public void Deallocate()
-            {
-                var context = source.context;
-                source = default;
-                elementId = default;
-                opType = default;
-                index = default;
-                element = default;
-                context.DeallocateOperation(this);
-            }
-        }
-
         private List<(uint id, T value)> _list = new List<(uint id, T value)>();
         private CollectionIdProvider _idProvider;
 
@@ -60,25 +21,19 @@ namespace ObserveThing
                 _list.Add(new(_idProvider.GetUnusedId(), element));
         }
 
-        private ListOperation AllocateOperation(uint id, int index, OpType opType, T element)
-        {
-            var op = context.AllocateOperation<ListOperation>();
-            op.source = this;
-            op.elementId = id;
-            op.index = index;
-            op.opType = opType;
-            op.element = element;
-            return op;
-        }
-
         protected int GetCountInternal()
             => _list.Count;
 
         protected IEnumerable<(uint id, T value)> ElementsInternal()
             => _list;
 
-        public override IReadOnlyList<IListOperation<T>> GetInitializationOperations()
-            => _list.Select((element, index) => AllocateOperation(element.id, index, OpType.Add, element.value)).ToArray();
+        public override IReadOnlyList<CollectionOp<ListData<T>>> GetInitializationOperations()
+            => _list.Select((element, index) => new CollectionOp<ListData<T>>()
+            {
+                opType = OpType.Add,
+                elementId = element.id,
+                value = new ListData<T>() { element = element.value, index = index }
+            }).ToArray();
 
         protected void AddInternal(T added)
             => InsertInternal(_list.Count, added);
@@ -104,14 +59,24 @@ namespace ObserveThing
         {
             var removed = _list[index];
             _list.RemoveAt(index);
-            EnqueuePendingOperation(AllocateOperation(removed.id, index, OpType.Remove, removed.value));
+            EnqueuePendingOperation(new CollectionOp<ListData<T>>()
+            {
+                opType = OpType.Remove,
+                elementId = removed.id,
+                value = new ListData<T>() { element = removed.value, index = index }
+            });
         }
 
         protected void InsertInternal(int index, T item)
         {
             (uint id, T value) inserted = new(_idProvider.GetUnusedId(), item);
             _list.Insert(index, inserted);
-            EnqueuePendingOperation(AllocateOperation(inserted.id, index, OpType.Add, inserted.value));
+            EnqueuePendingOperation(new CollectionOp<ListData<T>>()
+            {
+                opType = OpType.Add,
+                elementId = inserted.id,
+                value = new ListData<T>() { element = inserted.value, index = index }
+            });
         }
 
         protected void ClearInternal()
@@ -131,32 +96,5 @@ namespace ObserveThing
 
         protected bool ContainsInternal(T item)
             => _list.Any(x => Equals(x.value, item));
-
-        public IDisposable Subscribe(IObserver<IListOperation> observer)
-            => Subscribe(new Observer<IListOperation<T>>(
-                overridePriority: observer.overridePriority,
-                immediate: observer.immediate,
-                onNext: observer.OnNext,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
-        public IDisposable Subscribe(IObserver<ICollectionOperation<T>> observer)
-            => Subscribe(new Observer<IListOperation<T>>(
-                overridePriority: observer.overridePriority,
-                immediate: observer.immediate,
-                onNext: observer.OnNext,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
-        public IDisposable Subscribe(IObserver<ICollectionOperation> observer)
-            => Subscribe(new Observer<IListOperation<T>>(
-                overridePriority: observer.overridePriority,
-                immediate: observer.immediate,
-                onNext: observer.OnNext,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
     }
 }

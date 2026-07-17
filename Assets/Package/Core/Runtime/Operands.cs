@@ -44,13 +44,13 @@ namespace ObserveThing
         void Clear();
     }
 
-    public interface IObservableOperand<T> : IOperand where T : IOperation
+    public interface IObservableOperand<T> : IOperand
     {
         IObservable<T> operationSource { get; }
         void EnqueuePendingOperation(T operation);
     }
 
-    public interface IInitializationOperationsProvider<T> : IDisposable where T : IOperation
+    public interface IInitializationOperationsProvider<T> : IDisposable
     {
         IReadOnlyList<T> GetInitializationOperations();
     }

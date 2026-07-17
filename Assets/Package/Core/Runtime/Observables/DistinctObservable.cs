@@ -9,7 +9,7 @@ namespace ObserveThing
         private Dictionary<T, int> _countByElement = new Dictionary<T, int>();
         private IDisposable _subscriptions;
 
-        public DistinctObservable(ICollectionObservable<T> source, ISetOperand<T> operand)
+        public DistinctObservable(IObservable<CollectionOp<T>> source, ISetOperand<T> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(

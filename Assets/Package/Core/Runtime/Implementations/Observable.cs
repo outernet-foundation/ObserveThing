@@ -1,11 +1,17 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 
 namespace ObserveThing
 {
-    public abstract class Observable<T> : IObservable<T>, IDisposable where T : IOperation
+    public interface IObservable<out T>
+    {
+        ObservationContext context { get; }
+        IDisposable Subscribe(IObserver<T> observer);
+        IReadOnlyList<T> GetInitializationOperations();
+    }
+
+    public abstract class Observable<T> : IObservable<T>, IDisposable
     {
         private class ObserverData : IPendingObserver, IDisposable
         {
@@ -16,17 +22,15 @@ namespace ObserveThing
 
             private Queue<T> _pendingOperations = new Queue<T>();
 
-            private Action<T> _onOperationSent;
             private Action<ObserverData> _onDispose;
 
             private uint _priority;
 
-            public ObserverData(IObserver<T> observer, uint priority, Action<T> onOperationSent, Action<ObserverData> onDispose)
+            public ObserverData(IObserver<T> observer, uint priority, Action<ObserverData> onDispose)
             {
                 this.observer = observer;
 
                 _priority = priority;
-                _onOperationSent = onOperationSent;
                 _onDispose = onDispose;
             }
 
@@ -50,10 +54,6 @@ namespace ObserveThing
                 {
                     observer.OnError(exc);
                 }
-                finally
-                {
-                    _onOperationSent?.Invoke(op);
-                }
             }
 
             public void Dispose()
@@ -73,7 +73,6 @@ namespace ObserveThing
         public bool disposed { get; private set; }
 
         private List<ObserverData> _observers = new List<ObserverData>();
-        private Dictionary<T, int> _operationReferences = new Dictionary<T, int>();
 
         public Observable(ObservationContext context)
         {
@@ -108,7 +107,6 @@ namespace ObserveThing
                 referenceCount++;
             }
 
-            _operationReferences[operation] = referenceCount;
             context.NotifyPendingObserversIfNecessary();
         }
 
@@ -136,42 +134,16 @@ namespace ObserveThing
             if (_observers.Count == 0)
                 OnFirstObserverAdded();
 
-            var observerData = new ObserverData(observer, context.AllocateObserverPriority(), HandleOperationSent, HandleObserverDisposed);
+            var observerData = new ObserverData(observer, context.AllocateObserverPriority(), HandleObserverDisposed);
 
             // do this after calling OnFirstObserverAdded so any resulting operations won't be queued (they'll be reflected in GetInitializationOperations)
             _observers.Add(observerData);
 
             foreach (var op in GetInitializationOperations())
-            {
                 observer.OnNext(op);
-                op.Deallocate();
-            }
 
             return observerData;
         }
-
-        private void HandleOperationSent(T operation)
-        {
-            var referenceCount = _operationReferences[operation];
-            referenceCount -= 1;
-
-            if (referenceCount == 0)
-            {
-                _operationReferences.Remove(operation);
-                operation.Deallocate();
-                return;
-            }
-
-            _operationReferences[operation] = referenceCount;
-        }
-
-        public IDisposable Subscribe(IObserver observer)
-            => Subscribe(new Observer<T>(
-                overridePriority: observer.overridePriority,
-                onNext: x => observer.OnNext(x),
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
 
         public void Dispose()
         {

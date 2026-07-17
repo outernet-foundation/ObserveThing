@@ -7,7 +7,7 @@ namespace ObserveThing
         private IListOperand<U> _operand;
         private IDisposable _subscriptions;
 
-        public SelectListObservable(IListObservable<T> source, Func<T, U> select, IListOperand<U> operand)
+        public SelectListObservable(IObservable<CollectionOp<ListData<T>>> source, Func<T, U> select, IListOperand<U> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(

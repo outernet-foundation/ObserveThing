@@ -4,72 +4,14 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public enum OpType
+    public class ObservableCollectionBase<T> : Observable<CollectionOp<T>>
     {
-        Add,
-        Remove
-    }
-
-    public interface ICollectionOperation : IOperation
-    {
-        object element { get; }
-        uint elementId { get; }
-        OpType opType { get; }
-    }
-
-    public interface ICollectionOperation<out T> : ICollectionOperation
-    {
-        new T element { get; }
-        object ICollectionOperation.element => element;
-    }
-
-    public class ObservableCollectionBase<T> : Observable<ICollectionOperation<T>>, ICollectionObservable<T>
-    {
-        private class CollectionOperation : ICollectionOperation<T>
-        {
-            public IObservable source { get; set; }
-            public uint elementId { get; set; }
-            public OpType opType { get; set; }
-            public T element { get; set; }
-
-            public IOperation AllocateCopy()
-            {
-                return new CollectionOperation()
-                {
-                    source = source,
-                    elementId = elementId,
-                    opType = opType,
-                    element = element,
-                };
-            }
-
-            public void Deallocate()
-            {
-                var context = source.context;
-                source = default;
-                elementId = default;
-                opType = default;
-                element = default;
-                context.DeallocateOperation(this);
-            }
-        }
-
         private Dictionary<uint, T> _collection = new Dictionary<uint, T>();
 
         public ObservableCollectionBase(ObservationContext context) : base(context) { }
 
-        private CollectionOperation AllocateOperation(uint id, OpType opType, T element)
-        {
-            var op = context.AllocateOperation<CollectionOperation>();
-            op.source = this;
-            op.elementId = id;
-            op.opType = opType;
-            op.element = element;
-            return op;
-        }
-
-        public override IReadOnlyList<ICollectionOperation<T>> GetInitializationOperations()
-            => _collection.Select(x => AllocateOperation(x.Key, OpType.Add, x.Value)).ToArray();
+        public override IReadOnlyList<CollectionOp<T>> GetInitializationOperations()
+            => _collection.Select(x => new CollectionOp<T>() { opType = OpType.Add, elementId = x.Key, value = x.Value }).ToArray();
 
         protected IEnumerable<(uint id, T element)> GetElementsWithIdsInternal()
             => _collection.Select<KeyValuePair<uint, T>, (uint id, T element)>(x => new(x.Key, x.Value));
@@ -79,7 +21,7 @@ namespace ObserveThing
         protected uint AddInternal(uint id, T element)
         {
             _collection.Add(id, element);
-            EnqueuePendingOperation(AllocateOperation(id, OpType.Add, element));
+            EnqueuePendingOperation(new CollectionOp<T>() { opType = OpType.Add, elementId = id, value = element });
             return id;
         }
 
@@ -89,7 +31,7 @@ namespace ObserveThing
                 return false;
 
             _collection.Remove(id);
-            EnqueuePendingOperation(AllocateOperation(id, OpType.Remove, element));
+            EnqueuePendingOperation(new CollectionOp<T>() { opType = OpType.Remove, elementId = id, value = element });
             return true;
         }
 
@@ -98,7 +40,7 @@ namespace ObserveThing
             foreach (var kvp in _collection.ToArray())
             {
                 _collection.Remove(kvp.Key);
-                EnqueuePendingOperation(AllocateOperation(kvp.Key, OpType.Remove, kvp.Value));
+                EnqueuePendingOperation(new CollectionOp<T>() { opType = OpType.Remove, elementId = kvp.Key, value = kvp.Value });
             }
         }
 
@@ -107,14 +49,5 @@ namespace ObserveThing
 
         public bool Contains(T element)
             => _collection.ContainsValue(element);
-
-        public IDisposable Subscribe(IObserver<ICollectionOperation> observer)
-            => Subscribe(new Observer<ICollectionOperation<T>>(
-                overridePriority: observer.overridePriority,
-                immediate: observer.immediate,
-                onNext: observer.OnNext,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
     }
 }

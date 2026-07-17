@@ -1,60 +1,11 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace ObserveThing
 {
-    public interface IDictionaryOperation : ICollectionOperation
+    public class ObservableDictionaryBase<TKey, TValue> : Observable<CollectionOp<KeyValuePair<TKey, TValue>>>
     {
-        object key { get; }
-        object value { get; }
-    }
-
-    public interface IDictionaryOperation<TKey, TValue> : IDictionaryOperation, ICollectionOperation<KeyValuePair<TKey, TValue>>
-    {
-        new TKey key { get; }
-        new TValue value { get; }
-
-        object IDictionaryOperation.key => key;
-        object IDictionaryOperation.value => value;
-    }
-
-    public class ObservableDictionaryBase<TKey, TValue> : Observable<IDictionaryOperation<TKey, TValue>>, IDictionaryObservable<TKey, TValue>
-    {
-        private class DictionaryOperation : IDictionaryOperation<TKey, TValue>
-        {
-            public IObservable source { get; set; }
-            public uint elementId { get; set; }
-            public OpType opType { get; set; }
-            public TKey key { get; set; }
-            public TValue value { get; set; }
-            public KeyValuePair<TKey, TValue> element => new KeyValuePair<TKey, TValue>(key, value);
-
-            public IOperation AllocateCopy()
-            {
-                return new DictionaryOperation()
-                {
-                    source = source,
-                    elementId = elementId,
-                    opType = opType,
-                    key = key,
-                    value = value,
-                };
-            }
-
-            public void Deallocate()
-            {
-                var context = source.context;
-                source = default;
-                elementId = default;
-                opType = default;
-                key = default;
-                value = default;
-                context.DeallocateOperation(this);
-            }
-        }
-
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
         private CollectionIdProvider _idProvider;
 
@@ -70,17 +21,6 @@ namespace ObserveThing
                 _dictionary.Add(kvp.Key, new(_idProvider.GetUnusedId(), kvp.Value));
         }
 
-        private DictionaryOperation AllocateOperation(uint id, OpType opType, TKey key, TValue value)
-        {
-            var op = context.AllocateOperation<DictionaryOperation>();
-            op.source = this;
-            op.elementId = id;
-            op.opType = opType;
-            op.key = key;
-            op.value = value;
-            return op;
-        }
-
         protected int GetCountInternal()
             => _dictionary.Count;
 
@@ -93,8 +33,13 @@ namespace ObserveThing
         protected IEnumerable<KeyValuePair<TKey, (uint id, TValue value)>> ElementsInternal()
             => _dictionary;
 
-        public override IReadOnlyList<IDictionaryOperation<TKey, TValue>> GetInitializationOperations()
-            => _dictionary.Select(x => AllocateOperation(x.Value.id, OpType.Add, x.Key, x.Value.value)).ToArray();
+        public override IReadOnlyList<CollectionOp<KeyValuePair<TKey, TValue>>> GetInitializationOperations()
+            => _dictionary.Select(x => new CollectionOp<KeyValuePair<TKey, TValue>>()
+            {
+                opType = OpType.Add,
+                elementId = x.Value.id,
+                value = new KeyValuePair<TKey, TValue>(x.Key, x.Value.value)
+            }).ToArray();
 
         protected void SetInternal(TKey key, TValue value)
         {
@@ -106,7 +51,12 @@ namespace ObserveThing
         {
             var id = _idProvider.GetUnusedId();
             _dictionary.Add(key, (id, value));
-            EnqueuePendingOperation(AllocateOperation(id, OpType.Add, key, value));
+            EnqueuePendingOperation(new CollectionOp<KeyValuePair<TKey, TValue>>()
+            {
+                opType = OpType.Add,
+                elementId = id,
+                value = new KeyValuePair<TKey, TValue>(key, value)
+            });
         }
 
         protected bool RemoveInternal(TKey key)
@@ -115,7 +65,12 @@ namespace ObserveThing
                 return false;
 
             _dictionary.Remove(key);
-            EnqueuePendingOperation(AllocateOperation(data.id, OpType.Remove, key, data.value));
+            EnqueuePendingOperation(new CollectionOp<KeyValuePair<TKey, TValue>>()
+            {
+                opType = OpType.Remove,
+                elementId = data.id,
+                value = new KeyValuePair<TKey, TValue>(key, data.value)
+            });
 
             return true;
         }
@@ -125,7 +80,12 @@ namespace ObserveThing
             foreach (var kvp in _dictionary.ToArray())
             {
                 _dictionary.Remove(kvp.Key);
-                EnqueuePendingOperation(AllocateOperation(kvp.Value.id, OpType.Remove, kvp.Key, kvp.Value.value));
+                EnqueuePendingOperation(new CollectionOp<KeyValuePair<TKey, TValue>>()
+                {
+                    opType = OpType.Remove,
+                    elementId = kvp.Value.id,
+                    value = new KeyValuePair<TKey, TValue>(kvp.Key, kvp.Value.value)
+                });
             }
         }
 
@@ -155,23 +115,5 @@ namespace ObserveThing
 
         protected bool ContainsValueInternal(TValue value)
             => _dictionary.Values.Select(x => x.value).Contains(value);
-
-        public IDisposable Subscribe(IObserver<ICollectionOperation<KeyValuePair<TKey, TValue>>> observer)
-            => Subscribe(new Observer<IDictionaryOperation<TKey, TValue>>(
-                overridePriority: observer.overridePriority,
-                immediate: observer.immediate,
-                onNext: observer.OnNext,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
-        public IDisposable Subscribe(IObserver<ICollectionOperation> observer)
-            => Subscribe(new Observer<IDictionaryOperation<TKey, TValue>>(
-                overridePriority: observer.overridePriority,
-                immediate: observer.immediate,
-                onNext: observer.OnNext,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
     }
 }

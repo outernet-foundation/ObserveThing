@@ -4,16 +4,16 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class CombineObservable : IInitializationOperationsProvider<IOperation>
+    public class CombineObservable<T> : IInitializationOperationsProvider<T>
     {
-        private ISetObservable<IObservable> _source;
-        private IObservableOperand<IOperation> _operand;
+        private IObservable<CollectionOp<IObservable<T>>> _source;
+        private IObservableOperand<T> _operand;
         private bool _disposeOnSourceEmpty;
         private uint _elementPriority;
-        private Dictionary<IObservable, IDisposable> _observables = new Dictionary<IObservable, IDisposable>();
+        private Dictionary<IObservable<T>, IDisposable> _observables = new Dictionary<IObservable<T>, IDisposable>();
         private IDisposable _subscriptions;
 
-        public CombineObservable(ISetObservable<IObservable> source, IObservableOperand<IOperation> operand, bool disposeOnSourceEmpty = false)
+        public CombineObservable(IObservable<CollectionOp<IObservable<T>>> source, IObservableOperand<T> operand, bool disposeOnSourceEmpty = false)
         {
             _source = source;
             _operand = operand;
@@ -28,14 +28,14 @@ namespace ObserveThing
             );
         }
 
-        public IReadOnlyList<IOperation> GetInitializationOperations()
-            => _observables.Keys.SelectMany(x => x.GetInitializationOperations()).ToArray();
+        public IReadOnlyList<T> GetInitializationOperations()
+            => _observables.Keys.SelectMany(x => x.GetInitializationOperations()).Cast<T>().ToArray();
 
-        private void HandleElementAdded(IObservable observable)
+        private void HandleElementAdded(IObservable<T> observable)
         {
             _observables.Add(
                 observable,
-                observable.Subscribe(new Observer(
+                observable.Subscribe(new Observer<T>(
                     onNext: HandleElementChanged,
                     onError: _operand.OnError,
                     onDispose: () => HandleElementRemoved(observable),
@@ -45,7 +45,7 @@ namespace ObserveThing
             );
         }
 
-        private void HandleElementRemoved(IObservable observable)
+        private void HandleElementRemoved(IObservable<T> observable)
         {
             if (!_observables.TryGetValue(observable, out var subscription))
                 return;
@@ -57,8 +57,8 @@ namespace ObserveThing
                 Dispose();
         }
 
-        protected void HandleElementChanged(IOperation operation)
-            => _operand.EnqueuePendingOperation(operation.AllocateCopy());
+        protected void HandleElementChanged(T operation)
+            => _operand.EnqueuePendingOperation(operation);
 
         public void Dispose()
         {

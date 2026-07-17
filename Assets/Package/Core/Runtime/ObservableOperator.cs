@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ObservableOperator<T> : Observable<T>, IObservableOperand<T> where T : IOperation
+    public class ObservableOperator<T> : Observable<T>, IObservableOperand<T>
     {
         IObservable<T> IObservableOperand<T>.operationSource => this;
 

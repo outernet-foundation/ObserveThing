@@ -4,41 +4,8 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public interface ISetOperation : ICollectionOperation { }
-
-    public interface ISetOperation<out T> : ISetOperation, ICollectionOperation<T> { }
-
-    public class ObservableSetBase<T> : Observable<ISetOperation<T>>, ISetObservable<T>
+    public class ObservableSetBase<T> : Observable<CollectionOp<T>>
     {
-        private class SetOperation : ISetOperation<T>
-        {
-            public IObservable source { get; set; }
-            public uint elementId { get; set; }
-            public OpType opType { get; set; }
-            public T element { get; set; }
-
-            public IOperation AllocateCopy()
-            {
-                return new SetOperation()
-                {
-                    source = source,
-                    elementId = elementId,
-                    opType = opType,
-                    element = element,
-                };
-            }
-
-            public void Deallocate()
-            {
-                var context = source.context;
-                source = default;
-                elementId = default;
-                opType = default;
-                element = default;
-                context.DeallocateOperation(this);
-            }
-        }
-
         private Dictionary<T, uint> _set = new Dictionary<T, uint>();
         private CollectionIdProvider _idProvider;
 
@@ -54,18 +21,8 @@ namespace ObserveThing
                 _set.Add(value, _idProvider.GetUnusedId());
         }
 
-        private SetOperation AllocateOperation(uint id, OpType opType, T element)
-        {
-            var op = context.AllocateOperation<SetOperation>();
-            op.source = this;
-            op.elementId = id;
-            op.opType = opType;
-            op.element = element;
-            return op;
-        }
-
-        public override IReadOnlyList<ISetOperation<T>> GetInitializationOperations()
-            => _set.Select(x => AllocateOperation(x.Value, OpType.Add, x.Key)).ToArray();
+        public override IReadOnlyList<CollectionOp<T>> GetInitializationOperations()
+            => _set.Select(x => new CollectionOp<T>() { opType = OpType.Add, elementId = x.Value, value = x.Key }).ToArray();
 
         protected int GetCountInternal()
             => _set.Count;
@@ -80,7 +37,7 @@ namespace ObserveThing
 
             var id = _idProvider.GetUnusedId();
             _set.Add(element, id);
-            EnqueuePendingOperation(AllocateOperation(id, OpType.Add, element));
+            EnqueuePendingOperation(new CollectionOp<T>() { opType = OpType.Add, elementId = id, value = element });
             return true;
         }
 
@@ -96,7 +53,7 @@ namespace ObserveThing
                 return false;
 
             _set.Remove(element);
-            EnqueuePendingOperation(AllocateOperation(id, OpType.Remove, element));
+            EnqueuePendingOperation(new CollectionOp<T>() { opType = OpType.Remove, elementId = id, value = element });
 
             return true;
         }
@@ -106,29 +63,11 @@ namespace ObserveThing
             foreach (var kvp in _set.ToArray())
             {
                 _set.Remove(kvp.Key);
-                EnqueuePendingOperation(AllocateOperation(kvp.Value, OpType.Remove, kvp.Key));
+                EnqueuePendingOperation(new CollectionOp<T>() { opType = OpType.Remove, elementId = kvp.Value, value = kvp.Key });
             }
         }
 
         protected bool ContainsInternal(T element)
             => _set.ContainsKey(element);
-
-        public IDisposable Subscribe(IObserver<ICollectionOperation<T>> observer)
-            => Subscribe(new Observer<ISetOperation<T>>(
-                overridePriority: observer.overridePriority,
-                immediate: observer.immediate,
-                onNext: observer.OnNext,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
-        public IDisposable Subscribe(IObserver<ICollectionOperation> observer)
-            => Subscribe(new Observer<ISetOperation<T>>(
-                overridePriority: observer.overridePriority,
-                immediate: observer.immediate,
-                onNext: observer.OnNext,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
     }
 }

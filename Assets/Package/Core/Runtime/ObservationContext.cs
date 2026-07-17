@@ -24,8 +24,6 @@ namespace ObserveThing
         private bool _executingBatch = false;
         private int _registrationOrder = 0;
 
-        private Dictionary<Type, object> _operationPools = new Dictionary<Type, object>();
-
         private struct ObserverOrder
         {
             public uint priority;
@@ -123,22 +121,6 @@ namespace ObserveThing
             _notifyingObservers = false;
 
             _registrationOrder = 0;
-        }
-
-        public T AllocateOperation<T>() where T : class, IOperation, new()
-        {
-            var pool = _operationPools.TryGetValue(typeof(T), out var poolObj) ? (Queue<T>)poolObj : new Queue<T>();
-
-            if (!pool.TryDequeue(out var instance))
-                instance = new T();
-
-            return instance;
-        }
-
-        public void DeallocateOperation<T>(T operation) where T : class, IOperation, new()
-        {
-            var pool = _operationPools.TryGetValue(typeof(T), out var poolObj) ? (Queue<T>)poolObj : new Queue<T>();
-            pool.Enqueue(operation);
         }
     }
 }
