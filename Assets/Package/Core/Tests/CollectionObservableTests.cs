@@ -47,8 +47,8 @@ namespace ObserveThing.Tests
             Exception exception = default;
             bool disposed = false;
 
-            var list = new ObservableList<ObservableValue<int>>();
-            var orderBy = list.ObservableOrderBy(x => x.AsObservable()).Subscribe(
+            var list = new ObservableSet<ObservableValue<int>>();
+            var orderBy = list.ObservableOrderBy(x => x.value).Subscribe(
                 onAdd: (index, value) =>
                 {
                     callCount++;
@@ -135,10 +135,10 @@ namespace ObserveThing.Tests
             List<string> destination = new List<string>();
 
             source
-                .ObservableSelect(x => x)
-                .ObservableOrderBy(x => source.ObservableIndexOf(x).ObservableSelect(x => x.found ? x.index : -1))
+                .ObservableSelect<string, string>(x => x)
+                .ObservableOrderBy(x => source.ObservableIndexOf(x.element).ObservableSelect(x => x.found ? x.index : -1))
                 .Subscribe(
-                    onAdd: (index, value) => destination.Insert(index, value),
+                    onAdd: (index, value) => destination.Insert(index, value.element),
                     onRemove: (index, value) => destination.RemoveAt(index)
                 );
 

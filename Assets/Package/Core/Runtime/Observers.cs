@@ -8,24 +8,7 @@ namespace ObserveThing
         public static Action<Exception> DefaultExceptionHandler = UnityEngine.Debug.LogException;
         public static ObservationContext DefaultObservationContext = new ObservationContext();
     }
-
-    // public interface IOperation
-    // {
-    //     object source { get; }
-    //     ObservationContext context { get; }
-
-    //     IOperation AllocateCopy();
-    //     void Deallocate();
-    // }
-
-    // public interface IOperation<out T> : IOperation
-    // {
-    //     new IObservable<IOperation<T>> source { get; }
-
-    //     object IOperation.source => source;
-    //     ObservationContext IOperation.context => source.context;
-    // }
-
+    
     public struct CollectionOp<T>
     {
         public uint elementId;

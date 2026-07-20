@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using NUnit.Framework;
 
@@ -19,7 +18,7 @@ namespace ObserveThing.Tests
 
             int callCount = 0;
 
-            var stream = Observables.ObservableCombine<IValueOperation>(intObservable, stringObservable).Subscribe(
+            var stream = Observables.ObservableCombine(intObservable, stringObservable).Subscribe(
                 onNext: op =>
                 {
                     callCount++;
@@ -151,7 +150,7 @@ namespace ObserveThing.Tests
             ObservableValue<int> intObservable = new ObservableValue<int>(context);
             ObservableValue<string> stringObservable = new ObservableValue<string>(context);
 
-            var query = Observables.ObservableCombine<IValueOperation>(intObservable, stringObservable);
+            var query = Observables.ObservableCombine(intObservable, stringObservable);
 
             List<(object source, object value)> observerCallOrder = new List<(object source, object value)>();
 
@@ -294,23 +293,23 @@ namespace ObserveThing.Tests
             dictionary.Add("dog", 2);
             dictionary.Add("frog", 3);
 
-            List<(object source, object value, OpType opType)> initOps = new List<(object source, object value, OpType opType)>();
+            List<(object source, object value)> initOps = new List<(object source, object value)>();
 
-            Observables.ObservableCombine<ICollectionOperation>(dictionary).Subscribe(onNext: op => initOps.Add(new(op.source, op.element, op.opType)));
+            // Observables.ObservableCombine(dictionary).Subscribe(onNext: op => initOps.Add(new(op.source, op.element, op.opType)));
 
-            Assert.That(
-                initOps,
-                Is.EqualTo(
-                    new List<(object source, object value, OpType opType)>()
-                    {
-                        new(dictionary, KeyValuePair.Create("cat", 1), OpType.Add),
-                        new(dictionary, KeyValuePair.Create("dog", 2), OpType.Add),
-                        new(dictionary, KeyValuePair.Create("frog", 3), OpType.Add)
-                    }
-                )
-            );
+            // Assert.That(
+            //     initOps,
+            //     Is.EqualTo(
+            //         new List<(object source, object value)>()
+            //         {
+            //             new(dictionary, KeyValuePair.Create("cat", 1), OpType.Add),
+            //             new(dictionary, KeyValuePair.Create("dog", 2), OpType.Add),
+            //             new(dictionary, KeyValuePair.Create("frog", 3), OpType.Add)
+            //         }
+            //     )
+            // );
 
-            initOps.Clear();
+            // initOps.Clear();
 
             var list = new ObservableList<float>(context);
 
@@ -319,20 +318,20 @@ namespace ObserveThing.Tests
             list.Add(-1000f);
             list.Insert(1, 50f);
 
-            var subscription = Observables.ObservableCombine<ICollectionOperation>(dictionary, list).Subscribe(onNext: op => initOps.Add(new(op.source, op.element, op.opType)));
+            var subscription = Observables.ObservableCombine(dictionary, list).Subscribe(onNext: op => initOps.Add(new(op.source, op.value)));
 
             Assert.That(
                 initOps,
                 Is.EqualTo(
-                    new List<(object source, object value, OpType opType)>()
+                    new List<(object source, object value)>()
                     {
-                        new(dictionary, KeyValuePair.Create("cat", 1), OpType.Add),
-                        new(dictionary, KeyValuePair.Create("dog", 2), OpType.Add),
-                        new(dictionary, KeyValuePair.Create("frog", 3), OpType.Add),
-                        new(list, 0.22f, OpType.Add),
-                        new(list, 50f,  OpType.Add),
-                        new(list, 0.11f, OpType.Add),
-                        new(list, -1000f,  OpType.Add)
+                        new(dictionary, new CollectionOp<KeyValuePair<string, int>>() { value = KeyValuePair.Create("cat", 1), opType = OpType.Add, elementId = 1 }),
+                        new(dictionary, new CollectionOp<KeyValuePair<string, int>>() { value = KeyValuePair.Create("dog", 2), opType = OpType.Add, elementId = 2 }),
+                        new(dictionary, new CollectionOp<KeyValuePair<string, int>>() { value = KeyValuePair.Create("frog", 3), opType = OpType.Add, elementId = 3 }),
+                        new(list, new CollectionOp<ListData<float>>() { value = new () { element = 0.22f, index = 1}, opType = OpType.Add, elementId = 1, }),
+                        new(list, new CollectionOp<ListData<float>>() { value = new () { element = 0.50f, index = 1}, opType = OpType.Add, elementId = 4, }),
+                        new(list, new CollectionOp<ListData<float>>() { value = new () { element = 0.11f, index = 1}, opType = OpType.Add, elementId = 2, }),
+                        new(list, new CollectionOp<ListData<float>>() { value = new () { element = -1000f, index = 1}, opType = OpType.Add, elementId = 3, })
                     }
                 )
             );

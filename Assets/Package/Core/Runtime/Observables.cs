@@ -8,17 +8,17 @@ namespace ObserveThing
         public static IObservable<IReadOnlyList<T>> ObservableBatch<T>(this IObservable<T> source)
             => new ObservableOperator<IReadOnlyList<T>>(source.context, operand => new BatchObservable<T>(source, operand));
 
-        public static IObservable<T> ObservableCombine<T>(this IObservable<CollectionOp<IObservable<T>>> source, bool disposeOnSourceEmpty = false)
-            => new ObservableOperator<T>(source.context, operand => new CombineObservable<T>(source, operand, disposeOnSourceEmpty));
+        public static IObservable<IOperation> ObservableCombine<T1, T2>(IObservable<T1> source1, IObservable<T2> source2)
+            => new ObservableOperator<IOperation>(source1.context, operand => new CombineObservable<T1, T2>(source1, source2, operand));
 
-        public static IObservable<T> ObservableCombine<T>(params IObservable<T>[] observables)
-            => new ObservableSet<IObservable<T>>(observables).ObservableCombine(disposeOnSourceEmpty: true);
+        // public static IObservable<T> ObservableCombine<T>(params IObservable<T>[] observables)
+        //     => new ObservableSet<IObservable<T>>(observables).ObservableCombine(disposeOnSourceEmpty: true);
 
-        public static IObservable<T> ObservableCombine<T>(bool disposeOnSourceEmpty, params IObservable<T>[] observables)
-            => new ObservableSet<IObservable<T>>(observables).ObservableCombine(disposeOnSourceEmpty: disposeOnSourceEmpty);
+        // public static IObservable<T> ObservableCombine<T>(bool disposeOnSourceEmpty, params IObservable<T>[] observables)
+        //     => new ObservableSet<IObservable<T>>(observables).ObservableCombine(disposeOnSourceEmpty: disposeOnSourceEmpty);
 
-        public static IObservable<T> ObservableCombine<T>(IEnumerable<IObservable<T>> observables, bool disposeOnSourceEmpty = true)
-            => new ObservableSet<IObservable<T>>(observables).ObservableCombine(disposeOnSourceEmpty);
+        // public static IObservable<T> ObservableCombine<T>(IEnumerable<IObservable<T>> observables, bool disposeOnSourceEmpty = true)
+        //     => new ObservableSet<IObservable<T>>(observables).ObservableCombine(disposeOnSourceEmpty);
 
         public static IObservable<T> ObservableOnEach<T>(this IObservable<T> source, IObserver<T> thenObserver)
             => new ObservableOperator<T>(source.context, operand => new OnEachObservable<T>(source, thenObserver, operand));
@@ -136,6 +136,18 @@ namespace ObserveThing
 
         public static IObservable<CollectionOp<ListData<T>>> ObservableOrderByDescending<T, U>(this IObservable<CollectionOp<T>> source, Func<T, IObservable<U>> orderBy)
             => new ListOperator<T>(source.context, operand => new OrderByObservable<T, U>(source, orderBy, true, operand));
+
+        public static IObservable<CollectionOp<ListData<T>>> ObservableOrderBy<T, U>(this IObservable<CollectionOp<ListData<T>>> source, Func<T, U> orderBy)
+            => source.ObservableOrderBy<T, U>(x => new ObservableValue<U>(orderBy(x)));
+
+        public static IObservable<CollectionOp<ListData<T>>> ObservableOrderBy<T, U>(this IObservable<CollectionOp<ListData<T>>> source, Func<T, IObservable<U>> orderBy)
+            => source.ObservableOrderBy(x => orderBy?.Invoke(x.element));
+
+        public static IObservable<CollectionOp<ListData<T>>> ObservableOrderByDescending<T, U>(this IObservable<CollectionOp<ListData<T>>> source, Func<T, U> orderBy)
+            => source.ObservableOrderByDescending<T, U>(x => new ObservableValue<U>(orderBy(x)));
+
+        public static IObservable<CollectionOp<ListData<T>>> ObservableOrderByDescending<T, U>(this IObservable<CollectionOp<ListData<T>>> source, Func<T, IObservable<U>> orderBy)
+            => new ListOperator<T>(source.context, operand => new OrderByObservable<T, U>(source, x => orderBy?.Invoke(x), true, operand));
 
         public static IObservable<int> ObservableCount<T>(this IObservable<CollectionOp<T>> source)
             => new ValueOperator<int>(source.context, operand => new CountObservable<T>(source, operand));
