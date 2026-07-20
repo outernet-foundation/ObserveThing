@@ -44,7 +44,7 @@ namespace ObserveThing
         void Clear();
     }
 
-    public interface IObservableOperand<T> : IOperand
+    public interface IObservableOperand<T> : IOperand where T : IOperation
     {
         IObservable<T> operationSource { get; }
         void EnqueuePendingOperation(T operation);

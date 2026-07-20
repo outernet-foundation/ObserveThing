@@ -4,14 +4,70 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class ObservableCollectionBase<T> : Observable<CollectionOp<T>>
+    public class ObservableCollectionBase<T> : Observable<ICollectionOperation<T>>
     {
+        private class CollectionOperation : ICollectionOperation<T>
+        {
+            public IObservable<IOperation> source { get; set; }
+            public OpType opType { get; set; }
+            public uint elementId { get; set; }
+            public T value { get; set; }
+
+            private Action<CollectionOperation> _handleOperationDeallocated;
+
+            public CollectionOperation(Action<CollectionOperation> handleOperationDeallocated)
+            {
+                _handleOperationDeallocated = handleOperationDeallocated;
+            }
+
+            public IOperation AllocateCopy()
+            {
+                return new CollectionOperation(_handleOperationDeallocated)
+                {
+                    source = source,
+                    opType = opType,
+                    elementId = elementId,
+                    value = value,
+                    _handleOperationDeallocated = _handleOperationDeallocated
+                };
+            }
+
+            public void Deallocate()
+            {
+                _handleOperationDeallocated?.Invoke(this);
+            }
+        }
+
         private Dictionary<uint, T> _collection = new Dictionary<uint, T>();
+        private Stack<CollectionOperation> _operationPool = new Stack<CollectionOperation>();
 
         public ObservableCollectionBase(ObservationContext context) : base(context) { }
 
-        public override IReadOnlyList<CollectionOp<T>> GetInitializationOperations()
-            => _collection.Select(x => new CollectionOp<T>() { opType = OpType.Add, elementId = x.Key, value = x.Value }).ToArray();
+        private CollectionOperation AllocateOperation(OpType opType, uint elementId, T value)
+        {
+            if (!_operationPool.TryPop(out var operation))
+                operation = new CollectionOperation(DeallocateOperation);
+
+            operation.source = this;
+            operation.opType = opType;
+            operation.elementId = elementId;
+            operation.value = value;
+
+            return operation;
+        }
+
+        private void DeallocateOperation(CollectionOperation operation)
+        {
+            operation.source = default;
+            operation.opType = default;
+            operation.elementId = default;
+            operation.value = default;
+
+            _operationPool.Push(operation);
+        }
+
+        public override IReadOnlyList<ICollectionOperation<T>> GetInitializationOperations()
+            => _collection.Select(x => AllocateOperation(OpType.Add, x.Key, x.Value)).ToArray();
 
         protected IEnumerable<(uint id, T element)> GetElementsWithIdsInternal()
             => _collection.Select<KeyValuePair<uint, T>, (uint id, T element)>(x => new(x.Key, x.Value));
@@ -21,7 +77,7 @@ namespace ObserveThing
         protected uint AddInternal(uint id, T element)
         {
             _collection.Add(id, element);
-            EnqueuePendingOperation(new CollectionOp<T>() { opType = OpType.Add, elementId = id, value = element });
+            EnqueuePendingOperation(AllocateOperation(OpType.Add, id, element));
             return id;
         }
 
@@ -31,7 +87,7 @@ namespace ObserveThing
                 return false;
 
             _collection.Remove(id);
-            EnqueuePendingOperation(new CollectionOp<T>() { opType = OpType.Remove, elementId = id, value = element });
+            EnqueuePendingOperation(AllocateOperation(OpType.Remove, id, element));
             return true;
         }
 
@@ -40,7 +96,7 @@ namespace ObserveThing
             foreach (var kvp in _collection.ToArray())
             {
                 _collection.Remove(kvp.Key);
-                EnqueuePendingOperation(new CollectionOp<T>() { opType = OpType.Remove, elementId = kvp.Key, value = kvp.Value });
+                EnqueuePendingOperation(AllocateOperation(OpType.Remove, kvp.Key, kvp.Value));
             }
         }
 

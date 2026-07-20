@@ -10,7 +10,7 @@ namespace ObserveThing
         private (uint id, T value) _latest;
         private IDisposable _subscriptions;
 
-        public FirstObservable(IObservable<CollectionOp<T>> source, Func<T, IObservable<bool>> validate, IValueOperand<(bool found, T value)> operand)
+        public FirstObservable(IObservable<ICollectionOperation<T>> source, Func<T, IObservable<IOperation<bool>>> validate, IValueOperand<(bool found, T value)> operand)
         {
             _operand = operand;
             _subscriptions = source.ObservableWhere(x => validate(x)).SubscribeWithId(

@@ -20,7 +20,7 @@ namespace ObserveThing.Tests
             var list = new ObservableList<int>();
             bool disposed = false;
             bool receivedCall = false;
-            var select = list.ObservableSelect<int, string>(x => x.ToString()).Subscribe(
+            var select = list.ObservableSelect(x => x.ToString()).Subscribe(
                 onAdd: (index, value) =>
                 {
                     result.Insert(index, value);

@@ -7,7 +7,7 @@ namespace ObserveThing
         private IValueOperand<U> _operand;
         private IDisposable _subscriptions;
 
-        public SelectValueOperator(IObservable<T> source, Func<T, U> select, IValueOperand<U> operand)
+        public SelectValueOperator(IObservable<IOperation<T>> source, Func<T, U> select, IValueOperand<U> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(

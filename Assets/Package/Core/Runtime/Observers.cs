@@ -8,24 +8,11 @@ namespace ObserveThing
         public static Action<Exception> DefaultExceptionHandler = UnityEngine.Debug.LogException;
         public static ObservationContext DefaultObservationContext = new ObservationContext();
     }
-    
-    public struct CollectionOp<T>
-    {
-        public uint elementId;
-        public OpType opType;
-        public T value;
-    }
 
     public enum OpType
     {
         Add,
         Remove
-    }
-
-    public struct ListData<T>
-    {
-        public T element;
-        public int index;
     }
 
     public interface IObserver<in T>

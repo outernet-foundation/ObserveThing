@@ -12,7 +12,7 @@ namespace ObserveThing
 
         private IDisposable _subscription;
 
-        public ConcatObservable(IObservable<CollectionOp<T>> source1, IObservable<CollectionOp<T>> source2, ICollectionOperand<T> operand)
+        public ConcatObservable(IObservable<ICollectionOperation<T>> source1, IObservable<ICollectionOperation<T>> source2, ICollectionOperand<T> operand)
         {
             _idProvider = new CollectionIdProvider(x => !_source1IdMap.ContainsValue(x) && !_source2IdMap.ContainsValue(x));
             _operand = operand;

@@ -4,10 +4,43 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class ObservableSetBase<T> : Observable<CollectionOp<T>>
+    public class ObservableSetBase<T> : Observable<ISetOperation<T>>
     {
+        private class SetOperation : ISetOperation<T>
+        {
+            public IObservable<IOperation> source { get; set; }
+            public OpType opType { get; set; }
+            public uint elementId { get; set; }
+            public T value { get; set; }
+
+            private Action<SetOperation> _handleOperationDeallocated;
+
+            public SetOperation(Action<SetOperation> handleOperationDeallocated)
+            {
+                _handleOperationDeallocated = handleOperationDeallocated;
+            }
+
+            public IOperation AllocateCopy()
+            {
+                return new SetOperation(_handleOperationDeallocated)
+                {
+                    source = source,
+                    opType = opType,
+                    elementId = elementId,
+                    value = value,
+                    _handleOperationDeallocated = _handleOperationDeallocated
+                };
+            }
+
+            public void Deallocate()
+            {
+                _handleOperationDeallocated?.Invoke(this);
+            }
+        }
+
         private Dictionary<T, uint> _set = new Dictionary<T, uint>();
         private CollectionIdProvider _idProvider;
+        private Stack<SetOperation> _operationPool = new Stack<SetOperation>();
 
         public ObservableSetBase(ObservationContext context) : this(context, null) { }
         public ObservableSetBase(ObservationContext context, IEnumerable<T> values) : base(context)
@@ -21,8 +54,31 @@ namespace ObserveThing
                 _set.Add(value, _idProvider.GetUnusedId());
         }
 
-        public override IReadOnlyList<CollectionOp<T>> GetInitializationOperations()
-            => _set.Select(x => new CollectionOp<T>() { opType = OpType.Add, elementId = x.Value, value = x.Key }).ToArray();
+        private SetOperation AllocateOperation(OpType opType, uint elementId, T value)
+        {
+            if (!_operationPool.TryPop(out var operation))
+                operation = new SetOperation(DeallocateOperation);
+
+            operation.source = this;
+            operation.opType = opType;
+            operation.elementId = elementId;
+            operation.value = value;
+
+            return operation;
+        }
+
+        private void DeallocateOperation(SetOperation operation)
+        {
+            operation.source = default;
+            operation.opType = default;
+            operation.elementId = default;
+            operation.value = default;
+
+            _operationPool.Push(operation);
+        }
+
+        public override IReadOnlyList<ISetOperation<T>> GetInitializationOperations()
+            => _set.Select(x => AllocateOperation(OpType.Add, x.Value, x.Key)).ToArray();
 
         protected int GetCountInternal()
             => _set.Count;
@@ -37,7 +93,7 @@ namespace ObserveThing
 
             var id = _idProvider.GetUnusedId();
             _set.Add(element, id);
-            EnqueuePendingOperation(new CollectionOp<T>() { opType = OpType.Add, elementId = id, value = element });
+            EnqueuePendingOperation(AllocateOperation(OpType.Add, id, element));
             return true;
         }
 
@@ -53,7 +109,7 @@ namespace ObserveThing
                 return false;
 
             _set.Remove(element);
-            EnqueuePendingOperation(new CollectionOp<T>() { opType = OpType.Remove, elementId = id, value = element });
+            EnqueuePendingOperation(AllocateOperation(OpType.Remove, id, element));
 
             return true;
         }
@@ -63,7 +119,7 @@ namespace ObserveThing
             foreach (var kvp in _set.ToArray())
             {
                 _set.Remove(kvp.Key);
-                EnqueuePendingOperation(new CollectionOp<T>() { opType = OpType.Remove, elementId = kvp.Value, value = kvp.Key });
+                EnqueuePendingOperation(AllocateOperation(OpType.Remove, kvp.Value, kvp.Key));
             }
         }
 

@@ -4,10 +4,45 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class ObservableListBase<T> : Observable<CollectionOp<ListData<T>>>
+    public class ObservableListBase<T> : Observable<IListOperation<T>>
     {
+        private class ListOperation : IListOperation<T>
+        {
+            public IObservable<IOperation> source { get; set; }
+            public OpType opType { get; set; }
+            public uint elementId { get; set; }
+            public int index { get; set; }
+            public T value { get; set; }
+
+            private Action<ListOperation> _handleOperationDeallocated;
+
+            public ListOperation(Action<ListOperation> handleOperationDeallocated)
+            {
+                _handleOperationDeallocated = handleOperationDeallocated;
+            }
+
+            public IOperation AllocateCopy()
+            {
+                return new ListOperation(_handleOperationDeallocated)
+                {
+                    source = source,
+                    opType = opType,
+                    elementId = elementId,
+                    index = index,
+                    value = value,
+                    _handleOperationDeallocated = _handleOperationDeallocated
+                };
+            }
+
+            public void Deallocate()
+            {
+                _handleOperationDeallocated?.Invoke(this);
+            }
+        }
+
         private List<(uint id, T value)> _list = new List<(uint id, T value)>();
         private CollectionIdProvider _idProvider;
+        private Stack<ListOperation> _operationPool = new Stack<ListOperation>();
 
         public ObservableListBase(ObservationContext context) : this(context, null) { }
         public ObservableListBase(ObservationContext context, IEnumerable<T> value) : base(context)
@@ -27,13 +62,33 @@ namespace ObserveThing
         protected IEnumerable<(uint id, T value)> ElementsInternal()
             => _list;
 
-        public override IReadOnlyList<CollectionOp<ListData<T>>> GetInitializationOperations()
-            => _list.Select((element, index) => new CollectionOp<ListData<T>>()
-            {
-                opType = OpType.Add,
-                elementId = element.id,
-                value = new ListData<T>() { element = element.value, index = index }
-            }).ToArray();
+        private ListOperation AllocateOperation(OpType opType, uint elementId, int index, T value)
+        {
+            if (!_operationPool.TryPop(out var operation))
+                operation = new ListOperation(DeallocateOperation);
+
+            operation.source = this;
+            operation.opType = opType;
+            operation.elementId = elementId;
+            operation.index = index;
+            operation.value = value;
+
+            return operation;
+        }
+
+        private void DeallocateOperation(ListOperation operation)
+        {
+            operation.source = default;
+            operation.opType = default;
+            operation.elementId = default;
+            operation.index = default;
+            operation.value = default;
+
+            _operationPool.Push(operation);
+        }
+
+        public override IReadOnlyList<IListOperation<T>> GetInitializationOperations()
+            => _list.Select((element, index) => AllocateOperation(OpType.Add, element.id, index, element.value)).ToArray();
 
         protected void AddInternal(T added)
             => InsertInternal(_list.Count, added);
@@ -59,24 +114,14 @@ namespace ObserveThing
         {
             var removed = _list[index];
             _list.RemoveAt(index);
-            EnqueuePendingOperation(new CollectionOp<ListData<T>>()
-            {
-                opType = OpType.Remove,
-                elementId = removed.id,
-                value = new ListData<T>() { element = removed.value, index = index }
-            });
+            EnqueuePendingOperation(AllocateOperation(OpType.Remove, removed.id, index, removed.value));
         }
 
         protected void InsertInternal(int index, T item)
         {
             (uint id, T value) inserted = new(_idProvider.GetUnusedId(), item);
             _list.Insert(index, inserted);
-            EnqueuePendingOperation(new CollectionOp<ListData<T>>()
-            {
-                opType = OpType.Add,
-                elementId = inserted.id,
-                value = new ListData<T>() { element = inserted.value, index = index }
-            });
+            EnqueuePendingOperation(AllocateOperation(OpType.Add, inserted.id, index, inserted.value));
         }
 
         protected void ClearInternal()

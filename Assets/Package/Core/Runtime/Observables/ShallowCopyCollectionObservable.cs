@@ -15,7 +15,7 @@ namespace ObserveThing
             public bool initialized;
         }
 
-        public ShallowCopyCollectionObservable(IObservable<CollectionOp<IObservable<T>>> source, ICollectionOperand<T> operand)
+        public ShallowCopyCollectionObservable(IObservable<ICollectionOperation<IObservable<IOperation<T>>>> source, ICollectionOperand<T> operand)
         {
             _operand = operand;
             _subscriptions = source.SubscribeWithId(
@@ -27,7 +27,7 @@ namespace ObserveThing
             );
         }
 
-        private void HandleAdd(uint id, IObservable<T> observable)
+        private void HandleAdd(uint id, IObservable<IOperation<T>> observable)
         {
             var data = new EntryData();
             _dataById.Add(id, data);
@@ -45,7 +45,7 @@ namespace ObserveThing
             );
         }
 
-        private void HandleRemove(uint id, IObservable<T> observable)
+        private void HandleRemove(uint id, IObservable<IOperation<T>> observable)
         {
             var data = _dataById[id];
             _dataById.Remove(id);

@@ -4,10 +4,43 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class ObservableDictionaryBase<TKey, TValue> : Observable<CollectionOp<KeyValuePair<TKey, TValue>>>
+    public class ObservableDictionaryBase<TKey, TValue> : Observable<IDictionaryOperation<TKey, TValue>>
     {
+        private class DictionaryOperation : IDictionaryOperation<TKey, TValue>
+        {
+            public IObservable<IOperation> source { get; set; }
+            public OpType opType { get; set; }
+            public uint elementId { get; set; }
+            public KeyValuePair<TKey, TValue> value { get; set; }
+
+            private Action<DictionaryOperation> _handleOperationDeallocated;
+
+            public DictionaryOperation(Action<DictionaryOperation> handleOperationDeallocated)
+            {
+                _handleOperationDeallocated = handleOperationDeallocated;
+            }
+
+            public IOperation AllocateCopy()
+            {
+                return new DictionaryOperation(_handleOperationDeallocated)
+                {
+                    source = source,
+                    opType = opType,
+                    elementId = elementId,
+                    value = value,
+                    _handleOperationDeallocated = _handleOperationDeallocated
+                };
+            }
+
+            public void Deallocate()
+            {
+                _handleOperationDeallocated?.Invoke(this);
+            }
+        }
+
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
         private CollectionIdProvider _idProvider;
+        private Stack<DictionaryOperation> _operationPool = new Stack<DictionaryOperation>();
 
         public ObservableDictionaryBase(ObservationContext context) : this(context, null) { }
         public ObservableDictionaryBase(ObservationContext context, IEnumerable<KeyValuePair<TKey, TValue>> value) : base(context)
@@ -33,13 +66,31 @@ namespace ObserveThing
         protected IEnumerable<KeyValuePair<TKey, (uint id, TValue value)>> ElementsInternal()
             => _dictionary;
 
-        public override IReadOnlyList<CollectionOp<KeyValuePair<TKey, TValue>>> GetInitializationOperations()
-            => _dictionary.Select(x => new CollectionOp<KeyValuePair<TKey, TValue>>()
-            {
-                opType = OpType.Add,
-                elementId = x.Value.id,
-                value = new KeyValuePair<TKey, TValue>(x.Key, x.Value.value)
-            }).ToArray();
+        private DictionaryOperation AllocateOperation(OpType opType, uint elementId, TKey key, TValue value)
+        {
+            if (!_operationPool.TryPop(out var operation))
+                operation = new DictionaryOperation(DeallocateOperation);
+
+            operation.source = this;
+            operation.opType = opType;
+            operation.elementId = elementId;
+            operation.value = new KeyValuePair<TKey, TValue>(key, value);
+
+            return operation;
+        }
+
+        private void DeallocateOperation(DictionaryOperation operation)
+        {
+            operation.source = default;
+            operation.opType = default;
+            operation.elementId = default;
+            operation.value = default;
+
+            _operationPool.Push(operation);
+        }
+
+        public override IReadOnlyList<IDictionaryOperation<TKey, TValue>> GetInitializationOperations()
+            => _dictionary.Select(x => AllocateOperation(OpType.Add, x.Value.id, x.Key, x.Value.value)).ToArray();
 
         protected void SetInternal(TKey key, TValue value)
         {
@@ -51,12 +102,7 @@ namespace ObserveThing
         {
             var id = _idProvider.GetUnusedId();
             _dictionary.Add(key, (id, value));
-            EnqueuePendingOperation(new CollectionOp<KeyValuePair<TKey, TValue>>()
-            {
-                opType = OpType.Add,
-                elementId = id,
-                value = new KeyValuePair<TKey, TValue>(key, value)
-            });
+            EnqueuePendingOperation(AllocateOperation(OpType.Add, id, key, value));
         }
 
         protected bool RemoveInternal(TKey key)
@@ -65,12 +111,7 @@ namespace ObserveThing
                 return false;
 
             _dictionary.Remove(key);
-            EnqueuePendingOperation(new CollectionOp<KeyValuePair<TKey, TValue>>()
-            {
-                opType = OpType.Remove,
-                elementId = data.id,
-                value = new KeyValuePair<TKey, TValue>(key, data.value)
-            });
+            EnqueuePendingOperation(AllocateOperation(OpType.Remove, data.id, key, data.value));
 
             return true;
         }
@@ -80,12 +121,7 @@ namespace ObserveThing
             foreach (var kvp in _dictionary.ToArray())
             {
                 _dictionary.Remove(kvp.Key);
-                EnqueuePendingOperation(new CollectionOp<KeyValuePair<TKey, TValue>>()
-                {
-                    opType = OpType.Remove,
-                    elementId = kvp.Value.id,
-                    value = new KeyValuePair<TKey, TValue>(kvp.Key, kvp.Value.value)
-                });
+                EnqueuePendingOperation(AllocateOperation(OpType.Remove, kvp.Value.id, kvp.Key, kvp.Value.value));
             }
         }
 

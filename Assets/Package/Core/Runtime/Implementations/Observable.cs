@@ -1,17 +1,64 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 namespace ObserveThing
 {
-    public interface IObservable<out T>
+    public interface IObservable<out T> where T : IOperation
     {
         ObservationContext context { get; }
         IDisposable Subscribe(IObserver<T> observer);
         IReadOnlyList<T> GetInitializationOperations();
     }
 
-    public abstract class Observable<T> : IObservable<T>, IDisposable
+    public interface IOperation
+    {
+        IObservable<IOperation> source { get; }
+        object value { get; }
+
+        IOperation AllocateCopy();
+        void Deallocate();
+    }
+
+    public interface IOperation<T> : IOperation
+    {
+        new T value { get; }
+
+        object IOperation.value => value;
+    }
+
+    public interface ICollectionOperation : IOperation
+    {
+        uint elementId { get; }
+        OpType opType { get; }
+    }
+
+    public interface ICollectionOperation<T> : ICollectionOperation, IOperation<T> { }
+
+    public interface IListOperation : ICollectionOperation
+    {
+        int index { get; }
+    }
+
+    public interface IListOperation<T> : IListOperation, ICollectionOperation<T> { }
+
+    public interface ISetOperation : ICollectionOperation { }
+    public interface ISetOperation<T> : ISetOperation, ICollectionOperation<T> { }
+
+    public interface IDictionaryOperation : ICollectionOperation
+    {
+        object dictionaryKey { get; }
+        object dictionaryValue { get; }
+    }
+
+    public interface IDictionaryOperation<TKey, TValue> : IDictionaryOperation, ICollectionOperation<KeyValuePair<TKey, TValue>>
+    {
+        object IDictionaryOperation.dictionaryKey => value.Key;
+        object IDictionaryOperation.dictionaryValue => value.Value;
+    }
+
+    public abstract class Observable<T> : IObservable<T>, IDisposable where T : IOperation
     {
         private class ObserverData : IPendingObserver, IDisposable
         {
@@ -21,16 +68,17 @@ namespace ObserveThing
             public bool disposed { get; private set; }
 
             private Queue<T> _pendingOperations = new Queue<T>();
-
+            private Action<T> _onOperationSent;
             private Action<ObserverData> _onDispose;
 
             private uint _priority;
 
-            public ObserverData(IObserver<T> observer, uint priority, Action<ObserverData> onDispose)
+            public ObserverData(IObserver<T> observer, uint priority, Action<T> onOperationSent, Action<ObserverData> onDispose)
             {
                 this.observer = observer;
 
                 _priority = priority;
+                _onOperationSent = onOperationSent;
                 _onDispose = onDispose;
             }
 
@@ -54,6 +102,10 @@ namespace ObserveThing
                 {
                     observer.OnError(exc);
                 }
+                finally
+                {
+                    _onOperationSent?.Invoke(op);
+                }
             }
 
             public void Dispose()
@@ -73,6 +125,7 @@ namespace ObserveThing
         public bool disposed { get; private set; }
 
         private List<ObserverData> _observers = new List<ObserverData>();
+        private Dictionary<T, int> _operationReferences = new Dictionary<T, int>();
 
         public Observable(ObservationContext context)
         {
@@ -98,6 +151,9 @@ namespace ObserveThing
             if (disposed)
                 throw new ObjectDisposedException(GetType().Name);
 
+            if (_observers.Count == 0)
+                return;
+
             int referenceCount = 0;
 
             foreach (var observer in _observers)
@@ -107,6 +163,7 @@ namespace ObserveThing
                 referenceCount++;
             }
 
+            _operationReferences[operation] = referenceCount;
             context.NotifyPendingObserversIfNecessary();
         }
 
@@ -134,15 +191,33 @@ namespace ObserveThing
             if (_observers.Count == 0)
                 OnFirstObserverAdded();
 
-            var observerData = new ObserverData(observer, context.AllocateObserverPriority(), HandleObserverDisposed);
+            var observerData = new ObserverData(observer, context.AllocateObserverPriority(), HandleOperationSent, HandleObserverDisposed);
 
             // do this after calling OnFirstObserverAdded so any resulting operations won't be queued (they'll be reflected in GetInitializationOperations)
             _observers.Add(observerData);
 
             foreach (var op in GetInitializationOperations())
+            {
                 observer.OnNext(op);
+                op.Deallocate();
+            }
 
             return observerData;
+        }
+
+        private void HandleOperationSent(T operation)
+        {
+            var referenceCount = _operationReferences[operation];
+            referenceCount -= 1;
+
+            if (referenceCount == 0)
+            {
+                _operationReferences.Remove(operation);
+                operation.Deallocate();
+                return;
+            }
+
+            _operationReferences[operation] = referenceCount;
         }
 
         public void Dispose()
