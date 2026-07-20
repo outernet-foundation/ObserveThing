@@ -8,7 +8,7 @@ namespace ObserveThing
         private IDisposable _subscription;
         private IDictionaryOperand<TKey, TValue> _operand;
 
-        public ToDictionaryObservable(ICollectionObservable<T> source, Func<T, IValueObservable<TKey>> selectKey, Func<T, IValueObservable<TValue>> selectValue, IDictionaryOperand<TKey, TValue> operand)
+        public ToDictionaryObservable(IObservable<ICollectionOperation<T>> source, Func<T, IObservable<IOperation<TKey>>> selectKey, Func<T, IObservable<IOperation<TValue>>> selectValue, IDictionaryOperand<TKey, TValue> operand)
         {
             _operand = operand;
             _subscription = source.ObservableSelect(

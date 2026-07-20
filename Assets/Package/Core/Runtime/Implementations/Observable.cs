@@ -5,6 +5,59 @@ using System.Linq;
 
 namespace ObserveThing
 {
+    public interface IObservable<out T> where T : IOperation
+    {
+        ObservationContext context { get; }
+        IDisposable Subscribe(IObserver<T> observer);
+        IReadOnlyList<T> GetInitializationOperations();
+    }
+
+    public interface IOperation
+    {
+        IObservable<IOperation> source { get; }
+        object value { get; }
+
+        IOperation AllocateCopy();
+        void Deallocate();
+    }
+
+    public interface IOperation<T> : IOperation
+    {
+        new T value { get; }
+
+        object IOperation.value => value;
+    }
+
+    public interface ICollectionOperation : IOperation
+    {
+        uint elementId { get; }
+        OpType opType { get; }
+    }
+
+    public interface ICollectionOperation<T> : ICollectionOperation, IOperation<T> { }
+
+    public interface IListOperation : ICollectionOperation
+    {
+        int index { get; }
+    }
+
+    public interface IListOperation<T> : IListOperation, ICollectionOperation<T> { }
+
+    public interface ISetOperation : ICollectionOperation { }
+    public interface ISetOperation<T> : ISetOperation, ICollectionOperation<T> { }
+
+    public interface IDictionaryOperation : ICollectionOperation
+    {
+        object dictionaryKey { get; }
+        object dictionaryValue { get; }
+    }
+
+    public interface IDictionaryOperation<TKey, TValue> : IDictionaryOperation, ICollectionOperation<KeyValuePair<TKey, TValue>>
+    {
+        object IDictionaryOperation.dictionaryKey => value.Key;
+        object IDictionaryOperation.dictionaryValue => value.Value;
+    }
+
     public abstract class Observable<T> : IObservable<T>, IDisposable where T : IOperation
     {
         private class ObserverData : IPendingObserver, IDisposable
@@ -15,7 +68,6 @@ namespace ObserveThing
             public bool disposed { get; private set; }
 
             private Queue<T> _pendingOperations = new Queue<T>();
-
             private Action<T> _onOperationSent;
             private Action<ObserverData> _onDispose;
 
@@ -99,6 +151,9 @@ namespace ObserveThing
             if (disposed)
                 throw new ObjectDisposedException(GetType().Name);
 
+            if (_observers.Count == 0)
+                return;
+
             int referenceCount = 0;
 
             foreach (var observer in _observers)
@@ -164,14 +219,6 @@ namespace ObserveThing
 
             _operationReferences[operation] = referenceCount;
         }
-
-        public IDisposable Subscribe(IObserver observer)
-            => Subscribe(new Observer<T>(
-                overridePriority: observer.overridePriority,
-                onNext: x => observer.OnNext(x),
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
 
         public void Dispose()
         {

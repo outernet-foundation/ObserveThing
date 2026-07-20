@@ -10,7 +10,7 @@ namespace ObserveThing
         private T _latest = default;
         private IDisposable _subscriptions;
 
-        public ContainsObservable(ICollectionObservable<T> source, IValueObservable<T> value, IValueOperand<bool> operand)
+        public ContainsObservable(IObservable<ICollectionOperation<T>> source, IObservable<IOperation<T>> value, IValueOperand<bool> operand)
         {
             _operand = operand;
             _subscriptions = new ComposedDisposable(

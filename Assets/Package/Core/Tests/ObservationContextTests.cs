@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace ObserveThing.Tests
 {
@@ -15,21 +15,21 @@ namespace ObserveThing.Tests
 
             ObservableValue<int> intObservable = new ObservableValue<int>(context, 100);
             ObservableValue<string> stringObservable = new ObservableValue<string>(context, "200");
-            List<(IObservable source, object value)> operations = new List<(IObservable source, object value)>();
+            List<(object source, object value)> operations = new List<(object source, object value)>();
 
             int callCount = 0;
 
-            var stream = Observables.ObservableCombine(intObservable, stringObservable).Subscribe(
+            var stream = Observables.ObservableCombine<IOperation>(intObservable, stringObservable).Subscribe(
                 onOperation: op =>
                 {
                     callCount++;
-                    operations.Add(new(op.source, ((IValueOperation)op).value));
+                    operations.Add(new(op.source, op.value));
                 }
             );
 
             Assert.AreEqual(2, callCount);
             Assert.AreEqual(
-                new List<(IObservable, object)>
+                new List<(object, object)>
                 {
                     new(intObservable, 100),
                     new(stringObservable, "200")
@@ -51,7 +51,7 @@ namespace ObserveThing.Tests
 
             Assert.AreEqual(5, callCount);
             Assert.AreEqual(
-                new List<(IObservable, object)>
+                new List<(object, object)>
                 {
                     new(intObservable, 1),
                     new(stringObservable, "2"),
@@ -151,14 +151,14 @@ namespace ObserveThing.Tests
             ObservableValue<int> intObservable = new ObservableValue<int>(context);
             ObservableValue<string> stringObservable = new ObservableValue<string>(context);
 
-            var query = Observables.ObservableCombine(intObservable, stringObservable);
+            var query = Observables.ObservableCombine<IOperation>(intObservable, stringObservable);
 
-            List<(IObservable source, object value)> observerCallOrder = new List<(IObservable source, object value)>();
+            List<(object source, object value)> observerCallOrder = new List<(object source, object value)>();
 
             IDisposable subscription = query.Subscribe(
                 onOperation: op =>
                 {
-                    observerCallOrder.Add(new(op.source, ((IValueOperation)op).value));
+                    observerCallOrder.Add(new(op.source, op.value));
 
                     if (intObservable.value == 2)
                     {
@@ -179,7 +179,7 @@ namespace ObserveThing.Tests
             intObservable.value = 4;
 
             Assert.AreEqual(
-                new List<(IObservable source, object value)>()
+                new List<(object source, object value)>()
                 {
                     new(intObservable, 0),
                     new(stringObservable, null),
@@ -254,10 +254,10 @@ namespace ObserveThing.Tests
             var callCount = 0;
 
             value.ObservableBatch().Subscribe(
-                onOperation: op =>
+                onNext: op =>
                 {
                     callCount++;
-                    lastValue = op.operations.Last().value;
+                    lastValue = op.Last().value;
                 }
             );
 
@@ -294,14 +294,14 @@ namespace ObserveThing.Tests
             dictionary.Add("dog", 2);
             dictionary.Add("frog", 3);
 
-            List<(IObservable source, object value, OpType opType)> initOps = new List<(IObservable source, object value, OpType opType)>();
+            List<(object source, object value, OpType opType)> initOps = new List<(object source, object value, OpType opType)>();
 
-            Observables.ObservableCombine(dictionary).Subscribe(onOperation: op => initOps.Add(new(op.source, ((ICollectionOperation)op).element, ((ICollectionOperation)op).opType)));
+            Observables.ObservableCombine(dictionary).Subscribe(onOperation: op => initOps.Add(new(op.source, op.value, op.opType)));
 
             Assert.That(
                 initOps,
                 Is.EqualTo(
-                    new List<(IObservable source, object value, OpType opType)>()
+                    new List<(object source, object value, OpType opType)>()
                     {
                         new(dictionary, KeyValuePair.Create("cat", 1), OpType.Add),
                         new(dictionary, KeyValuePair.Create("dog", 2), OpType.Add),
@@ -319,20 +319,20 @@ namespace ObserveThing.Tests
             list.Add(-1000f);
             list.Insert(1, 50f);
 
-            var subscription = Observables.ObservableCombine(dictionary, list).Subscribe(x => initOps.Add(new(x.source, ((ICollectionOperation)x).element, ((ICollectionOperation)x).opType)));
+            var subscription = Observables.ObservableCombine<ICollectionOperation>(dictionary, list).Subscribe(onOperation: op => initOps.Add(new(op.source, op.value, op.opType)));
 
             Assert.That(
                 initOps,
                 Is.EqualTo(
-                    new List<(IObservable source, object value, OpType opType)>()
+                    new List<(object source, object value, OpType opType)>()
                     {
-                        new(dictionary, KeyValuePair.Create("cat", 1), OpType.Add),
-                        new(dictionary, KeyValuePair.Create("dog", 2), OpType.Add),
-                        new(dictionary, KeyValuePair.Create("frog", 3), OpType.Add),
+                        new(dictionary, KeyValuePair.Create("cat", 1), OpType.Add ),
+                        new(dictionary, KeyValuePair.Create("dog", 2), OpType.Add ),
+                        new(dictionary, KeyValuePair.Create("frog", 3), OpType.Add ),
                         new(list, 0.22f, OpType.Add),
-                        new(list, 50f,  OpType.Add),
+                        new(list, 50f, OpType.Add),
                         new(list, 0.11f, OpType.Add),
-                        new(list, -1000f,  OpType.Add)
+                        new(list, -1000f, OpType.Add)
                     }
                 )
             );

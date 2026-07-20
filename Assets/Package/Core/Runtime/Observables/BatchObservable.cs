@@ -4,51 +4,35 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public interface IBatchOperation : IOperation
-    {
-        IObservable originatingSource { get; }
-        IReadOnlyList<object> operations { get; }
-    }
-
-    public interface IBatchOperation<T> : IBatchOperation where T : IOperation
-    {
-        new IObservable<T> originatingSource { get; }
-        new IReadOnlyList<T> operations { get; }
-
-        IObservable IBatchOperation.originatingSource => originatingSource;
-        IReadOnlyList<object> IBatchOperation.operations => (IReadOnlyList<object>)operations;
-    }
-
+    public interface IBatchOperation<T> : IOperation<IReadOnlyList<T>> { }
 
     public class BatchObservable<T> : IInitializationOperationsProvider<IBatchOperation<T>>, IPendingObserver where T : IOperation
     {
         private class BatchOperation : IBatchOperation<T>
         {
-            public IObservable source { get; set; }
-            public IObservable<T> originatingSource { get; set; }
-            public IReadOnlyList<T> operations { get; set; }
+            public IObservable<IOperation> source { get; set; }
+            public IReadOnlyList<T> value { get; set; }
+
+            private Action<BatchOperation> _handleOperationDeallocated;
+
+            public BatchOperation(Action<BatchOperation> handleOperationDeallocated)
+            {
+                _handleOperationDeallocated = handleOperationDeallocated;
+            }
 
             public IOperation AllocateCopy()
             {
-                var copy = source.context.AllocateOperation<BatchOperation>();
-
-                copy.source = source;
-                copy.originatingSource = originatingSource;
-                copy.operations = operations.Select(x => (T)x.AllocateCopy()).ToArray();
-
-                return copy;
+                return new BatchOperation(_handleOperationDeallocated)
+                {
+                    source = source,
+                    value = value,
+                    _handleOperationDeallocated = _handleOperationDeallocated
+                };
             }
 
             public void Deallocate()
             {
-                foreach (var op in operations)
-                    op.Deallocate();
-
-                var context = source.context;
-                source = default;
-                originatingSource = default;
-                operations = default;
-                context.DeallocateOperation(this);
+                _handleOperationDeallocated?.Invoke(this);
             }
         }
 
@@ -62,6 +46,7 @@ namespace ObserveThing
         private bool _pending;
 
         private List<T> _batchedOperations = new List<T>();
+        private Stack<BatchOperation> _operationPool = new Stack<BatchOperation>();
 
         public BatchObservable(IObservable<T> source, IObservableOperand<IBatchOperation<T>> operand)
         {
@@ -70,12 +55,31 @@ namespace ObserveThing
             _source = source;
             _operand = operand;
 
-            _subscriptions = source.Subscribe(
-                onOperation: HandleSourceOperation,
+            _subscriptions = source.Subscribe(new Observer<T>(
+                onNext: HandleSourceOperation,
                 onError: operand.OnError,
                 onDispose: Dispose,
                 immediate: true
-            );
+            ));
+        }
+
+        private BatchOperation AllocateOperation(IReadOnlyList<T> value)
+        {
+            if (!_operationPool.TryPop(out var operation))
+                operation = new BatchOperation(DeallocateOperation);
+
+            operation.source = (IObservable<IOperation>)_source;
+            operation.value = value;
+
+            return operation;
+        }
+
+        private void DeallocateOperation(BatchOperation operation)
+        {
+            operation.source = default;
+            operation.value = default;
+
+            _operationPool.Push(operation);
         }
 
         private void HandleSourceOperation(T operation)
@@ -91,29 +95,16 @@ namespace ObserveThing
         }
 
         public IReadOnlyList<IBatchOperation<T>> GetInitializationOperations()
-        {
-            var operation = _source.context.AllocateOperation<BatchOperation>();
-
-            operation.source = _operand.operationSource;
-            operation.originatingSource = _source;
-            operation.operations = _source.GetInitializationOperations();
-
-            return new IBatchOperation<T>[] { operation };
-        }
+            => new IBatchOperation<T>[] { AllocateOperation(_source.GetInitializationOperations().Select(x => (T)x.AllocateCopy()).ToArray()) };
 
         public void SendNext()
         {
             _pending = false;
 
-            var operation = _source.context.AllocateOperation<BatchOperation>();
-
-            operation.source = _operand.operationSource;
-            operation.originatingSource = _source;
-            operation.operations = _batchedOperations.ToArray();
-
+            var batch = _batchedOperations.ToArray();
             _batchedOperations.Clear();
 
-            _operand.EnqueuePendingOperation(operation);
+            _operand.EnqueuePendingOperation(AllocateOperation(batch));
         }
 
         public void Dispose()

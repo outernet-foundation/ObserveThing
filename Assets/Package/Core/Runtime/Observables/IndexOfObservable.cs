@@ -10,7 +10,7 @@ namespace ObserveThing
         private List<T> _list = new List<T>();
         private IDisposable _subscriptions;
 
-        public IndexOfObservable(IListObservable<T> source, IValueObservable<T> value, IValueOperand<(bool found, int index)> operand)
+        public IndexOfObservable(IObservable<IListOperation<T>> source, IObservable<IOperation<T>> value, IValueOperand<(bool found, int index)> operand)
         {
             _operand = operand;
             _subscriptions = new ComposedDisposable(

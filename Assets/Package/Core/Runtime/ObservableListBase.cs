@@ -4,49 +4,45 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public interface IListOperation : ICollectionOperation
-    {
-        int index { get; }
-    }
-
-    public interface IListOperation<out T> : IListOperation, ICollectionOperation<T> { }
-
-    public class ObservableListBase<T> : Observable<IListOperation<T>>, IListObservable<T>
+    public class ObservableListBase<T> : Observable<IListOperation<T>>
     {
         private class ListOperation : IListOperation<T>
         {
-            public IObservable source { get; set; }
-            public uint elementId { get; set; }
+            public IObservable<IOperation> source { get; set; }
             public OpType opType { get; set; }
+            public uint elementId { get; set; }
             public int index { get; set; }
-            public T element { get; set; }
+            public T value { get; set; }
+
+            private Action<ListOperation> _handleOperationDeallocated;
+
+            public ListOperation(Action<ListOperation> handleOperationDeallocated)
+            {
+                _handleOperationDeallocated = handleOperationDeallocated;
+            }
 
             public IOperation AllocateCopy()
             {
-                return new ListOperation()
+                return new ListOperation(_handleOperationDeallocated)
                 {
                     source = source,
-                    elementId = elementId,
                     opType = opType,
+                    elementId = elementId,
                     index = index,
-                    element = element,
+                    value = value,
+                    _handleOperationDeallocated = _handleOperationDeallocated
                 };
             }
 
             public void Deallocate()
             {
-                var context = source.context;
-                source = default;
-                elementId = default;
-                opType = default;
-                index = default;
-                element = default;
-                context.DeallocateOperation(this);
+                _handleOperationDeallocated?.Invoke(this);
             }
         }
 
         private List<(uint id, T value)> _list = new List<(uint id, T value)>();
         private CollectionIdProvider _idProvider;
+        private Stack<ListOperation> _operationPool = new Stack<ListOperation>();
 
         public ObservableListBase(ObservationContext context) : this(context, null) { }
         public ObservableListBase(ObservationContext context, IEnumerable<T> value) : base(context)
@@ -60,25 +56,39 @@ namespace ObserveThing
                 _list.Add(new(_idProvider.GetUnusedId(), element));
         }
 
-        private ListOperation AllocateOperation(uint id, int index, OpType opType, T element)
-        {
-            var op = context.AllocateOperation<ListOperation>();
-            op.source = this;
-            op.elementId = id;
-            op.index = index;
-            op.opType = opType;
-            op.element = element;
-            return op;
-        }
-
         protected int GetCountInternal()
             => _list.Count;
 
         protected IEnumerable<(uint id, T value)> ElementsInternal()
             => _list;
 
+        private ListOperation AllocateOperation(OpType opType, uint elementId, int index, T value)
+        {
+            if (!_operationPool.TryPop(out var operation))
+                operation = new ListOperation(DeallocateOperation);
+
+            operation.source = this;
+            operation.opType = opType;
+            operation.elementId = elementId;
+            operation.index = index;
+            operation.value = value;
+
+            return operation;
+        }
+
+        private void DeallocateOperation(ListOperation operation)
+        {
+            operation.source = default;
+            operation.opType = default;
+            operation.elementId = default;
+            operation.index = default;
+            operation.value = default;
+
+            _operationPool.Push(operation);
+        }
+
         public override IReadOnlyList<IListOperation<T>> GetInitializationOperations()
-            => _list.Select((element, index) => AllocateOperation(element.id, index, OpType.Add, element.value)).ToArray();
+            => _list.Select((element, index) => AllocateOperation(OpType.Add, element.id, index, element.value)).ToArray();
 
         protected void AddInternal(T added)
             => InsertInternal(_list.Count, added);
@@ -104,14 +114,14 @@ namespace ObserveThing
         {
             var removed = _list[index];
             _list.RemoveAt(index);
-            EnqueuePendingOperation(AllocateOperation(removed.id, index, OpType.Remove, removed.value));
+            EnqueuePendingOperation(AllocateOperation(OpType.Remove, removed.id, index, removed.value));
         }
 
         protected void InsertInternal(int index, T item)
         {
             (uint id, T value) inserted = new(_idProvider.GetUnusedId(), item);
             _list.Insert(index, inserted);
-            EnqueuePendingOperation(AllocateOperation(inserted.id, index, OpType.Add, inserted.value));
+            EnqueuePendingOperation(AllocateOperation(OpType.Add, inserted.id, index, inserted.value));
         }
 
         protected void ClearInternal()
@@ -131,32 +141,5 @@ namespace ObserveThing
 
         protected bool ContainsInternal(T item)
             => _list.Any(x => Equals(x.value, item));
-
-        public IDisposable Subscribe(IObserver<IListOperation> observer)
-            => Subscribe(new Observer<IListOperation<T>>(
-                overridePriority: observer.overridePriority,
-                immediate: observer.immediate,
-                onNext: observer.OnNext,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
-        public IDisposable Subscribe(IObserver<ICollectionOperation<T>> observer)
-            => Subscribe(new Observer<IListOperation<T>>(
-                overridePriority: observer.overridePriority,
-                immediate: observer.immediate,
-                onNext: observer.OnNext,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
-        public IDisposable Subscribe(IObserver<ICollectionOperation> observer)
-            => Subscribe(new Observer<IListOperation<T>>(
-                overridePriority: observer.overridePriority,
-                immediate: observer.immediate,
-                onNext: observer.OnNext,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
     }
 }

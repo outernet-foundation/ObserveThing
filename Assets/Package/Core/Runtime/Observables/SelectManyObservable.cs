@@ -13,12 +13,12 @@ namespace ObserveThing
         }
 
         private ICollectionOperand<U> _operand;
-        private Func<T, ICollectionObservable<U>> _select;
+        private Func<T, IObservable<ICollectionOperation<U>>> _select;
         private Dictionary<uint, ElementData> _dataById = new Dictionary<uint, ElementData>();
         private CollectionIdProvider _idProvider;
         private IDisposable _subscriptions;
 
-        public SelectManyObservable(ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> select, ICollectionOperand<U> operand)
+        public SelectManyObservable(IObservable<ICollectionOperation<T>> source, Func<T, IObservable<ICollectionOperation<U>>> select, ICollectionOperand<U> operand)
         {
             _select = select;
             _operand = operand;

@@ -4,43 +4,43 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public interface ISetOperation : ICollectionOperation { }
-
-    public interface ISetOperation<out T> : ISetOperation, ICollectionOperation<T> { }
-
-    public class ObservableSetBase<T> : Observable<ISetOperation<T>>, ISetObservable<T>
+    public class ObservableSetBase<T> : Observable<ISetOperation<T>>
     {
         private class SetOperation : ISetOperation<T>
         {
-            public IObservable source { get; set; }
-            public uint elementId { get; set; }
+            public IObservable<IOperation> source { get; set; }
             public OpType opType { get; set; }
-            public T element { get; set; }
+            public uint elementId { get; set; }
+            public T value { get; set; }
+
+            private Action<SetOperation> _handleOperationDeallocated;
+
+            public SetOperation(Action<SetOperation> handleOperationDeallocated)
+            {
+                _handleOperationDeallocated = handleOperationDeallocated;
+            }
 
             public IOperation AllocateCopy()
             {
-                return new SetOperation()
+                return new SetOperation(_handleOperationDeallocated)
                 {
                     source = source,
-                    elementId = elementId,
                     opType = opType,
-                    element = element,
+                    elementId = elementId,
+                    value = value,
+                    _handleOperationDeallocated = _handleOperationDeallocated
                 };
             }
 
             public void Deallocate()
             {
-                var context = source.context;
-                source = default;
-                elementId = default;
-                opType = default;
-                element = default;
-                context.DeallocateOperation(this);
+                _handleOperationDeallocated?.Invoke(this);
             }
         }
 
         private Dictionary<T, uint> _set = new Dictionary<T, uint>();
         private CollectionIdProvider _idProvider;
+        private Stack<SetOperation> _operationPool = new Stack<SetOperation>();
 
         public ObservableSetBase(ObservationContext context) : this(context, null) { }
         public ObservableSetBase(ObservationContext context, IEnumerable<T> values) : base(context)
@@ -54,18 +54,31 @@ namespace ObserveThing
                 _set.Add(value, _idProvider.GetUnusedId());
         }
 
-        private SetOperation AllocateOperation(uint id, OpType opType, T element)
+        private SetOperation AllocateOperation(OpType opType, uint elementId, T value)
         {
-            var op = context.AllocateOperation<SetOperation>();
-            op.source = this;
-            op.elementId = id;
-            op.opType = opType;
-            op.element = element;
-            return op;
+            if (!_operationPool.TryPop(out var operation))
+                operation = new SetOperation(DeallocateOperation);
+
+            operation.source = this;
+            operation.opType = opType;
+            operation.elementId = elementId;
+            operation.value = value;
+
+            return operation;
+        }
+
+        private void DeallocateOperation(SetOperation operation)
+        {
+            operation.source = default;
+            operation.opType = default;
+            operation.elementId = default;
+            operation.value = default;
+
+            _operationPool.Push(operation);
         }
 
         public override IReadOnlyList<ISetOperation<T>> GetInitializationOperations()
-            => _set.Select(x => AllocateOperation(x.Value, OpType.Add, x.Key)).ToArray();
+            => _set.Select(x => AllocateOperation(OpType.Add, x.Value, x.Key)).ToArray();
 
         protected int GetCountInternal()
             => _set.Count;
@@ -80,7 +93,7 @@ namespace ObserveThing
 
             var id = _idProvider.GetUnusedId();
             _set.Add(element, id);
-            EnqueuePendingOperation(AllocateOperation(id, OpType.Add, element));
+            EnqueuePendingOperation(AllocateOperation(OpType.Add, id, element));
             return true;
         }
 
@@ -96,7 +109,7 @@ namespace ObserveThing
                 return false;
 
             _set.Remove(element);
-            EnqueuePendingOperation(AllocateOperation(id, OpType.Remove, element));
+            EnqueuePendingOperation(AllocateOperation(OpType.Remove, id, element));
 
             return true;
         }
@@ -106,29 +119,11 @@ namespace ObserveThing
             foreach (var kvp in _set.ToArray())
             {
                 _set.Remove(kvp.Key);
-                EnqueuePendingOperation(AllocateOperation(kvp.Value, OpType.Remove, kvp.Key));
+                EnqueuePendingOperation(AllocateOperation(OpType.Remove, kvp.Value, kvp.Key));
             }
         }
 
         protected bool ContainsInternal(T element)
             => _set.ContainsKey(element);
-
-        public IDisposable Subscribe(IObserver<ICollectionOperation<T>> observer)
-            => Subscribe(new Observer<ISetOperation<T>>(
-                overridePriority: observer.overridePriority,
-                immediate: observer.immediate,
-                onNext: observer.OnNext,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
-
-        public IDisposable Subscribe(IObserver<ICollectionOperation> observer)
-            => Subscribe(new Observer<ISetOperation<T>>(
-                overridePriority: observer.overridePriority,
-                immediate: observer.immediate,
-                onNext: observer.OnNext,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
     }
 }

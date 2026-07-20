@@ -50,7 +50,7 @@ namespace ObserveThing
         void EnqueuePendingOperation(T operation);
     }
 
-    public interface IInitializationOperationsProvider<T> : IDisposable where T : IOperation
+    public interface IInitializationOperationsProvider<T> : IDisposable
     {
         IReadOnlyList<T> GetInitializationOperations();
     }

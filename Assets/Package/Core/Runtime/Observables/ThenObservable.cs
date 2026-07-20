@@ -15,11 +15,11 @@ namespace ObserveThing
             _source = source;
             _then = then;
             _operand = operand;
-            _subscriptions = _source.Subscribe(
-                onOperation: op =>
+            _subscriptions = _source.Subscribe(new Observer<T>(
+                onNext: op =>
                 {
                     _then.OnNext(op);
-                    _operand.EnqueuePendingOperation((T)op.AllocateCopy());
+                    _operand.EnqueuePendingOperation(op);
                 },
                 onError: exc =>
                 {
@@ -27,7 +27,7 @@ namespace ObserveThing
                     _operand.OnError(exc);
                 },
                 onDispose: Dispose
-            );
+            ));
         }
 
         public IReadOnlyList<T> GetInitializationOperations()

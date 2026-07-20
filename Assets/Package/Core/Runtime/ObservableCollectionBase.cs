@@ -4,72 +4,70 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public enum OpType
-    {
-        Add,
-        Remove
-    }
-
-    public interface ICollectionOperation : IOperation
-    {
-        object element { get; }
-        uint elementId { get; }
-        OpType opType { get; }
-    }
-
-    public interface ICollectionOperation<out T> : ICollectionOperation
-    {
-        new T element { get; }
-        object ICollectionOperation.element => element;
-    }
-
-    public class ObservableCollectionBase<T> : Observable<ICollectionOperation<T>>, ICollectionObservable<T>
+    public class ObservableCollectionBase<T> : Observable<ICollectionOperation<T>>
     {
         private class CollectionOperation : ICollectionOperation<T>
         {
-            public IObservable source { get; set; }
-            public uint elementId { get; set; }
+            public IObservable<IOperation> source { get; set; }
             public OpType opType { get; set; }
-            public T element { get; set; }
+            public uint elementId { get; set; }
+            public T value { get; set; }
+
+            private Action<CollectionOperation> _handleOperationDeallocated;
+
+            public CollectionOperation(Action<CollectionOperation> handleOperationDeallocated)
+            {
+                _handleOperationDeallocated = handleOperationDeallocated;
+            }
 
             public IOperation AllocateCopy()
             {
-                return new CollectionOperation()
+                return new CollectionOperation(_handleOperationDeallocated)
                 {
                     source = source,
-                    elementId = elementId,
                     opType = opType,
-                    element = element,
+                    elementId = elementId,
+                    value = value,
+                    _handleOperationDeallocated = _handleOperationDeallocated
                 };
             }
 
             public void Deallocate()
             {
-                var context = source.context;
-                source = default;
-                elementId = default;
-                opType = default;
-                element = default;
-                context.DeallocateOperation(this);
+                _handleOperationDeallocated?.Invoke(this);
             }
         }
 
         private Dictionary<uint, T> _collection = new Dictionary<uint, T>();
+        private Stack<CollectionOperation> _operationPool = new Stack<CollectionOperation>();
 
         public ObservableCollectionBase(ObservationContext context) : base(context) { }
 
-        private CollectionOperation AllocateOperation(uint id, OpType opType, T element)
+        private CollectionOperation AllocateOperation(OpType opType, uint elementId, T value)
         {
-            var op = context.AllocateOperation<CollectionOperation>();
-            op.source = this;
-            op.elementId = id;
-            op.opType = opType;
-            op.element = element;
-            return op;
+            if (!_operationPool.TryPop(out var operation))
+                operation = new CollectionOperation(DeallocateOperation);
+
+            operation.source = this;
+            operation.opType = opType;
+            operation.elementId = elementId;
+            operation.value = value;
+
+            return operation;
+        }
+
+        private void DeallocateOperation(CollectionOperation operation)
+        {
+            operation.source = default;
+            operation.opType = default;
+            operation.elementId = default;
+            operation.value = default;
+
+            _operationPool.Push(operation);
         }
 
         public override IReadOnlyList<ICollectionOperation<T>> GetInitializationOperations()
-            => _collection.Select(x => AllocateOperation(x.Key, OpType.Add, x.Value)).ToArray();
+            => _collection.Select(x => AllocateOperation(OpType.Add, x.Key, x.Value)).ToArray();
 
         protected IEnumerable<(uint id, T element)> GetElementsWithIdsInternal()
             => _collection.Select<KeyValuePair<uint, T>, (uint id, T element)>(x => new(x.Key, x.Value));
@@ -79,7 +77,7 @@ namespace ObserveThing
         protected uint AddInternal(uint id, T element)
         {
             _collection.Add(id, element);
-            EnqueuePendingOperation(AllocateOperation(id, OpType.Add, element));
+            EnqueuePendingOperation(AllocateOperation(OpType.Add, id, element));
             return id;
         }
 
@@ -89,7 +87,7 @@ namespace ObserveThing
                 return false;
 
             _collection.Remove(id);
-            EnqueuePendingOperation(AllocateOperation(id, OpType.Remove, element));
+            EnqueuePendingOperation(AllocateOperation(OpType.Remove, id, element));
             return true;
         }
 
@@ -98,7 +96,7 @@ namespace ObserveThing
             foreach (var kvp in _collection.ToArray())
             {
                 _collection.Remove(kvp.Key);
-                EnqueuePendingOperation(AllocateOperation(kvp.Key, OpType.Remove, kvp.Value));
+                EnqueuePendingOperation(AllocateOperation(OpType.Remove, kvp.Key, kvp.Value));
             }
         }
 
@@ -107,14 +105,5 @@ namespace ObserveThing
 
         public bool Contains(T element)
             => _collection.ContainsValue(element);
-
-        public IDisposable Subscribe(IObserver<ICollectionOperation> observer)
-            => Subscribe(new Observer<ICollectionOperation<T>>(
-                overridePriority: observer.overridePriority,
-                immediate: observer.immediate,
-                onNext: observer.OnNext,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
     }
 }

@@ -1,46 +1,47 @@
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace ObserveThing
 {
-    public interface IValueOperation : IOperation
+    public class ObservableValueBase<T> : Observable<IOperation<T>>
     {
-        object value { get; }
-    }
-
-    public interface IValueOperation<out T> : IValueOperation
-    {
-        new T value { get; }
-        object IValueOperation.value => value;
-    }
-
-    public class ObservableValueBase<T> : Observable<IValueOperation<T>>, IValueObservable<T>
-    {
-        private class ValueOperation : IValueOperation<T>
+        private class Operation : IOperation<T>
         {
-            public IObservable source { get; set; }
+            public IObservable<IOperation> source { get; set; }
             public T value { get; set; }
+
+            private Action<Operation> _handleOperationDeallocated;
+
+            public Operation(Action<Operation> handleOperationDeallocated)
+            {
+                _handleOperationDeallocated = handleOperationDeallocated;
+            }
 
             public IOperation AllocateCopy()
             {
-                return new ValueOperation()
+                return new Operation(_handleOperationDeallocated)
                 {
                     source = source,
                     value = value,
+                    _handleOperationDeallocated = _handleOperationDeallocated
                 };
             }
 
             public void Deallocate()
             {
-                var context = source.context;
-                source = default;
-                value = default;
-                context.DeallocateOperation(this);
+                _handleOperationDeallocated?.Invoke(this);
+            }
+
+            public override string ToString()
+            {
+                return $"Operation[{source} : {value}]";
             }
         }
 
         protected T _value { get; private set; }
-        private ValueOperation[] _initOperations = new ValueOperation[1];
+        private IOperation<T>[] _initOperations = new IOperation<T>[1];
+        private Stack<Operation> _operationPool = new Stack<Operation>();
 
         public ObservableValueBase(ObservationContext context) : this(context, default) { }
         public ObservableValueBase(ObservationContext context, T value) : base(context)
@@ -48,20 +49,28 @@ namespace ObserveThing
             _value = value;
         }
 
-        private ValueOperation AllocateOperation(T value)
+        private Operation AllocateOperation(T value)
         {
-            var op = context.AllocateOperation<ValueOperation>();
-            op.source = this;
-            op.value = value;
-            return op;
+            if (!_operationPool.TryPop(out var operation))
+                operation = new Operation(DeallocateOperation);
+
+            operation.source = this;
+            operation.value = value;
+
+            return operation;
         }
 
-        public override IReadOnlyList<IValueOperation<T>> GetInitializationOperations()
+        private void DeallocateOperation(Operation operation)
         {
-            var op = context.AllocateOperation<ValueOperation>();
-            op.source = this;
-            op.value = _value;
-            _initOperations[0] = op;
+            operation.source = default;
+            operation.value = default;
+
+            _operationPool.Push(operation);
+        }
+
+        public override IReadOnlyList<IOperation<T>> GetInitializationOperations()
+        {
+            _initOperations[0] = AllocateOperation(_value);
             return _initOperations;
         }
 
@@ -73,14 +82,5 @@ namespace ObserveThing
             _value = value;
             EnqueuePendingOperation(AllocateOperation(value));
         }
-
-        public IDisposable Subscribe(IObserver<IValueOperation> observer)
-            => Subscribe(new Observer<IValueOperation<T>>(
-                overridePriority: observer.overridePriority,
-                immediate: observer.immediate,
-                onNext: observer.OnNext,
-                onError: observer.OnError,
-                onDispose: observer.OnDispose
-            ));
     }
 }

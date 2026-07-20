@@ -177,10 +177,12 @@ namespace ObserveThing.Tests
         public void TestShallowCopy()
         {
             var result = 0;
-            var source = new ObservableValue<ObservableValue<int>>(new ObservableValue<int>(10));
+            var nestedSource = new ObservableValue<int>(10);
+            var source = new ObservableValue<IObservable<IOperation<int>>>(nestedSource);
             bool disposed = false;
             bool receivedCall = false;
-            var subscription = source.ObservableCast<IValueObservable<int>>().ObservableShallowCopy().Subscribe(
+            var d = source.ObservableSelect(x => x.AsObservable());
+            var subscription = source.ObservableShallowCopy().Subscribe(
                 onNext: x =>
                 {
                     result = x;
@@ -191,16 +193,15 @@ namespace ObserveThing.Tests
 
             Assert.AreEqual(10, result);
 
-            source.value.value = 100;
+            nestedSource.value = 100;
 
             Assert.AreEqual(100, result);
 
-            var prevValue = source.value;
             source.value = new ObservableValue<int>(-3);
 
             Assert.AreEqual(-3, result);
 
-            prevValue.value = 2;
+            nestedSource.value = 2;
 
             Assert.AreEqual(-3, result);
 
@@ -208,14 +209,14 @@ namespace ObserveThing.Tests
 
             Assert.AreEqual(0, result);
 
-            source.value = prevValue;
+            source.value = nestedSource;
 
             Assert.AreEqual(2, result);
 
             receivedCall = false;
             subscription.Dispose();
             Assert.IsTrue(disposed);
-            source.value.value = 100;
+            nestedSource.value = 100;
             Assert.IsFalse(receivedCall);
             Assert.AreEqual(2, result);
         }

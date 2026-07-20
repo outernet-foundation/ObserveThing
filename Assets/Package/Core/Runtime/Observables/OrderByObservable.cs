@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
 
 namespace ObserveThing
 {
     public class OrderByObservable<T, U> : IDisposable
     {
         private IListOperand<T> _operand;
-        private Func<T, IValueObservable<U>> _orderBy;
+        private Func<T, IObservable<IOperation<U>>> _orderBy;
         private Func<U, U, int> _compare;
         private Dictionary<uint, EntryData> _dataById = new Dictionary<uint, EntryData>();
         private List<EntryData> _order = new List<EntryData>();
@@ -20,7 +22,7 @@ namespace ObserveThing
             public IDisposable subscription;
         }
 
-        public OrderByObservable(ICollectionObservable<T> source, Func<T, IValueObservable<U>> orderBy, bool descending, IListOperand<T> operand)
+        public OrderByObservable(IObservable<ICollectionOperation<T>> source, Func<T, IObservable<IOperation<U>>> orderBy, bool descending, IListOperand<T> operand)
         {
             _orderBy = orderBy;
             _compare = descending ? DescendingCompare : AscendingCompare;
