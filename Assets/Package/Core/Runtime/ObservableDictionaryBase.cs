@@ -13,38 +13,44 @@ namespace ObserveThing
             public uint elementId { get; set; }
             public KeyValuePair<TKey, TValue> value { get; set; }
 
-            private Action<DictionaryOperation> _handleOperationDeallocated;
+            private OperationPool<DictionaryOperation> _pool;
 
-            public DictionaryOperation(Action<DictionaryOperation> handleOperationDeallocated)
+            public DictionaryOperation(OperationPool<DictionaryOperation> pool)
             {
-                _handleOperationDeallocated = handleOperationDeallocated;
+                _pool = pool;
             }
 
-            public IOperation AllocateCopy()
+            public IOperation Duplicate()
             {
-                return new DictionaryOperation(_handleOperationDeallocated)
-                {
-                    source = source,
-                    opType = opType,
-                    elementId = elementId,
-                    value = value,
-                    _handleOperationDeallocated = _handleOperationDeallocated
-                };
+                var duplicate = _pool.Allocate();
+
+                duplicate.source = source;
+                duplicate.opType = opType;
+                duplicate.elementId = elementId;
+                duplicate.value = value;
+
+                return duplicate;
             }
 
-            public void Deallocate()
+            public void Dispose()
             {
-                _handleOperationDeallocated?.Invoke(this);
+                source = default;
+                opType = default;
+                elementId = default;
+                value = default;
+
+                _pool.Deallocate(this);
             }
         }
 
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
         private CollectionIdProvider _idProvider;
-        private Stack<DictionaryOperation> _operationPool = new Stack<DictionaryOperation>();
+        private OperationPool<DictionaryOperation> _operationPool;
 
         public ObservableDictionaryBase(ObservationContext context) : this(context, null) { }
         public ObservableDictionaryBase(ObservationContext context, IEnumerable<KeyValuePair<TKey, TValue>> value) : base(context)
         {
+            _operationPool = new OperationPool<DictionaryOperation>(pool => new DictionaryOperation(pool));
             _idProvider = new CollectionIdProvider(x => _dictionary.Values.Any(y => y.id == x));
 
             if (value == null)
@@ -68,8 +74,7 @@ namespace ObserveThing
 
         private DictionaryOperation AllocateOperation(OpType opType, uint elementId, TKey key, TValue value)
         {
-            if (!_operationPool.TryPop(out var operation))
-                operation = new DictionaryOperation(DeallocateOperation);
+            var operation = _operationPool.Allocate();
 
             operation.source = this;
             operation.opType = opType;
@@ -77,16 +82,6 @@ namespace ObserveThing
             operation.value = new KeyValuePair<TKey, TValue>(key, value);
 
             return operation;
-        }
-
-        private void DeallocateOperation(DictionaryOperation operation)
-        {
-            operation.source = default;
-            operation.opType = default;
-            operation.elementId = default;
-            operation.value = default;
-
-            _operationPool.Push(operation);
         }
 
         public override IReadOnlyList<IDictionaryOperation<TKey, TValue>> GetInitializationOperations()

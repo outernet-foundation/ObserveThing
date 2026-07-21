@@ -13,38 +13,41 @@ namespace ObserveThing
             public uint elementId { get; set; }
             public T value { get; set; }
 
-            private Action<SetOperation> _handleOperationDeallocated;
+            private OperationPool<SetOperation> _pool;
 
-            public SetOperation(Action<SetOperation> handleOperationDeallocated)
+            public SetOperation(OperationPool<SetOperation> pool)
             {
-                _handleOperationDeallocated = handleOperationDeallocated;
+                _pool = pool;
             }
 
-            public IOperation AllocateCopy()
+            public IOperation Duplicate()
             {
-                return new SetOperation(_handleOperationDeallocated)
-                {
-                    source = source,
-                    opType = opType,
-                    elementId = elementId,
-                    value = value,
-                    _handleOperationDeallocated = _handleOperationDeallocated
-                };
+                var duplicate = _pool.Allocate();
+                duplicate.source = source;
+                duplicate.opType = opType;
+                duplicate.elementId = elementId;
+                duplicate.value = value;
+                return duplicate;
             }
 
-            public void Deallocate()
+            public void Dispose()
             {
-                _handleOperationDeallocated?.Invoke(this);
+                source = default;
+                opType = default;
+                elementId = default;
+                value = default;
+                _pool.Deallocate(this);
             }
         }
 
         private Dictionary<T, uint> _set = new Dictionary<T, uint>();
         private CollectionIdProvider _idProvider;
-        private Stack<SetOperation> _operationPool = new Stack<SetOperation>();
+        private OperationPool<SetOperation> _operationPool;
 
         public ObservableSetBase(ObservationContext context) : this(context, null) { }
         public ObservableSetBase(ObservationContext context, IEnumerable<T> values) : base(context)
         {
+            _operationPool = new OperationPool<SetOperation>(pool => new SetOperation(pool));
             _idProvider = new CollectionIdProvider(x => _set.ContainsValue(x));
 
             if (values == null)
@@ -56,8 +59,7 @@ namespace ObserveThing
 
         private SetOperation AllocateOperation(OpType opType, uint elementId, T value)
         {
-            if (!_operationPool.TryPop(out var operation))
-                operation = new SetOperation(DeallocateOperation);
+            var operation = _operationPool.Allocate();
 
             operation.source = this;
             operation.opType = opType;
@@ -65,16 +67,6 @@ namespace ObserveThing
             operation.value = value;
 
             return operation;
-        }
-
-        private void DeallocateOperation(SetOperation operation)
-        {
-            operation.source = default;
-            operation.opType = default;
-            operation.elementId = default;
-            operation.value = default;
-
-            _operationPool.Push(operation);
         }
 
         public override IReadOnlyList<ISetOperation<T>> GetInitializationOperations()

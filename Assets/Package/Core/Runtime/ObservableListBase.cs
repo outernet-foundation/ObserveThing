@@ -14,39 +14,43 @@ namespace ObserveThing
             public int index { get; set; }
             public T value { get; set; }
 
-            private Action<ListOperation> _handleOperationDeallocated;
+            private OperationPool<ListOperation> _pool;
 
-            public ListOperation(Action<ListOperation> handleOperationDeallocated)
+            public ListOperation(OperationPool<ListOperation> pool)
             {
-                _handleOperationDeallocated = handleOperationDeallocated;
+                _pool = pool;
             }
 
-            public IOperation AllocateCopy()
+            public IOperation Duplicate()
             {
-                return new ListOperation(_handleOperationDeallocated)
-                {
-                    source = source,
-                    opType = opType,
-                    elementId = elementId,
-                    index = index,
-                    value = value,
-                    _handleOperationDeallocated = _handleOperationDeallocated
-                };
+                var duplicate = _pool.Allocate();
+                duplicate.source = source;
+                duplicate.opType = opType;
+                duplicate.elementId = elementId;
+                duplicate.index = index;
+                duplicate.value = value;
+                return duplicate;
             }
 
-            public void Deallocate()
+            public void Dispose()
             {
-                _handleOperationDeallocated?.Invoke(this);
+                source = default;
+                opType = default;
+                elementId = default;
+                index = default;
+                value = default;
+                _pool.Deallocate(this);
             }
         }
 
         private List<(uint id, T value)> _list = new List<(uint id, T value)>();
         private CollectionIdProvider _idProvider;
-        private Stack<ListOperation> _operationPool = new Stack<ListOperation>();
+        private OperationPool<ListOperation> _operationPool;
 
         public ObservableListBase(ObservationContext context) : this(context, null) { }
         public ObservableListBase(ObservationContext context, IEnumerable<T> value) : base(context)
         {
+            _operationPool = new OperationPool<ListOperation>(pool => new ListOperation(pool));
             _idProvider = new CollectionIdProvider(x => _list.Any(item => item.id == x));
 
             if (value == null)
@@ -64,8 +68,7 @@ namespace ObserveThing
 
         private ListOperation AllocateOperation(OpType opType, uint elementId, int index, T value)
         {
-            if (!_operationPool.TryPop(out var operation))
-                operation = new ListOperation(DeallocateOperation);
+            var operation = _operationPool.Allocate();
 
             operation.source = this;
             operation.opType = opType;
@@ -74,17 +77,6 @@ namespace ObserveThing
             operation.value = value;
 
             return operation;
-        }
-
-        private void DeallocateOperation(ListOperation operation)
-        {
-            operation.source = default;
-            operation.opType = default;
-            operation.elementId = default;
-            operation.index = default;
-            operation.value = default;
-
-            _operationPool.Push(operation);
         }
 
         public override IReadOnlyList<IListOperation<T>> GetInitializationOperations()

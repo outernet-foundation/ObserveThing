@@ -13,26 +13,26 @@ namespace ObserveThing
             public IObservable<IOperation> source { get; set; }
             public IReadOnlyList<T> value { get; set; }
 
-            private Action<BatchOperation> _handleOperationDeallocated;
+            private OperationPool<BatchOperation> _pool;
 
-            public BatchOperation(Action<BatchOperation> handleOperationDeallocated)
+            public BatchOperation(OperationPool<BatchOperation> pool)
             {
-                _handleOperationDeallocated = handleOperationDeallocated;
+                _pool = pool;
             }
 
-            public IOperation AllocateCopy()
+            public IOperation Duplicate()
             {
-                return new BatchOperation(_handleOperationDeallocated)
-                {
-                    source = source,
-                    value = value,
-                    _handleOperationDeallocated = _handleOperationDeallocated
-                };
+                var duplicate = _pool.Allocate();
+                duplicate.source = source;
+                duplicate.value = value;
+                return duplicate;
             }
 
-            public void Deallocate()
+            public void Dispose()
             {
-                _handleOperationDeallocated?.Invoke(this);
+                source = default;
+                value = default;
+                _pool.Deallocate(this);
             }
         }
 
@@ -46,10 +46,11 @@ namespace ObserveThing
         private bool _pending;
 
         private List<T> _batchedOperations = new List<T>();
-        private Stack<BatchOperation> _operationPool = new Stack<BatchOperation>();
+        private OperationPool<BatchOperation> _operationPool;
 
         public BatchObservable(IObservable<T> source, IObservableOperand<IBatchOperation<T>> operand)
         {
+            _operationPool = new OperationPool<BatchOperation>(pool => new BatchOperation(pool));
             priority = source.context.AllocateObserverPriority();
 
             _source = source;
@@ -65,8 +66,7 @@ namespace ObserveThing
 
         private BatchOperation AllocateOperation(IReadOnlyList<T> value)
         {
-            if (!_operationPool.TryPop(out var operation))
-                operation = new BatchOperation(DeallocateOperation);
+            var operation = _operationPool.Allocate();
 
             operation.source = (IObservable<IOperation>)_source;
             operation.value = value;
@@ -74,17 +74,9 @@ namespace ObserveThing
             return operation;
         }
 
-        private void DeallocateOperation(BatchOperation operation)
-        {
-            operation.source = default;
-            operation.value = default;
-
-            _operationPool.Push(operation);
-        }
-
         private void HandleSourceOperation(T operation)
         {
-            _batchedOperations.Add((T)operation.AllocateCopy());
+            _batchedOperations.Add((T)operation.Duplicate());
 
             if (_pending)
                 return;
@@ -95,7 +87,7 @@ namespace ObserveThing
         }
 
         public IReadOnlyList<IBatchOperation<T>> GetInitializationOperations()
-            => new IBatchOperation<T>[] { AllocateOperation(_source.GetInitializationOperations().Select(x => (T)x.AllocateCopy()).ToArray()) };
+            => new IBatchOperation<T>[] { AllocateOperation(_source.GetInitializationOperations().Select(x => (T)x.Duplicate()).ToArray()) };
 
         public void SendNext()
         {

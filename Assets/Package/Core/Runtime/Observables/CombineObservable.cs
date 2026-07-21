@@ -30,7 +30,7 @@ namespace ObserveThing
         }
 
         public IReadOnlyList<T> GetInitializationOperations()
-            => _observables.Keys.SelectMany(x => x.GetInitializationOperations()).Select(x => (T)x.AllocateCopy()).ToArray();
+            => _observables.Keys.SelectMany(x => x.GetInitializationOperations()).Select(x => (T)x.Duplicate()).ToArray();
 
         private void HandleElementAdded(IObservable<T> observable)
         {
@@ -59,7 +59,7 @@ namespace ObserveThing
         }
 
         protected void HandleElementChanged(T operation)
-            => _operand.EnqueuePendingOperation((T)operation.AllocateCopy());
+            => _operand.EnqueuePendingOperation((T)operation.Duplicate());
 
         public void Dispose()
         {

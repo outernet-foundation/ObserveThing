@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace ObserveThing
 {
@@ -11,61 +9,48 @@ namespace ObserveThing
             public IObservable<IOperation> source { get; set; }
             public T value { get; set; }
 
-            private Action<Operation> _handleOperationDeallocated;
+            private OperationPool<Operation> _pool;
 
-            public Operation(Action<Operation> handleOperationDeallocated)
+            public Operation(OperationPool<Operation> pool)
             {
-                _handleOperationDeallocated = handleOperationDeallocated;
+                _pool = pool;
             }
 
-            public IOperation AllocateCopy()
+            public IOperation Duplicate()
             {
-                return new Operation(_handleOperationDeallocated)
-                {
-                    source = source,
-                    value = value,
-                    _handleOperationDeallocated = _handleOperationDeallocated
-                };
+                var duplicate = _pool.Allocate();
+                duplicate.source = source;
+                duplicate.value = value;
+                return duplicate;
             }
 
-            public void Deallocate()
+            public void Dispose()
             {
-                _handleOperationDeallocated?.Invoke(this);
-            }
-
-            public override string ToString()
-            {
-                return $"Operation[{source} : {value}]";
+                source = default;
+                value = default;
+                _pool.Deallocate(this);
             }
         }
 
         protected T _value { get; private set; }
         private IOperation<T>[] _initOperations = new IOperation<T>[1];
-        private Stack<Operation> _operationPool = new Stack<Operation>();
+        private OperationPool<Operation> _operationPool;
 
         public ObservableValueBase(ObservationContext context) : this(context, default) { }
         public ObservableValueBase(ObservationContext context, T value) : base(context)
         {
+            _operationPool = new OperationPool<Operation>(pool => new Operation(pool));
             _value = value;
         }
 
         private Operation AllocateOperation(T value)
         {
-            if (!_operationPool.TryPop(out var operation))
-                operation = new Operation(DeallocateOperation);
+            var operation = _operationPool.Allocate();
 
             operation.source = this;
             operation.value = value;
 
             return operation;
-        }
-
-        private void DeallocateOperation(Operation operation)
-        {
-            operation.source = default;
-            operation.value = default;
-
-            _operationPool.Push(operation);
         }
 
         public override IReadOnlyList<IOperation<T>> GetInitializationOperations()

@@ -13,40 +13,44 @@ namespace ObserveThing
             public uint elementId { get; set; }
             public T value { get; set; }
 
-            private Action<CollectionOperation> _handleOperationDeallocated;
+            private OperationPool<CollectionOperation> _pool;
 
-            public CollectionOperation(Action<CollectionOperation> handleOperationDeallocated)
+            public CollectionOperation(OperationPool<CollectionOperation> pool)
             {
-                _handleOperationDeallocated = handleOperationDeallocated;
+                _pool = pool;
             }
 
-            public IOperation AllocateCopy()
+            public IOperation Duplicate()
             {
-                return new CollectionOperation(_handleOperationDeallocated)
-                {
-                    source = source,
-                    opType = opType,
-                    elementId = elementId,
-                    value = value,
-                    _handleOperationDeallocated = _handleOperationDeallocated
-                };
+                var duplicate = _pool.Allocate();
+                duplicate.source = source;
+                duplicate.opType = opType;
+                duplicate.elementId = elementId;
+                duplicate.value = value;
+                return duplicate;
             }
 
-            public void Deallocate()
+            public void Dispose()
             {
-                _handleOperationDeallocated?.Invoke(this);
+                source = default;
+                opType = default;
+                elementId = default;
+                value = default;
+                _pool.Deallocate(this);
             }
         }
 
         private Dictionary<uint, T> _collection = new Dictionary<uint, T>();
-        private Stack<CollectionOperation> _operationPool = new Stack<CollectionOperation>();
+        private OperationPool<CollectionOperation> _operationPool;
 
-        public ObservableCollectionBase(ObservationContext context) : base(context) { }
+        public ObservableCollectionBase(ObservationContext context) : base(context)
+        {
+            _operationPool = new OperationPool<CollectionOperation>(pool => new CollectionOperation(pool));
+        }
 
         private CollectionOperation AllocateOperation(OpType opType, uint elementId, T value)
         {
-            if (!_operationPool.TryPop(out var operation))
-                operation = new CollectionOperation(DeallocateOperation);
+            var operation = _operationPool.Allocate();
 
             operation.source = this;
             operation.opType = opType;
@@ -54,16 +58,6 @@ namespace ObserveThing
             operation.value = value;
 
             return operation;
-        }
-
-        private void DeallocateOperation(CollectionOperation operation)
-        {
-            operation.source = default;
-            operation.opType = default;
-            operation.elementId = default;
-            operation.value = default;
-
-            _operationPool.Push(operation);
         }
 
         public override IReadOnlyList<ICollectionOperation<T>> GetInitializationOperations()

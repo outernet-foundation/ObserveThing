@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 
 namespace ObserveThing
@@ -12,13 +11,26 @@ namespace ObserveThing
         IReadOnlyList<T> GetInitializationOperations();
     }
 
-    public interface IOperation
+    public class OperationPool<T> where T : IOperation
+    {
+        private Stack<T> _pool = new Stack<T>();
+        private Func<OperationPool<T>, T> _generateOperation;
+
+        public OperationPool(Func<OperationPool<T>, T> generateOperation)
+        {
+            _generateOperation = generateOperation;
+        }
+
+        public T Allocate() => _pool.TryPop(out var op) ? op : _generateOperation(this);
+        public void Deallocate(T operation) => _pool.Push(operation);
+    }
+
+    public interface IOperation : IDisposable
     {
         IObservable<IOperation> source { get; }
         object value { get; }
 
-        IOperation AllocateCopy();
-        void Deallocate();
+        IOperation Duplicate();
     }
 
     public interface IOperation<T> : IOperation
@@ -199,7 +211,7 @@ namespace ObserveThing
             foreach (var op in GetInitializationOperations())
             {
                 observer.OnNext(op);
-                op.Deallocate();
+                op.Dispose();
             }
 
             return observerData;
@@ -213,7 +225,7 @@ namespace ObserveThing
             if (referenceCount == 0)
             {
                 _operationReferences.Remove(operation);
-                operation.Deallocate();
+                operation.Dispose();
                 return;
             }
 
