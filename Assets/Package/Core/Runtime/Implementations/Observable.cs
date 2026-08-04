@@ -4,97 +4,44 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public interface IObservable<out T> where T : IOperation
+    public class Operation : IOperation
     {
-        ObservationContext context { get; }
-        IDisposable Subscribe(IObserver<T> observer);
-        IReadOnlyList<T> GetInitializationOperations();
+        public IOperationObservable source { get; }
+        public object value { get; set; }
+
+        public Operation(IOperationObservable source)
+            => this.source = source;
+
+        public IOperation Duplicate()
+            => new Operation(source) { value = value };
     }
 
-    public class OperationPool<T> where T : IOperation
-    {
-        private Stack<T> _pool = new Stack<T>();
-        private Func<OperationPool<T>, T> _generateOperation;
-
-        public OperationPool(Func<OperationPool<T>, T> generateOperation)
-        {
-            _generateOperation = generateOperation;
-        }
-
-        public T Allocate() => _pool.TryPop(out var op) ? op : _generateOperation(this);
-        public void Deallocate(T operation) => _pool.Push(operation);
-    }
-
-    public interface IOperation : IDisposable
-    {
-        IObservable<IOperation> source { get; }
-        object value { get; }
-
-        IOperation Duplicate();
-    }
-
-    public interface IOperation<T> : IOperation
-    {
-        new T value { get; }
-
-        object IOperation.value => value;
-    }
-
-    public interface ICollectionOperation : IOperation
-    {
-        uint elementId { get; }
-        OpType opType { get; }
-    }
-
-    public interface ICollectionOperation<T> : ICollectionOperation, IOperation<T> { }
-
-    public interface IListOperation : ICollectionOperation
-    {
-        int index { get; }
-    }
-
-    public interface IListOperation<T> : IListOperation, ICollectionOperation<T> { }
-
-    public interface ISetOperation : ICollectionOperation { }
-    public interface ISetOperation<T> : ISetOperation, ICollectionOperation<T> { }
-
-    public interface IDictionaryOperation : ICollectionOperation
-    {
-        object dictionaryKey { get; }
-        object dictionaryValue { get; }
-    }
-
-    public interface IDictionaryOperation<TKey, TValue> : IDictionaryOperation, ICollectionOperation<KeyValuePair<TKey, TValue>>
-    {
-        object IDictionaryOperation.dictionaryKey => value.Key;
-        object IDictionaryOperation.dictionaryValue => value.Value;
-    }
-
-    public abstract class Observable<T> : IObservable<T>, IDisposable where T : IOperation
+    public abstract class Observable<TObserver, TOperation> : IOperationObservable, IDisposable where TObserver : IObserver
     {
         private class ObserverData : IPendingObserver, IDisposable
         {
-            public IObserver<T> observer { get; }
-            public uint priority => observer.overridePriority ?? _priority;
-            public bool immediate => observer.immediate;
+            public IObserver observer { get; }
+            public bool immediate { get; }
+            public uint priority { get; }
+            public bool priorityAllocated { get; }
             public bool disposed { get; private set; }
 
-            private Queue<T> _pendingOperations = new Queue<T>();
-            private Action<T> _onOperationSent;
+            private Queue<TOperation> _pendingOperations = new Queue<TOperation>();
+            private Action<TOperation> _sendOperation;
             private Action<ObserverData> _onDispose;
 
-            private uint _priority;
-
-            public ObserverData(IObserver<T> observer, uint priority, Action<T> onOperationSent, Action<ObserverData> onDispose)
+            public ObserverData(IObserver observer, bool immediate, uint priority, bool priorityAllocated, Action<TOperation> sendOperation, Action<ObserverData> onDispose)
             {
                 this.observer = observer;
+                this.immediate = immediate;
+                this.priority = priority;
+                this.priorityAllocated = priorityAllocated;
 
-                _priority = priority;
-                _onOperationSent = onOperationSent;
+                _sendOperation = sendOperation;
                 _onDispose = onDispose;
             }
 
-            public void EnqueuePendingOperation(T operation)
+            public void EnqueuePendingOperation(TOperation operation)
             {
                 _pendingOperations.Enqueue(operation);
             }
@@ -104,19 +51,13 @@ namespace ObserveThing
                 if (_pendingOperations.Count == 0)
                     return;
 
-                var op = _pendingOperations.Dequeue();
-
                 try
                 {
-                    observer.OnNext(op);
+                    _sendOperation(_pendingOperations.Dequeue());
                 }
                 catch (Exception exc)
                 {
                     observer.OnError(exc);
-                }
-                finally
-                {
-                    _onOperationSent?.Invoke(op);
                 }
             }
 
@@ -137,7 +78,7 @@ namespace ObserveThing
         public bool disposed { get; private set; }
 
         private List<ObserverData> _observers = new List<ObserverData>();
-        private Dictionary<T, int> _operationReferences = new Dictionary<T, int>();
+        private Stack<Operation> _operationPool = new Stack<Operation>();
 
         public Observable(ObservationContext context)
         {
@@ -155,10 +96,11 @@ namespace ObserveThing
             if (_observers.Count == 0)
                 OnLastObserverRemoved();
 
-            context.DeallocateObserverPriority(data.priority);
+            if (data.priorityAllocated)
+                context.DeallocateObserverPriority(data.priority);
         }
 
-        protected void EnqueuePendingOperation(T operation)
+        protected void EnqueuePendingOperation(TOperation operation)
         {
             if (disposed)
                 throw new ObjectDisposedException(GetType().Name);
@@ -175,7 +117,6 @@ namespace ObserveThing
                 referenceCount++;
             }
 
-            _operationReferences[operation] = referenceCount;
             context.NotifyPendingObserversIfNecessary();
         }
 
@@ -189,9 +130,10 @@ namespace ObserveThing
                 observer.observer.OnError(error);
         }
 
-        public abstract IReadOnlyList<T> GetInitializationOperations();
+        protected IDisposable AddObserver(TObserver observer, bool immediate, uint? priority)
+            => AddObserverInternal(observer, immediate, priority, op => SendOperation(observer, op));
 
-        public IDisposable Subscribe(IObserver<T> observer)
+        private IDisposable AddObserverInternal(IObserver observer, bool immediate, uint? priority, Action<TOperation> sendOperation)
         {
             if (disposed)
             {
@@ -203,34 +145,22 @@ namespace ObserveThing
             if (_observers.Count == 0)
                 OnFirstObserverAdded();
 
-            var observerData = new ObserverData(observer, context.AllocateObserverPriority(), HandleOperationSent, HandleObserverDisposed);
+            var observerData = new ObserverData(
+                observer,
+                immediate,
+                priority ?? context.AllocateObserverPriority(),
+                priority == null,
+                sendOperation,
+                HandleObserverDisposed
+            );
 
             // do this after calling OnFirstObserverAdded so any resulting operations won't be queued (they'll be reflected in GetInitializationOperations)
             _observers.Add(observerData);
 
-            foreach (var op in GetInitializationOperations())
-            {
-                observer.OnNext(op);
-                op.Dispose();
-            }
-
             return observerData;
         }
 
-        private void HandleOperationSent(T operation)
-        {
-            var referenceCount = _operationReferences[operation];
-            referenceCount -= 1;
-
-            if (referenceCount == 0)
-            {
-                _operationReferences.Remove(operation);
-                operation.Dispose();
-                return;
-            }
-
-            _operationReferences[operation] = referenceCount;
-        }
+        protected abstract void SendOperation(TObserver observer, TOperation operation);
 
         public void Dispose()
         {
@@ -248,6 +178,19 @@ namespace ObserveThing
             _observers.Clear();
 
             DisposeInternal();
+        }
+
+        public IDisposable Subscribe(IOperationObserver observer, bool immediate = false, uint? priority = null)
+        {
+            return AddObserverInternal(
+                observer,
+                immediate,
+                priority,
+                op =>
+                {
+                    
+                }
+            );
         }
     }
 }

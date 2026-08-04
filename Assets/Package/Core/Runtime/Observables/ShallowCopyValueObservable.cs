@@ -5,29 +5,30 @@ namespace ObserveThing
     public class ShallowCopyValueObservable<T> : IDisposable
     {
         private IValueOperand<T> _operand;
-        private Observer<IOperation<T>> _nestedObserver;
+        private ValueObserver<T> _nestedObserver;
         private IDisposable _nestedSubscription;
         private IDisposable _subscriptions;
 
-        public ShallowCopyValueObservable(IObservable<IOperation<IObservable<IOperation<T>>>> source, IValueOperand<T> operand)
+        public ShallowCopyValueObservable(IValueObservable<IValueObservable<T>> source, IValueOperand<T> operand)
         {
             _operand = operand;
 
-            _nestedObserver = new Observer<IOperation<T>>(
-                onNext: x => operand.value = x.value,
-                onError: operand.OnError,
-                immediate: true
+            _nestedObserver = new ValueObserver<T>(
+                onNext: x => operand.value = x,
+                onError: operand.OnError
             );
 
             _subscriptions = source.Subscribe(
-                onNext: HandleNext,
-                onDispose: Dispose,
-                onError: operand.OnError,
+                new ValueObserver<IValueObservable<T>>(
+                    onNext: HandleNext,
+                    onDispose: Dispose,
+                    onError: operand.OnError
+                ),
                 immediate: true
             );
         }
 
-        private void HandleNext(IObservable<IOperation<T>> value)
+        private void HandleNext(IValueObservable<T> value)
         {
             _nestedSubscription?.Dispose();
             _nestedSubscription = null;
@@ -38,7 +39,7 @@ namespace ObserveThing
                 return;
             }
 
-            _nestedSubscription = value.Subscribe(_nestedObserver);
+            _nestedSubscription = value.Subscribe(_nestedObserver, immediate: true);
         }
 
         public void Dispose()

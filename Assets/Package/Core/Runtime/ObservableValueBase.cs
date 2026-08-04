@@ -1,62 +1,31 @@
+using System;
 using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ObservableValueBase<T> : Observable<IOperation<T>>
+    public class ObservableValueBase<T> : Observable<IValueObserver<T>, T>, IValueObservable<T>
     {
-        private class Operation : IOperation<T>
+        private class Operation : IOperation
         {
-            public IObservable<IOperation> source { get; set; }
-            public T value { get; set; }
+            public IOperationObservable source { get; set; }
+            public object value { get; set; }
 
-            private OperationPool<Operation> _pool;
-
-            public Operation(OperationPool<Operation> pool)
+            public Operation(IOperationObservable source)
             {
-                _pool = pool;
+                this.source = source;
             }
 
             public IOperation Duplicate()
-            {
-                var duplicate = _pool.Allocate();
-                duplicate.source = source;
-                duplicate.value = value;
-                return duplicate;
-            }
-
-            public void Dispose()
-            {
-                source = default;
-                value = default;
-                _pool.Deallocate(this);
-            }
+                => new Operation(source) { value = value };
         }
 
         protected T _value { get; private set; }
-        private IOperation<T>[] _initOperations = new IOperation<T>[1];
-        private OperationPool<Operation> _operationPool;
+        private Stack<Operation> _operations = new Stack<Operation>();
 
         public ObservableValueBase(ObservationContext context) : this(context, default) { }
         public ObservableValueBase(ObservationContext context, T value) : base(context)
         {
-            _operationPool = new OperationPool<Operation>(pool => new Operation(pool));
             _value = value;
-        }
-
-        private Operation AllocateOperation(T value)
-        {
-            var operation = _operationPool.Allocate();
-
-            operation.source = this;
-            operation.value = value;
-
-            return operation;
-        }
-
-        public override IReadOnlyList<IOperation<T>> GetInitializationOperations()
-        {
-            _initOperations[0] = AllocateOperation(_value);
-            return _initOperations;
         }
 
         protected void SetValueInternal(T value)
@@ -65,7 +34,30 @@ namespace ObserveThing
                 return;
 
             _value = value;
-            EnqueuePendingOperation(AllocateOperation(value));
+            EnqueuePendingOperation(value);
         }
+
+        protected override void SendOperation(IValueObserver<T> observer, T operation)
+            => observer.OnNext(operation);
+
+        public IDisposable Subscribe(IValueObserver<T> observer, bool immediate = false, uint? priority = null)
+        {
+            var subscription = AddObserver(observer, immediate, priority);
+            observer.OnNext(_value);
+            return subscription;
+        }
+
+        public IDisposable Subscribe(IOperationObserver observer, bool immediate = false, uint? priority = null)
+            => Subscribe(new ValueObserver<T>(
+                onNext: x =>
+                {
+                    var operation = _operations.TryPop(out var op) ? op : new Operation(this);
+                    operation.value = x;
+                    observer.OnNext(operation);
+                    _operations.Push(operation);
+                },
+                onDispose: observer.OnDispose,
+                onError: observer.OnError
+            ));
     }
 }

@@ -4,53 +4,22 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class ObservableDictionaryBase<TKey, TValue> : Observable<IDictionaryOperation<TKey, TValue>>
+    public struct DictionaryOp<TKey, TValue>
     {
-        private class DictionaryOperation : IDictionaryOperation<TKey, TValue>
-        {
-            public IObservable<IOperation> source { get; set; }
-            public OpType opType { get; set; }
-            public uint elementId { get; set; }
-            public KeyValuePair<TKey, TValue> value { get; set; }
+        public KeyValuePair<TKey, TValue> kvp;
+        public bool isRemove;
+        public uint elementId;
+    }
 
-            private OperationPool<DictionaryOperation> _pool;
-
-            public DictionaryOperation(OperationPool<DictionaryOperation> pool)
-            {
-                _pool = pool;
-            }
-
-            public IOperation Duplicate()
-            {
-                var duplicate = _pool.Allocate();
-
-                duplicate.source = source;
-                duplicate.opType = opType;
-                duplicate.elementId = elementId;
-                duplicate.value = value;
-
-                return duplicate;
-            }
-
-            public void Dispose()
-            {
-                source = default;
-                opType = default;
-                elementId = default;
-                value = default;
-
-                _pool.Deallocate(this);
-            }
-        }
-
+    public class ObservableDictionaryBase<TKey, TValue> : Observable<IDictionaryObserver<TKey, TValue>, DictionaryOp<TKey, TValue>>, IDictionaryObservable<TKey, TValue>
+    {
         private Dictionary<TKey, (uint id, TValue value)> _dictionary = new Dictionary<TKey, (uint id, TValue value)>();
         private CollectionIdProvider _idProvider;
-        private OperationPool<DictionaryOperation> _operationPool;
+        private Stack<Operation> _operationPool = new Stack<Operation>();
 
         public ObservableDictionaryBase(ObservationContext context) : this(context, null) { }
         public ObservableDictionaryBase(ObservationContext context, IEnumerable<KeyValuePair<TKey, TValue>> value) : base(context)
         {
-            _operationPool = new OperationPool<DictionaryOperation>(pool => new DictionaryOperation(pool));
             _idProvider = new CollectionIdProvider(x => _dictionary.Values.Any(y => y.id == x));
 
             if (value == null)
@@ -72,21 +41,6 @@ namespace ObserveThing
         protected IEnumerable<KeyValuePair<TKey, (uint id, TValue value)>> ElementsInternal()
             => _dictionary;
 
-        private DictionaryOperation AllocateOperation(OpType opType, uint elementId, TKey key, TValue value)
-        {
-            var operation = _operationPool.Allocate();
-
-            operation.source = this;
-            operation.opType = opType;
-            operation.elementId = elementId;
-            operation.value = new KeyValuePair<TKey, TValue>(key, value);
-
-            return operation;
-        }
-
-        public override IReadOnlyList<IDictionaryOperation<TKey, TValue>> GetInitializationOperations()
-            => _dictionary.Select(x => AllocateOperation(OpType.Add, x.Value.id, x.Key, x.Value.value)).ToArray();
-
         protected void SetInternal(TKey key, TValue value)
         {
             RemoveInternal(key);
@@ -97,7 +51,7 @@ namespace ObserveThing
         {
             var id = _idProvider.GetUnusedId();
             _dictionary.Add(key, (id, value));
-            EnqueuePendingOperation(AllocateOperation(OpType.Add, id, key, value));
+            EnqueuePendingOperation(new DictionaryOp<TKey, TValue>() { elementId = id, kvp = KeyValuePair.Create(key, value), isRemove = false });
         }
 
         protected bool RemoveInternal(TKey key)
@@ -106,7 +60,7 @@ namespace ObserveThing
                 return false;
 
             _dictionary.Remove(key);
-            EnqueuePendingOperation(AllocateOperation(OpType.Remove, data.id, key, data.value));
+            EnqueuePendingOperation(new DictionaryOp<TKey, TValue>() { elementId = data.id, kvp = KeyValuePair.Create(key, data.value), isRemove = true });
 
             return true;
         }
@@ -116,7 +70,7 @@ namespace ObserveThing
             foreach (var kvp in _dictionary.ToArray())
             {
                 _dictionary.Remove(kvp.Key);
-                EnqueuePendingOperation(AllocateOperation(OpType.Remove, kvp.Value.id, kvp.Key, kvp.Value.value));
+                EnqueuePendingOperation(new DictionaryOp<TKey, TValue>() { elementId = kvp.Value.id, kvp = KeyValuePair.Create(kvp.Key, kvp.Value.value), isRemove = true });
             }
         }
 
@@ -146,5 +100,47 @@ namespace ObserveThing
 
         protected bool ContainsValueInternal(TValue value)
             => _dictionary.Values.Select(x => x.value).Contains(value);
+
+        protected override void SendOperation(IDictionaryObserver<TKey, TValue> observer, DictionaryOp<TKey, TValue> operation)
+        {
+            if (operation.isRemove)
+            {
+                observer.OnRemove(operation.elementId, operation.kvp);
+            }
+            else
+            {
+                observer.OnAdd(operation.elementId, operation.kvp);
+            }
+        }
+
+        public IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer, bool immediate = false, uint? priority = null)
+        {
+            var subscription = AddObserver(observer, immediate, priority);
+
+            foreach (var kvp in _dictionary)
+                observer.OnAdd(kvp.Value.id, KeyValuePair.Create(kvp.Key, kvp.Value.value));
+
+            return subscription;
+        }
+
+        public IDisposable Subscribe(IOperationObserver observer, bool immediate = false, uint? priority = null)
+            => Subscribe(new DictionaryObserver<TKey, TValue>(
+                onAdd: (id, kvp) =>
+                {
+                    var operation = _operationPool.TryPop(out var op) ? op : new Operation(this);
+                    operation.value = new DictionaryOp<TKey, TValue>() { elementId = id, kvp = kvp, isRemove = false };
+                    observer.OnNext(operation);
+                    _operationPool.Push(operation);
+                },
+                onRemove: (id, kvp) =>
+                {
+                    var operation = _operationPool.TryPop(out var op) ? op : new Operation(this);
+                    operation.value = new DictionaryOp<TKey, TValue>() { elementId = id, kvp = kvp, isRemove = true };
+                    observer.OnNext(operation);
+                    _operationPool.Push(operation);
+                },
+                onDispose: observer.OnDispose,
+                onError: observer.OnError
+            ), immediate, priority);
     }
 }
