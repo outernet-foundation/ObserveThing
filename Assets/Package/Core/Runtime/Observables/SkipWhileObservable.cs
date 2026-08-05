@@ -7,7 +7,7 @@ namespace ObserveThing
         private IValueOperand<T> _operand;
         private IDisposable _subscriptions;
 
-        public SkipWhileObservable(IObservable<IOperation<T>> source, Func<bool> skipWhile, IValueOperand<T> operand)
+        public SkipWhileObservable(IValueObservable<T> source, Func<bool> skipWhile, IValueOperand<T> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(

@@ -6,21 +6,18 @@ namespace ObserveThing
 {
     public class Operation : IOperation
     {
-        public IOperationObservable source { get; }
-        public object value { get; set; }
+        public IObservable source { get; }
+        public object args { get; set; }
 
-        public Operation(IOperationObservable source)
+        public Operation(IObservable source)
             => this.source = source;
-
-        public IOperation Duplicate()
-            => new Operation(source) { value = value };
     }
 
-    public abstract class Observable<TObserver, TOperation> : IOperationObservable, IDisposable where TObserver : IObserver
+    public abstract class ObservableBase<TObserver, TOperation> : IDisposable where TObserver : IObserverBase
     {
         private class ObserverData : IPendingObserver, IDisposable
         {
-            public IObserver observer { get; }
+            public IObserverBase observer { get; }
             public bool immediate { get; }
             public uint priority { get; }
             public bool priorityAllocated { get; }
@@ -30,7 +27,7 @@ namespace ObserveThing
             private Action<TOperation> _sendOperation;
             private Action<ObserverData> _onDispose;
 
-            public ObserverData(IObserver observer, bool immediate, uint priority, bool priorityAllocated, Action<TOperation> sendOperation, Action<ObserverData> onDispose)
+            public ObserverData(IObserverBase observer, bool immediate, uint priority, bool priorityAllocated, Action<TOperation> sendOperation, Action<ObserverData> onDispose)
             {
                 this.observer = observer;
                 this.immediate = immediate;
@@ -78,9 +75,8 @@ namespace ObserveThing
         public bool disposed { get; private set; }
 
         private List<ObserverData> _observers = new List<ObserverData>();
-        private Stack<Operation> _operationPool = new Stack<Operation>();
 
-        public Observable(ObservationContext context)
+        public ObservableBase(ObservationContext context)
         {
             this.context = context ?? Settings.DefaultObservationContext;
         }
@@ -133,7 +129,7 @@ namespace ObserveThing
         protected IDisposable AddObserver(TObserver observer, bool immediate, uint? priority)
             => AddObserverInternal(observer, immediate, priority, op => SendOperation(observer, op));
 
-        private IDisposable AddObserverInternal(IObserver observer, bool immediate, uint? priority, Action<TOperation> sendOperation)
+        private IDisposable AddObserverInternal(IObserverBase observer, bool immediate, uint? priority, Action<TOperation> sendOperation)
         {
             if (disposed)
             {
@@ -178,19 +174,6 @@ namespace ObserveThing
             _observers.Clear();
 
             DisposeInternal();
-        }
-
-        public IDisposable Subscribe(IOperationObserver observer, bool immediate = false, uint? priority = null)
-        {
-            return AddObserverInternal(
-                observer,
-                immediate,
-                priority,
-                op =>
-                {
-                    
-                }
-            );
         }
     }
 }

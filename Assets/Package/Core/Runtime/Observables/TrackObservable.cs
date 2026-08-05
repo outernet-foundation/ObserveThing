@@ -12,7 +12,7 @@ namespace ObserveThing
 
         private IDisposable _subscriptions;
 
-        public TrackObservable(IObservable<IDictionaryOperation<TKey, TValue>> source, IObservable<IOperation<TKey>> key, IValueOperand<(bool keyPresent, TValue value)> operand)
+        public TrackObservable(IDictionaryObservable<TKey, TValue> source, IValueObservable<TKey> key, IValueOperand<(bool keyPresent, TValue value)> operand)
         {
             _operand = operand;
             _subscriptions = new ComposedDisposable(

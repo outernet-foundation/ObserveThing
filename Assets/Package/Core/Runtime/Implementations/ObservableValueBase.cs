@@ -3,24 +3,24 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ObservableValueBase<T> : Observable<IValueObserver<T>, T>, IValueObservable<T>
+    public class ObservableValueBase<T> : ObservableBase<IValueObserver<T>, T>, IValueObservable<T>
     {
         private class Operation : IOperation
         {
-            public IOperationObservable source { get; set; }
-            public object value { get; set; }
+            public IObservable source { get; set; }
+            public object args { get; set; }
 
-            public Operation(IOperationObservable source)
+            public Operation(IObservable source)
             {
                 this.source = source;
             }
 
             public IOperation Duplicate()
-                => new Operation(source) { value = value };
+                => new Operation(source) { args = args };
         }
 
         protected T _value { get; private set; }
-        private Stack<Operation> _operations = new Stack<Operation>();
+        private Stack<Operation> _operationPool = new Stack<Operation>();
 
         public ObservableValueBase(ObservationContext context) : this(context, default) { }
         public ObservableValueBase(ObservationContext context, T value) : base(context)
@@ -47,17 +47,17 @@ namespace ObserveThing
             return subscription;
         }
 
-        public IDisposable Subscribe(IOperationObserver observer, bool immediate = false, uint? priority = null)
+        public IDisposable Subscribe(IObserver observer, bool immediate = false, uint? priority = null)
             => Subscribe(new ValueObserver<T>(
                 onNext: x =>
                 {
-                    var operation = _operations.TryPop(out var op) ? op : new Operation(this);
-                    operation.value = x;
+                    var operation = _operationPool.TryPop(out var op) ? op : new Operation(this);
+                    operation.args = x;
                     observer.OnNext(operation);
-                    _operations.Push(operation);
+                    _operationPool.Push(operation);
                 },
                 onDispose: observer.OnDispose,
                 onError: observer.OnError
-            ));
+            ), immediate, priority);
     }
 }

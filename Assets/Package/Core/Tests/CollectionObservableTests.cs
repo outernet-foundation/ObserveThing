@@ -14,7 +14,7 @@ namespace ObserveThing.Tests
             Settings.DefaultExceptionHandler = UnityEngine.Debug.LogException;
         }
 
-        private T Peek<T>(IObservable<IOperation<T>> observable)
+        private T Peek<T>(IValueObservable<T> observable)
         {
             T result = default;
             var observer = observable.Subscribe(x => result = x);
@@ -22,7 +22,7 @@ namespace ObserveThing.Tests
             return result;
         }
 
-        private List<T> Peek<T>(IObservable<IListOperation<T>> observable)
+        private List<T> Peek<T>(IListObservable<T> observable)
         {
             List<T> result = new List<T>();
             var observer = observable.Subscribe((index, x) => result.Add(x));
@@ -30,13 +30,13 @@ namespace ObserveThing.Tests
             return result;
         }
 
-        private void AreEqual<T>(T expected, IObservable<IOperation<T>> observable)
+        private void AreEqual<T>(T expected, IValueObservable<T> observable)
             => Assert.AreEqual(expected, Peek(observable));
 
-        private void AreEqual<T>(IEnumerable<T> expected, IEnumerable<IObservable<IOperation<T>>> actual)
+        private void AreEqual<T>(IEnumerable<T> expected, IEnumerable<IValueObservable<T>> actual)
             => Assert.AreEqual(expected, actual.Select(x => Peek(x)));
 
-        private void AreEqual<T>(IEnumerable<T> expected, IObservable<IOperation<T>> observable)
+        private void AreEqual<T>(IEnumerable<T> expected, IValueObservable<T> observable)
             => Assert.AreEqual(expected, observable);
 
         [Test]
@@ -549,7 +549,7 @@ namespace ObserveThing.Tests
             bool disposed = false;
             bool callReceived = false;
             var result = new List<float>();
-            var source = new ObservableList<IObservable<IOperation<float>>>(
+            var source = new ObservableList<ObservableValue<float>>(
                 new ObservableValue<float>(1),
                 new ObservableValue<float>(2),
                 new ObservableValue<float>(3)

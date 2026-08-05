@@ -19,11 +19,11 @@ namespace ObserveThing.Tests
 
             int callCount = 0;
 
-            var stream = Observables.ObservableCombine<IOperation>(intObservable, stringObservable).Subscribe(
-                onOperation: op =>
+            var stream = Observables.ObservableCombine(intObservable, stringObservable).Subscribe(
+                onNext: op =>
                 {
                     callCount++;
-                    operations.Add(new(op.source, op.value));
+                    operations.Add(new(op.source, op.args));
                 }
             );
 
@@ -151,14 +151,14 @@ namespace ObserveThing.Tests
             ObservableValue<int> intObservable = new ObservableValue<int>(context);
             ObservableValue<string> stringObservable = new ObservableValue<string>(context);
 
-            var query = Observables.ObservableCombine<IOperation>(intObservable, stringObservable);
+            var query = Observables.ObservableCombine(intObservable, stringObservable);
 
             List<(object source, object value)> observerCallOrder = new List<(object source, object value)>();
 
             IDisposable subscription = query.Subscribe(
-                onOperation: op =>
+                onNext: op =>
                 {
-                    observerCallOrder.Add(new(op.source, op.value));
+                    observerCallOrder.Add(new(op.source, op.args));
 
                     if (intObservable.value == 2)
                     {
@@ -177,6 +177,8 @@ namespace ObserveThing.Tests
             stringObservable.value = "frog";
             intObservable.value = 3;
             intObservable.value = 4;
+
+            Debug.Log("EP: " + string.Join(", ", observerCallOrder.Select(x => )));
 
             Assert.AreEqual(
                 new List<(object source, object value)>()
@@ -257,7 +259,7 @@ namespace ObserveThing.Tests
                 onNext: op =>
                 {
                     callCount++;
-                    lastValue = op.Last().value;
+                    // lastValue = op.Last().value;
                 }
             );
 
@@ -294,18 +296,22 @@ namespace ObserveThing.Tests
             dictionary.Add("dog", 2);
             dictionary.Add("frog", 3);
 
-            List<(object source, object value, OpType opType)> initOps = new List<(object source, object value, OpType opType)>();
+            var initOps = new List<(object source, object value, bool isRemove)>();
 
-            Observables.ObservableCombine(dictionary).Subscribe(onOperation: op => initOps.Add(new(op.source, op.value, op.opType)));
+            Observables.ObservableCombine(dictionary).Subscribe(onNext: op =>
+            {
+                var args = (DictionaryOpArgs<string, int>)op.args;
+                initOps.Add(new(op.source, args.kvp, args.isRemove));
+            });
 
             Assert.That(
                 initOps,
                 Is.EqualTo(
-                    new List<(object source, object value, OpType opType)>()
+                    new List<(object source, object value, bool isRemove)>()
                     {
-                        new(dictionary, KeyValuePair.Create("cat", 1), OpType.Add),
-                        new(dictionary, KeyValuePair.Create("dog", 2), OpType.Add),
-                        new(dictionary, KeyValuePair.Create("frog", 3), OpType.Add)
+                        new(dictionary, KeyValuePair.Create("cat", 1), false),
+                        new(dictionary, KeyValuePair.Create("dog", 2), false),
+                        new(dictionary, KeyValuePair.Create("frog", 3), false)
                     }
                 )
             );
@@ -319,20 +325,32 @@ namespace ObserveThing.Tests
             list.Add(-1000f);
             list.Insert(1, 50f);
 
-            var subscription = Observables.ObservableCombine<ICollectionOperation>(dictionary, list).Subscribe(onOperation: op => initOps.Add(new(op.source, op.value, op.opType)));
+            var subscription = Observables.ObservableCombine(dictionary, list).Subscribe(onNext: op =>
+            {
+                if (op.source == dictionary)
+                {
+                    var args = (DictionaryOpArgs<string, int>)op.args;
+                    initOps.Add(new(op.source, args.kvp, args.isRemove));
+                }
+                else
+                {
+                    var args = (ListOpArgs<float>)op.args;
+                    initOps.Add(new(op.source, args.element, args.isRemove));
+                }
+            });
 
             Assert.That(
                 initOps,
                 Is.EqualTo(
-                    new List<(object source, object value, OpType opType)>()
+                    new List<(object source, object value, bool isRemove)>()
                     {
-                        new(dictionary, KeyValuePair.Create("cat", 1), OpType.Add ),
-                        new(dictionary, KeyValuePair.Create("dog", 2), OpType.Add ),
-                        new(dictionary, KeyValuePair.Create("frog", 3), OpType.Add ),
-                        new(list, 0.22f, OpType.Add),
-                        new(list, 50f, OpType.Add),
-                        new(list, 0.11f, OpType.Add),
-                        new(list, -1000f, OpType.Add)
+                        new(dictionary, KeyValuePair.Create("cat", 1), false),
+                        new(dictionary, KeyValuePair.Create("dog", 2), false),
+                        new(dictionary, KeyValuePair.Create("frog", 3), false),
+                        new(list, 0.22f, false),
+                        new(list, 50f, false),
+                        new(list, 0.11f, false),
+                        new(list, -1000f, false)
                     }
                 )
             );

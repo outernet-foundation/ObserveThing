@@ -5,48 +5,56 @@ using UnityEngine;
 
 namespace ObserveThing
 {
-    public class CombineObservable<T> : IInitializationOperationsProvider<T> where T : IOperation
+    public class CombineObservable : IInitializationOperationsProvider
     {
-        private IObservable<ISetOperation<IObservable<T>>> _source;
-        private IObservableOperand<T> _operand;
+        private ISetObservable<IObservable> _source;
+        private IOperationObservableOperand _operand;
         private bool _disposeOnSourceEmpty;
         private uint _elementPriority;
-        private Dictionary<IObservable<T>, IDisposable> _observables = new Dictionary<IObservable<T>, IDisposable>();
+        private Dictionary<IObservable, IDisposable> _observables = new Dictionary<IObservable, IDisposable>();
+        private Stack<Operation> _operationPool = new Stack<Operation>();
         private IDisposable _subscriptions;
 
-        public CombineObservable(IObservable<ISetOperation<IObservable<T>>> source, IObservableOperand<T> operand, bool disposeOnSourceEmpty = false)
+        public CombineObservable(ISetObservable<IObservable> source, IOperationObservableOperand operand, bool disposeOnSourceEmpty = false)
         {
             _source = source;
             _operand = operand;
             _disposeOnSourceEmpty = disposeOnSourceEmpty;
             _elementPriority = _source.context.AllocateObserverPriority();
-            _subscriptions = _source.Subscribe(
+            _subscriptions = _source.Subscribe(new SetObserver<IObservable>(
                 onAdd: HandleElementAdded,
                 onRemove: HandleElementRemoved,
                 onError: _operand.OnError,
-                onDispose: Dispose,
-                immediate: true
-            );
+                onDispose: Dispose
+            ), immediate: true);
         }
 
-        public IReadOnlyList<T> GetInitializationOperations()
-            => _observables.Keys.SelectMany(x => x.GetInitializationOperations()).Select(x => (T)x.Duplicate()).ToArray();
+        public IReadOnlyList<IOperation> GetInitializationOperations()
+        {
+            List<Operation> initOps = new List<Operation>();
 
-        private void HandleElementAdded(IObservable<T> observable)
+            foreach (var element in _observables.Keys)
+            {
+                var subscription = element.Subscribe(new OperationObserver(x => new Operation(_source) { args = x }));
+                subscription.Dispose();
+            }
+
+            return initOps;
+        }
+
+        private void HandleElementAdded(uint _, IObservable observable)
         {
             _observables.Add(
                 observable,
-                observable.Subscribe(new Observer<T>(
+                observable.Subscribe(new OperationObserver(
                     onNext: HandleElementChanged,
                     onError: _operand.OnError,
-                    onDispose: () => HandleElementRemoved(observable),
-                    overridePriority: _elementPriority,
-                    immediate: true
-                ))
+                    onDispose: () => HandleElementRemoved(0, observable)
+                ), immediate: true, priority: _elementPriority)
             );
         }
 
-        private void HandleElementRemoved(IObservable<T> observable)
+        private void HandleElementRemoved(uint _, IObservable observable)
         {
             if (!_observables.TryGetValue(observable, out var subscription))
                 return;
@@ -58,8 +66,12 @@ namespace ObserveThing
                 Dispose();
         }
 
-        protected void HandleElementChanged(T operation)
-            => _operand.EnqueuePendingOperation((T)operation.Duplicate());
+        protected void HandleElementChanged(IOperation operation)
+        {
+            var copy = _operationPool.TryPop(out var op) ? op : new Operation(operation.source);
+            copy.args = operation.args;
+            _operand.EnqueuePendingOperation(copy);
+        }
 
         public void Dispose()
         {
