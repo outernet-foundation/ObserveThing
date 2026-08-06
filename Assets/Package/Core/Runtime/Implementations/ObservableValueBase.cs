@@ -5,20 +5,6 @@ namespace ObserveThing
 {
     public class ObservableValueBase<T> : ObservableBase<IValueObserver<T>, T>, IValueObservable<T>
     {
-        private class Operation : IOperation
-        {
-            public IObservable source { get; set; }
-            public object args { get; set; }
-
-            public Operation(IObservable source)
-            {
-                this.source = source;
-            }
-
-            public IOperation Duplicate()
-                => new Operation(source) { args = args };
-        }
-
         protected T _value { get; private set; }
         private Stack<Operation> _operationPool = new Stack<Operation>();
 

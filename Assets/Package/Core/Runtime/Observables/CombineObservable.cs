@@ -35,7 +35,7 @@ namespace ObserveThing
 
             foreach (var element in _observables.Keys)
             {
-                var subscription = element.Subscribe(new OperationObserver(x => new Operation(_source) { args = x }));
+                var subscription = element.Subscribe(new OperationObserver(x => initOps.Add(new Operation(element) { args = x.args })));
                 subscription.Dispose();
             }
 

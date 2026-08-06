@@ -80,8 +80,6 @@ namespace ObserveThing.Tests
             Assert.AreEqual(6, callCount);
             AreEqual(new int[] { 1, 2, 4, 13 }, results);
 
-            UnityEngine.Debug.Log("EP: " + (results[1] == v1));
-
             results[1].value = 22;
 
             Assert.AreEqual(8, callCount);

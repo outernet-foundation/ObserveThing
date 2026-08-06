@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace ObserveThing.Tests
 {
@@ -178,8 +180,6 @@ namespace ObserveThing.Tests
             intObservable.value = 3;
             intObservable.value = 4;
 
-            Debug.Log("EP: " + string.Join(", ", observerCallOrder.Select(x => )));
-
             Assert.AreEqual(
                 new List<(object source, object value)>()
                 {
@@ -233,16 +233,16 @@ namespace ObserveThing.Tests
             disposeCallCount = 0;
             disposed = false;
 
-            query.Subscribe(
-                onDispose: () =>
-                {
-                    disposeCallCount++;
-                    disposed = true;
-                }
+            Assert.Throws(
+                typeof(ObjectDisposedException),
+                () => query.Subscribe(
+                    onDispose: () =>
+                    {
+                        disposeCallCount++;
+                        disposed = true;
+                    }
+                )
             );
-
-            Assert.IsTrue(disposed);
-            Assert.AreEqual(1, disposeCallCount);
         }
 
         [Test]
@@ -256,10 +256,10 @@ namespace ObserveThing.Tests
             var callCount = 0;
 
             value.ObservableBatch().Subscribe(
-                onNext: op =>
+                onNext: (IReadOnlyList<IOperation> op) =>
                 {
                     callCount++;
-                    // lastValue = op.Last().value;
+                    lastValue = (int)op.Last().args;
                 }
             );
 

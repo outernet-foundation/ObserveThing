@@ -49,7 +49,7 @@ namespace ObserveThing
         public IReadOnlyList<IOperation> GetInitializationOperations()
         {
             List<Operation> initOps = new List<Operation>();
-            var subscription = _source.Subscribe(new OperationObserver(x => new Operation(_source) { args = x }));
+            var subscription = _source.Subscribe(new OperationObserver(x => initOps.Add(new Operation(_source) { args = x.args })));
             subscription.Dispose();
             return initOps;
         }

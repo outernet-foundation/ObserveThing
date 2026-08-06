@@ -79,8 +79,7 @@ namespace ObserveThing
         public void OnDispose()
             => _onDispose?.Invoke();
 
-        public void OnError(Exception exception)
-            => _onError?.Invoke(exception);
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
     }
 
     public interface ICollectionObserver : IObserverBase
@@ -113,8 +112,7 @@ namespace ObserveThing
         public void OnDispose()
             => _onDispose?.Invoke();
 
-        public void OnError(Exception exception)
-            => _onError?.Invoke(exception);
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
     }
 
     public interface ICollectionObserver<in T> : IObserverBase
@@ -147,8 +145,7 @@ namespace ObserveThing
         public void OnDispose()
             => _onDispose?.Invoke();
 
-        public void OnError(Exception exception)
-            => _onError?.Invoke(exception);
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
     }
 
     public interface IListObserver : IObserverBase
@@ -181,8 +178,7 @@ namespace ObserveThing
         public void OnDispose()
             => _onDispose?.Invoke();
 
-        public void OnError(Exception exception)
-            => _onError?.Invoke(exception);
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
     }
 
     public interface IListObserver<in T> : IObserverBase
@@ -215,8 +211,7 @@ namespace ObserveThing
         public void OnDispose()
             => _onDispose?.Invoke();
 
-        public void OnError(Exception exception)
-            => _onError?.Invoke(exception);
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
     }
 
     public interface ISetObserver : IObserverBase
@@ -249,8 +244,7 @@ namespace ObserveThing
         public void OnDispose()
             => _onDispose?.Invoke();
 
-        public void OnError(Exception exception)
-            => _onError?.Invoke(exception);
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
     }
 
     public interface ISetObserver<in T> : IObserverBase
@@ -283,8 +277,7 @@ namespace ObserveThing
         public void OnDispose()
             => _onDispose?.Invoke();
 
-        public void OnError(Exception exception)
-            => _onError?.Invoke(exception);
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
     }
 
     public interface IDictionaryObserver : IObserverBase
@@ -317,8 +310,7 @@ namespace ObserveThing
         public void OnDispose()
             => _onDispose?.Invoke();
 
-        public void OnError(Exception exception)
-            => _onError?.Invoke(exception);
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
     }
 
     public interface IDictionaryObserver<TKey, TValue> : IObserverBase
@@ -351,8 +343,7 @@ namespace ObserveThing
         public void OnDispose()
             => _onDispose?.Invoke();
 
-        public void OnError(Exception exception)
-            => _onError?.Invoke(exception);
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
     }
 
     public interface IBatchObserver : IObserverBase

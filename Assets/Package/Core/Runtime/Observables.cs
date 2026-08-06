@@ -222,6 +222,9 @@ namespace ObserveThing
         public static IDisposable Subscribe<T>(this IValueObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default)
             => source.Subscribe(new ValueObserver<T>(onNext, onDispose, onError), immediate, priority);
 
+        public static IDisposable Subscribe(this IBatchObservable source, Action<IReadOnlyList<IOperation>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default)
+            => source.Subscribe(new BatchObserver(onNext, onDispose, onError), immediate, priority);
+
         public static IDisposable Subscribe<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<KeyValuePair<TKey, TValue>> onAdd = default, Action<KeyValuePair<TKey, TValue>> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default)
             => source.Subscribe(new DictionaryObserver<TKey, TValue>(
                 onAdd: onAdd == null ? null : (_, kvp) => onAdd?.Invoke(kvp),

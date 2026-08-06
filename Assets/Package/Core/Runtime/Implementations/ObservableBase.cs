@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine;
 
 namespace ObserveThing
 {
@@ -127,16 +128,9 @@ namespace ObserveThing
         }
 
         protected IDisposable AddObserver(TObserver observer, bool immediate, uint? priority)
-            => AddObserverInternal(observer, immediate, priority, op => SendOperation(observer, op));
-
-        private IDisposable AddObserverInternal(IObserverBase observer, bool immediate, uint? priority, Action<TOperation> sendOperation)
         {
             if (disposed)
-            {
-                var disposed = new Disposable(observer.OnDispose);
-                disposed.Dispose();
-                return disposed;
-            }
+                throw new ObjectDisposedException(GetType().Name);
 
             if (_observers.Count == 0)
                 OnFirstObserverAdded();
@@ -146,7 +140,7 @@ namespace ObserveThing
                 immediate,
                 priority ?? context.AllocateObserverPriority(),
                 priority == null,
-                sendOperation,
+                op => SendOperation(observer, op),
                 HandleObserverDisposed
             );
 
