@@ -25,7 +25,7 @@ namespace ObserveThing.Tests
                 onNext: op =>
                 {
                     callCount++;
-                    operations.Add(new(op.source, op.args));
+                    operations.Add(new(op.source, ((IValueOp)op).value));
                 }
             );
 
@@ -160,7 +160,7 @@ namespace ObserveThing.Tests
             IDisposable subscription = query.Subscribe(
                 onNext: op =>
                 {
-                    observerCallOrder.Add(new(op.source, op.args));
+                    observerCallOrder.Add(new(op.source, ((IValueOp)op).value));
 
                     if (intObservable.value == 2)
                     {
@@ -259,7 +259,7 @@ namespace ObserveThing.Tests
                 onNext: (IReadOnlyList<IOperation> op) =>
                 {
                     callCount++;
-                    lastValue = (int)op.Last().args;
+                    lastValue = ((ValueOp<int>)op.Last()).value;
                 }
             );
 
@@ -300,8 +300,8 @@ namespace ObserveThing.Tests
 
             Observables.ObservableCombine(dictionary).Subscribe(onNext: op =>
             {
-                var args = (DictionaryOpArgs<string, int>)op.args;
-                initOps.Add(new(op.source, args.kvp, args.isRemove));
+                var args = (DictionaryOp<string, int>)op;
+                initOps.Add(new(op.source, new KeyValuePair<string, int>(args.key, args.value), args.isRemove));
             });
 
             Assert.That(
@@ -329,12 +329,12 @@ namespace ObserveThing.Tests
             {
                 if (op.source == dictionary)
                 {
-                    var args = (DictionaryOpArgs<string, int>)op.args;
-                    initOps.Add(new(op.source, args.kvp, args.isRemove));
+                    var args = (DictionaryOp<string, int>)op;
+                    initOps.Add(new(op.source, new KeyValuePair<string, int>(args.key, args.value), args.isRemove));
                 }
                 else
                 {
-                    var args = (ListOpArgs<float>)op.args;
+                    var args = (ListOp<float>)op;
                     initOps.Add(new(op.source, args.element, args.isRemove));
                 }
             });

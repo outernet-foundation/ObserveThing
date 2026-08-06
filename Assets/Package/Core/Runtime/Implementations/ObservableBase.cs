@@ -1,20 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 
 namespace ObserveThing
 {
-    public class Operation : IOperation
+    public interface IOperation
     {
-        public IObservable source { get; }
-        public object args { get; set; }
-
-        public Operation(IObservable source)
-            => this.source = source;
+        IObservable source { get; }
     }
 
-    public abstract class ObservableBase<TObserver, TOperation> : IDisposable where TObserver : IObserverBase
+    public abstract class ObservableBase<TObserver, TOperation> : IObservable, IDisposable
+        where TObserver : IObserverBase
+        where TOperation : IOperation
     {
         private class ObserverData : IPendingObserver, IDisposable
         {
@@ -105,13 +102,10 @@ namespace ObserveThing
             if (_observers.Count == 0)
                 return;
 
-            int referenceCount = 0;
-
             foreach (var observer in _observers)
             {
                 observer.EnqueuePendingOperation(operation);
                 context.RegisterPendingObserver(observer);
-                referenceCount++;
             }
 
             context.NotifyPendingObserversIfNecessary();
@@ -127,7 +121,12 @@ namespace ObserveThing
                 observer.observer.OnError(error);
         }
 
-        protected IDisposable AddObserver(TObserver observer, bool immediate, uint? priority)
+        protected abstract IEnumerable<TOperation> GetInitializationOperations();
+
+        protected IDisposable AddObserver(TObserver observer, bool immedaite, uint? priority)
+            => AddObserverInternal(observer, immedaite, priority, op => SendOperation(observer, op));
+
+        private IDisposable AddObserverInternal(IObserverBase observer, bool immediate, uint? priority, Action<TOperation> sendOperation)
         {
             if (disposed)
                 throw new ObjectDisposedException(GetType().Name);
@@ -140,17 +139,23 @@ namespace ObserveThing
                 immediate,
                 priority ?? context.AllocateObserverPriority(),
                 priority == null,
-                op => SendOperation(observer, op),
+                sendOperation,
                 HandleObserverDisposed
             );
 
             // do this after calling OnFirstObserverAdded so any resulting operations won't be queued (they'll be reflected in GetInitializationOperations)
             _observers.Add(observerData);
 
+            foreach (var op in GetInitializationOperations())
+                sendOperation(op);
+
             return observerData;
         }
 
         protected abstract void SendOperation(TObserver observer, TOperation operation);
+
+        public virtual IDisposable Subscribe(IObserver observer, bool immediate, uint? priority)
+            => AddObserverInternal(observer, immediate, priority, op => observer.OnNext(op));
 
         public void Dispose()
         {

@@ -14,8 +14,7 @@ namespace ObserveThing
         private IDisposable _subscriptions;
         private bool _pending;
 
-        private List<Operation> _batchedOperations = new List<Operation>();
-        private Stack<Operation> _operationPool = new Stack<Operation>();
+        private List<IOperation> _batchedOperations = new List<IOperation>();
 
         public BatchObservable(IObservable source, IBatchOperand operand)
         {
@@ -24,7 +23,7 @@ namespace ObserveThing
             _source = source;
             _operand = operand;
 
-            _subscriptions = source.Subscribe(new OperationObserver(
+            _subscriptions = source.Subscribe(new Observer(
                 onNext: HandleSourceOperation,
                 onError: operand.OnError,
                 onDispose: Dispose
@@ -33,10 +32,7 @@ namespace ObserveThing
 
         private void HandleSourceOperation(IOperation operation)
         {
-            var copy = _operationPool.TryPop(out var op) ? op : new Operation(_source);
-            copy.args = operation.args;
-
-            _batchedOperations.Add(copy);
+            _batchedOperations.Add(operation);
 
             if (_pending)
                 return;
@@ -48,8 +44,8 @@ namespace ObserveThing
 
         public IReadOnlyList<IOperation> GetInitializationOperations()
         {
-            List<Operation> initOps = new List<Operation>();
-            var subscription = _source.Subscribe(new OperationObserver(x => initOps.Add(new Operation(_source) { args = x.args })));
+            List<IOperation> initOps = new List<IOperation>();
+            var subscription = _source.Subscribe(new Observer(x => initOps.Add(x)));
             subscription.Dispose();
             return initOps;
         }

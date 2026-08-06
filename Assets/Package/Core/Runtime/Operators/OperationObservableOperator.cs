@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace ObserveThing
 {
@@ -50,15 +49,13 @@ namespace ObserveThing
             Dispose();
         }
 
+        protected override IEnumerable<IOperation> GetInitializationOperations()
+        {
+            foreach (var op in _operator.GetInitializationOperations())
+                yield return op;
+        }
+
         protected override void SendOperation(IObserver observer, IOperation operation)
             => observer.OnNext(operation);
-
-        public IDisposable Subscribe(IObserver observer, bool immediate = false, uint? priority = null)
-        {
-            var subscription = AddObserver(observer, immediate, priority);
-            foreach (var op in _operator.GetInitializationOperations())
-                observer.OnNext(op);
-            return subscription;
-        }
     }
 }

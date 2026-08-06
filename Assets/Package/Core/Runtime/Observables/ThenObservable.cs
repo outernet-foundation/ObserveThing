@@ -3,14 +3,14 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    // public class OnEachObservable<T> : IInitializationOperationsProvider<T> where T : IOperation
+    // public class OnEachObservable<T> : IInitializationOperationsProvider<T> where T : Operation
     // {
     //     private IObservable<T> _source;
     //     private IObserver<T> _then;
-    //     private IOperationObservableOperand<T> _operand;
+    //     private OperationObservableOperand<T> _operand;
     //     private IDisposable _subscriptions;
 
-    //     public OnEachObservable(IObservable<T> source, IObserver<T> then, IOperationObservableOperand<T> operand)
+    //     public OnEachObservable(IObservable<T> source, IObserver<T> then, OperationObservableOperand<T> operand)
     //     {
     //         _source = source;
     //         _then = then;

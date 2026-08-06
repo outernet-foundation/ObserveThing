@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using UnityEngine;
 
 namespace ObserveThing
 {
@@ -12,7 +10,6 @@ namespace ObserveThing
         private bool _disposeOnSourceEmpty;
         private uint _elementPriority;
         private Dictionary<IObservable, IDisposable> _observables = new Dictionary<IObservable, IDisposable>();
-        private Stack<Operation> _operationPool = new Stack<Operation>();
         private IDisposable _subscriptions;
 
         public CombineObservable(ISetObservable<IObservable> source, IOperationObservableOperand operand, bool disposeOnSourceEmpty = false)
@@ -31,11 +28,11 @@ namespace ObserveThing
 
         public IReadOnlyList<IOperation> GetInitializationOperations()
         {
-            List<Operation> initOps = new List<Operation>();
+            List<IOperation> initOps = new List<IOperation>();
 
             foreach (var element in _observables.Keys)
             {
-                var subscription = element.Subscribe(new OperationObserver(x => initOps.Add(new Operation(element) { args = x.args })));
+                var subscription = element.Subscribe(new Observer(x => initOps.Add(x)));
                 subscription.Dispose();
             }
 
@@ -46,7 +43,7 @@ namespace ObserveThing
         {
             _observables.Add(
                 observable,
-                observable.Subscribe(new OperationObserver(
+                observable.Subscribe(new Observer(
                     onNext: HandleElementChanged,
                     onError: _operand.OnError,
                     onDispose: () => HandleElementRemoved(0, observable)
@@ -68,9 +65,7 @@ namespace ObserveThing
 
         protected void HandleElementChanged(IOperation operation)
         {
-            var copy = _operationPool.TryPop(out var op) ? op : new Operation(operation.source);
-            copy.args = operation.args;
-            _operand.EnqueuePendingOperation(copy);
+            _operand.EnqueuePendingOperation(operation);
         }
 
         public void Dispose()

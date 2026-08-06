@@ -15,35 +15,29 @@ namespace ObserveThing
         void OnDispose();
     }
 
-    public interface IOperation
-    {
-        IObservable source { get; }
-        object args { get; }
-    }
-
     public interface IObserver : IObserverBase
     {
         void OnNext(IOperation operation);
     }
 
-    public class OperationObserver : IObserver
+    public class Observer : IObserver
     {
         private Action<IOperation> _onNext;
         private Action _onDispose;
         private Action<Exception> _onError;
 
-        public OperationObserver(Action<IOperation> onNext = default, Action onDispose = default, Action<Exception> onError = default)
+        public Observer(Action<IOperation> onNext = default, Action onDispose = default, Action<Exception> onError = default)
         {
             _onNext = onNext;
             _onDispose = onDispose;
             _onError = onError;
         }
 
-        public void OnNext(IOperation args)
+        public void OnNext(IOperation operation)
         {
             try
             {
-                _onNext?.Invoke(args);
+                _onNext?.Invoke(operation);
             }
             catch (Exception exc)
             {

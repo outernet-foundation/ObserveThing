@@ -3,10 +3,22 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ObservableValueBase<T> : ObservableBase<IValueObserver<T>, T>, IValueObservable<T>
+    public interface IValueOp : IOperation
+    {
+        object value { get; }
+    }
+
+    public struct ValueOp<T> : IValueOp
+    {
+        public IObservable source { get; set; }
+        public T value { get; set; }
+
+        object IValueOp.value => value;
+    }
+
+    public class ObservableValueBase<T> : ObservableBase<IValueObserver<T>, ValueOp<T>>, IValueObservable<T>
     {
         protected T _value { get; private set; }
-        private Stack<Operation> _operationPool = new Stack<Operation>();
 
         public ObservableValueBase(ObservationContext context) : this(context, default) { }
         public ObservableValueBase(ObservationContext context, T value) : base(context)
@@ -20,30 +32,18 @@ namespace ObserveThing
                 return;
 
             _value = value;
-            EnqueuePendingOperation(value);
+            EnqueuePendingOperation(new ValueOp<T>() { source = this, value = value });
         }
 
-        protected override void SendOperation(IValueObserver<T> observer, T operation)
-            => observer.OnNext(operation);
+        protected override IEnumerable<ValueOp<T>> GetInitializationOperations()
+        {
+            yield return new ValueOp<T>() { source = this, value = _value };
+        }
+
+        protected override void SendOperation(IValueObserver<T> observer, ValueOp<T> operation)
+            => observer.OnNext(operation.value);
 
         public IDisposable Subscribe(IValueObserver<T> observer, bool immediate = false, uint? priority = null)
-        {
-            var subscription = AddObserver(observer, immediate, priority);
-            observer.OnNext(_value);
-            return subscription;
-        }
-
-        public IDisposable Subscribe(IObserver observer, bool immediate = false, uint? priority = null)
-            => Subscribe(new ValueObserver<T>(
-                onNext: x =>
-                {
-                    var operation = _operationPool.TryPop(out var op) ? op : new Operation(this);
-                    operation.args = x;
-                    observer.OnNext(operation);
-                    _operationPool.Push(operation);
-                },
-                onDispose: observer.OnDispose,
-                onError: observer.OnError
-            ), immediate, priority);
+            => AddObserver(observer, immediate, priority);
     }
 }

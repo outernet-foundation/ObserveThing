@@ -3,13 +3,21 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class BatchOperator : ObservableBase<IBatchObserver, IReadOnlyList<IOperation>>, IBatchOperand, IBatchObservable
+    public interface IBatchOp : IOperation
     {
-        IBatchObservable IBatchOperand.operationSource => this;
+        IReadOnlyList<IOperation> operations { get; set; }
+    }
 
+    public struct BatchOp : IBatchOp
+    {
+        public IObservable source { get; set; }
+        public IReadOnlyList<IOperation> operations { get; set; }
+    }
+
+    public class BatchOperator : ObservableBase<IBatchObserver, BatchOp>, IBatchOperand, IBatchObservable
+    {
         private Func<IBatchOperand, IInitializationOperationsProvider> _generateOperator;
         private IInitializationOperationsProvider _operator;
-        private Stack<Operation> _operations = new Stack<Operation>();
         private bool _active = false;
 
         public BatchOperator(ObservationContext context, Func<IBatchOperand, IInitializationOperationsProvider> generateOperator) : base(context)
@@ -37,7 +45,7 @@ namespace ObserveThing
         }
 
         void IBatchOperand.EnqueuePendingOperation(IReadOnlyList<IOperation> operation)
-            => EnqueuePendingOperation(operation);
+            => EnqueuePendingOperation(new() { source = this, operations = operation });
 
         void IOperand.OnError(Exception error)
             => OnError(error);
@@ -50,26 +58,15 @@ namespace ObserveThing
             Dispose();
         }
 
-        protected override void SendOperation(IBatchObserver observer, IReadOnlyList<IOperation> operation)
-            => observer.OnNext(operation);
-
-        public IDisposable Subscribe(IBatchObserver observer, bool immediate = false, uint? priority = null)
+        protected override IEnumerable<BatchOp> GetInitializationOperations()
         {
-            var subscription = AddObserver(observer, immediate, priority);
-            observer.OnNext(_operator.GetInitializationOperations());
-            return subscription;
+            yield return new BatchOp() { source = this, operations = _operator.GetInitializationOperations() };
         }
 
-        public IDisposable Subscribe(IObserver observer, bool immediate = false, uint? priority = null)
-            => Subscribe(new BatchObserver(
-                onNext: op =>
-                {
-                    var operation = _operations.TryPop(out var pooledOp) ? pooledOp : new Operation(this);
-                    operation.args = op;
-                    observer.OnNext(operation);
-                    operation.args = null;
-                    _operations.Push(operation);
-                }
-            ), immediate, priority);
+        protected override void SendOperation(IBatchObserver observer, BatchOp operation)
+            => observer.OnNext(operation.operations);
+
+        public IDisposable Subscribe(IBatchObserver observer, bool immediate = false, uint? priority = null)
+            => AddObserver(observer, immediate, priority);
     }
 }

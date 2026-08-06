@@ -52,7 +52,6 @@ namespace ObserveThing
 
     public interface IBatchOperand : IOperand
     {
-        IBatchObservable operationSource { get; }
         void EnqueuePendingOperation(IReadOnlyList<IOperation> operation);
     }
 

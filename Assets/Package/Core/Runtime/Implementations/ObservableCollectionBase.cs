@@ -4,17 +4,26 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public struct CollectionOpArgs<T>
+    public interface ICollectionOp : IOperation
     {
-        public T element;
-        public uint elementId;
-        public bool isRemove;
+        object element { get; }
+        uint elementId { get; }
+        bool isRemove { get; }
     }
 
-    public class ObservableCollectionBase<T> : ObservableBase<ICollectionObserver<T>, CollectionOpArgs<T>>, ICollectionObservable<T>
+    public struct CollectionOp<T> : ICollectionOp
+    {
+        public IObservable source { get; set; }
+        public T element { get; set; }
+        public uint elementId { get; set; }
+        public bool isRemove { get; set; }
+
+        object ICollectionOp.element => element;
+    }
+
+    public class ObservableCollectionBase<T> : ObservableBase<ICollectionObserver<T>, CollectionOp<T>>, ICollectionObservable<T>
     {
         private Dictionary<uint, T> _collection = new Dictionary<uint, T>();
-        private Stack<Operation> _operationPool = new Stack<Operation>();
 
         public ObservableCollectionBase(ObservationContext context) : base(context) { }
 
@@ -26,7 +35,7 @@ namespace ObserveThing
         protected uint AddInternal(uint id, T element)
         {
             _collection.Add(id, element);
-            EnqueuePendingOperation(new CollectionOpArgs<T>() { elementId = id, element = element, isRemove = false });
+            EnqueuePendingOperation(new CollectionOp<T>() { source = this, elementId = id, element = element, isRemove = false });
             return id;
         }
 
@@ -36,7 +45,7 @@ namespace ObserveThing
                 return false;
 
             _collection.Remove(id);
-            EnqueuePendingOperation(new CollectionOpArgs<T>() { elementId = id, element = element, isRemove = true });
+            EnqueuePendingOperation(new CollectionOp<T>() { source = this, elementId = id, element = element, isRemove = true });
             return true;
         }
 
@@ -45,11 +54,17 @@ namespace ObserveThing
             foreach (var kvp in _collection.ToArray())
             {
                 _collection.Remove(kvp.Key);
-                EnqueuePendingOperation(new CollectionOpArgs<T>() { elementId = kvp.Key, element = kvp.Value, isRemove = true });
+                EnqueuePendingOperation(new CollectionOp<T>() { source = this, elementId = kvp.Key, element = kvp.Value, isRemove = true });
             }
         }
 
-        protected override void SendOperation(ICollectionObserver<T> observer, CollectionOpArgs<T> operation)
+        protected override IEnumerable<CollectionOp<T>> GetInitializationOperations()
+        {
+            foreach (var elementData in _collection)
+                yield return new CollectionOp<T>() { source = this, element = elementData.Value, elementId = elementData.Key, isRemove = false };
+        }
+
+        protected override void SendOperation(ICollectionObserver<T> observer, CollectionOp<T> operation)
         {
             if (operation.isRemove)
             {
@@ -68,37 +83,12 @@ namespace ObserveThing
             => _collection.ContainsValue(element);
 
         public IDisposable Subscribe(ICollectionObserver<T> observer, bool immediate = false, uint? priority = null)
-        {
-            var subscription = AddObserver(observer, immediate, priority);
-            foreach (var element in _collection)
-                observer.OnAdd(element.Key, element.Value);
-            return subscription;
-        }
+            => AddObserver(observer, immediate, priority);
 
         IDisposable ICollectionObservable.Subscribe(ICollectionObserver observer, bool immediate, uint? priority)
             => Subscribe(new CollectionObserver<T>(
                 onAdd: (id, element) => observer.OnAdd(id, element),
                 onRemove: (id, element) => observer.OnRemove(id, element),
-                onDispose: observer.OnDispose,
-                onError: observer.OnError
-            ), immediate, priority);
-
-        public IDisposable Subscribe(IObserver observer, bool immediate = false, uint? priority = null)
-            => Subscribe(new CollectionObserver<T>(
-                onAdd: (id, element) =>
-                {
-                    var operation = _operationPool.TryPop(out var op) ? op : new Operation(this);
-                    operation.args = new SetOpArgs<T>() { elementId = id, element = element, isRemove = false };
-                    observer.OnNext(operation);
-                    _operationPool.Push(operation);
-                },
-                onRemove: (id, element) =>
-                {
-                    var operation = _operationPool.TryPop(out var op) ? op : new Operation(this);
-                    operation.args = new SetOpArgs<T>() { elementId = id, element = element, isRemove = true };
-                    observer.OnNext(operation);
-                    _operationPool.Push(operation);
-                },
                 onDispose: observer.OnDispose,
                 onError: observer.OnError
             ), immediate, priority);

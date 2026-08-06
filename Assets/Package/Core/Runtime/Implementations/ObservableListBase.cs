@@ -4,19 +4,29 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public struct ListOpArgs<T>
+    public interface IListOp : IOperation
     {
-        public int index;
-        public uint elementId;
-        public T element;
-        public bool isRemove;
+        uint elementId { get; }
+        int index { get; }
+        object element { get; }
+        bool isRemove { get; }
     }
 
-    public class ObservableListBase<T> : ObservableBase<IListObserver<T>, ListOpArgs<T>>, IListObservable<T>
+    public struct ListOp<T> : IListOp
+    {
+        public IObservable source { get; set; }
+        public int index { get; set; }
+        public uint elementId { get; set; }
+        public T element { get; set; }
+        public bool isRemove { get; set; }
+
+        object IListOp.element => element;
+    }
+
+    public class ObservableListBase<T> : ObservableBase<IListObserver<T>, ListOp<T>>, IListObservable<T>
     {
         private List<(uint id, T value)> _list = new List<(uint id, T value)>();
         private CollectionIdProvider _idProvider;
-        private Stack<Operation> _operationPool = new Stack<Operation>();
 
         public ObservableListBase(ObservationContext context) : this(context, null) { }
         public ObservableListBase(ObservationContext context, IEnumerable<T> value) : base(context)
@@ -60,14 +70,14 @@ namespace ObserveThing
         {
             var removed = _list[index];
             _list.RemoveAt(index);
-            EnqueuePendingOperation(new ListOpArgs<T>() { element = removed.value, elementId = removed.id, index = index, isRemove = true });
+            EnqueuePendingOperation(new ListOp<T>() { source = this, element = removed.value, elementId = removed.id, index = index, isRemove = true });
         }
 
         protected void InsertInternal(int index, T item)
         {
             (uint id, T value) inserted = new(_idProvider.GetUnusedId(), item);
             _list.Insert(index, inserted);
-            EnqueuePendingOperation(new ListOpArgs<T>() { element = inserted.value, elementId = inserted.id, index = index, isRemove = false });
+            EnqueuePendingOperation(new ListOp<T>() { source = this, element = inserted.value, elementId = inserted.id, index = index, isRemove = false });
         }
 
         protected void ClearInternal()
@@ -88,7 +98,16 @@ namespace ObserveThing
         protected bool ContainsInternal(T item)
             => _list.Any(x => Equals(x.value, item));
 
-        protected override void SendOperation(IListObserver<T> observer, ListOpArgs<T> operation)
+        protected override IEnumerable<ListOp<T>> GetInitializationOperations()
+        {
+            for (int i = 0; i < _list.Count; i++)
+            {
+                var elementData = _list[i];
+                yield return new ListOp<T>() { source = this, element = elementData.value, elementId = elementData.id, index = i, isRemove = false };
+            }
+        }
+
+        protected override void SendOperation(IListObserver<T> observer, ListOp<T> operation)
         {
             if (operation.isRemove)
             {
@@ -101,17 +120,7 @@ namespace ObserveThing
         }
 
         public IDisposable Subscribe(IListObserver<T> observer, bool immediate = false, uint? priority = null)
-        {
-            var subscription = AddObserver(observer, immediate, priority);
-
-            for (int i = 0; i < _list.Count; i++)
-            {
-                var element = _list[i];
-                observer.OnAdd(element.id, i, element.value);
-            }
-
-            return subscription;
-        }
+            => AddObserver(observer, immediate, priority);
 
         IDisposable IListObservable.Subscribe(IListObserver observer, bool immediate, uint? priority)
             => Subscribe(new ListObserver<T>(
@@ -133,26 +142,6 @@ namespace ObserveThing
             => Subscribe(new ListObserver<T>(
                 onAdd: (id, index, element) => observer.OnAdd(id, element),
                 onRemove: (id, index, element) => observer.OnRemove(id, element),
-                onDispose: observer.OnDispose,
-                onError: observer.OnError
-            ), immediate, priority);
-
-        public IDisposable Subscribe(IObserver observer, bool immediate = false, uint? priority = null)
-            => Subscribe(new ListObserver<T>(
-                onAdd: (id, index, element) =>
-                {
-                    var operation = _operationPool.TryPop(out var op) ? op : new Operation(this);
-                    operation.args = new ListOpArgs<T>() { elementId = id, index = index, element = element, isRemove = false };
-                    observer.OnNext(operation);
-                    _operationPool.Push(operation);
-                },
-                onRemove: (id, index, element) =>
-                {
-                    var operation = _operationPool.TryPop(out var op) ? op : new Operation(this);
-                    operation.args = new ListOpArgs<T>() { elementId = id, index = index, element = element, isRemove = true };
-                    observer.OnNext(operation);
-                    _operationPool.Push(operation);
-                },
                 onDispose: observer.OnDispose,
                 onError: observer.OnError
             ), immediate, priority);
