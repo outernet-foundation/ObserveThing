@@ -2,14 +2,14 @@ using System;
 
 namespace ObserveThing
 {
-    public class ShallowCopyValueObservable<T> : IDisposable
+    public class UnwrapValueObservable<T> : IDisposable
     {
         private IValueOperand<T> _operand;
         private ValueObserver<T> _nestedObserver;
         private IDisposable _nestedSubscription;
         private IDisposable _subscriptions;
 
-        public ShallowCopyValueObservable(IValueObservable<IValueObservable<T>> source, IValueOperand<T> operand)
+        public UnwrapValueObservable(IValueObservable<IValueObservable<T>> source, IValueOperand<T> operand)
         {
             _operand = operand;
 

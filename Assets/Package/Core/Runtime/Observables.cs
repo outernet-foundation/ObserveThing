@@ -80,14 +80,14 @@ namespace ObserveThing
         public static IValueObservable<TResult> ObservableCombineValues<T1, T2, T3, T4, T5, T6, T7, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, IValueObservable<T7> source7, Func<T1, T2, T3, T4, T5, T6, T7, TResult> select)
             => ObservableCombineValues(source1, source2, source3, source4, source5, source6, source7).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5, x.Item6, x.Item7));
 
-        public static IValueObservable<T> ObservableShallowCopy<T>(this IValueObservable<IValueObservable<T>> source)
-            => new ValueOperator<T>(source.context, operand => new ShallowCopyValueObservable<T>(source, operand));
+        public static IValueObservable<T> ObservableUnwrap<T>(this IValueObservable<IValueObservable<T>> source)
+            => new ValueOperator<T>(source.context, operand => new UnwrapValueObservable<T>(source, operand));
 
         public static IValueObservable<U> ObservableSelect<T, U>(this IValueObservable<T> source, Func<T, U> select)
             => new ValueOperator<U>(source.context, operand => new SelectValueOperator<T, U>(source, select, operand));
 
         public static IValueObservable<U> ObservableSelect<T, U>(this IValueObservable<T> source, Func<T, IValueObservable<U>> select)
-            => source.ObservableSelect<T, IValueObservable<U>>(select).ObservableShallowCopy();
+            => source.ObservableSelect<T, IValueObservable<U>>(select).ObservableUnwrap();
 
         public static IValueObservable<(T current, T previous)> ObservableWithPrevious<T>(this IValueObservable<T> source)
             => new ValueOperator<(T current, T previous)>(source.context, operand => new WithPreviousObservable<T>(source, operand));
@@ -95,11 +95,11 @@ namespace ObserveThing
         public static IValueObservable<T> ObservableSkipWhile<T>(this IValueObservable<T> source, Func<bool> skipWhile)
             => new ValueOperator<T>(source.context, operand => new SkipWhileObservable<T>(source, skipWhile, operand));
 
-        public static ICollectionObservable<T> ObservableShallowCopy<T>(this ICollectionObservable<IValueObservable<T>> source)
-            => new CollectionOperator<T>(source.context, operand => new ShallowCopyCollectionObservable<T>(source, operand));
+        public static ICollectionObservable<T> ObservableUnwrap<T>(this ICollectionObservable<IValueObservable<T>> source)
+            => new CollectionOperator<T>(source.context, operand => new UnwrapCollectionObservable<T>(source, operand));
 
         public static ICollectionObservable<U> ObservableSelect<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> select)
-            => source.ObservableSelect<T, IValueObservable<U>>(select).ObservableShallowCopy();
+            => source.ObservableSelect<T, IValueObservable<U>>(select).ObservableUnwrap();
 
         public static ICollectionObservable<U> ObservableSelect<T, U>(this ICollectionObservable<T> source, Func<T, U> select)
             => new CollectionOperator<U>(source.context, operand => new SelectCollectionObservable<T, U>(source, select, operand));
@@ -167,14 +167,14 @@ namespace ObserveThing
         public static ICollectionObservable<TValue> ObservableTrack<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, ICollectionObservable<TKey> keys)
             => keys.ObservableSelect(x => source.ObservableTrack(x)).ObservableWhere(x => x.keyPresent).ObservableSelect(((bool keyPresent, TValue value) x) => x.value);
 
-        public static IListObservable<T> ObservableShallowCopy<T>(this IListObservable<IValueObservable<T>> source)
-            => new ListOperator<T>(source.context, operand => new ShallowCopyListObservable<T>(source, operand));
+        public static IListObservable<T> ObservableUnwrap<T>(this IListObservable<IValueObservable<T>> source)
+            => new ListOperator<T>(source.context, operand => new UnwrapListObservable<T>(source, operand));
 
         public static IListObservable<U> ObservableSelect<T, U>(this IListObservable<T> source, Func<T, U> select)
             => new ListOperator<U>(source.context, operand => new SelectListObservable<T, U>(source, select, operand));
 
         public static IListObservable<U> ObservableSelect<T, U>(this IListObservable<T> source, Func<T, IValueObservable<U>> select)
-            => source.ObservableSelect<T, IValueObservable<U>>(select).ObservableShallowCopy();
+            => source.ObservableSelect<T, IValueObservable<U>>(select).ObservableUnwrap();
 
         public static IValueObservable<(bool found, int index)> ObservableIndexOf<T>(this IListObservable<T> source, T value)
             => source.ObservableIndexOf(new ObservableValue<T>(value));

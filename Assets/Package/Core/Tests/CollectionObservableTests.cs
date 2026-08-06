@@ -553,7 +553,7 @@ namespace ObserveThing.Tests
                 new ObservableValue<float>(3)
             );
 
-            var stream = source.ObservableShallowCopy().Subscribe(
+            var stream = source.ObservableUnwrap().Subscribe(
                 onAdd: (_, x) =>
                 {
                     result.Add(x);

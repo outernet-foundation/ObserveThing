@@ -182,7 +182,7 @@ namespace ObserveThing.Tests
             bool disposed = false;
             bool receivedCall = false;
             var d = source.ObservableSelect(x => x.AsObservable());
-            var subscription = source.ObservableShallowCopy().Subscribe(
+            var subscription = source.ObservableUnwrap().Subscribe(
                 onNext: x =>
                 {
                     result = x;

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ShallowCopyCollectionObservable<T> : IDisposable
+    public class UnwrapCollectionObservable<T> : IDisposable
     {
         private ICollectionOperand<T> _operand;
         private Dictionary<uint, EntryData> _dataById = new Dictionary<uint, EntryData>();
@@ -15,7 +15,7 @@ namespace ObserveThing
             public bool initialized;
         }
 
-        public ShallowCopyCollectionObservable(ICollectionObservable<IValueObservable<T>> source, ICollectionOperand<T> operand)
+        public UnwrapCollectionObservable(ICollectionObservable<IValueObservable<T>> source, ICollectionOperand<T> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(new CollectionObserver<IValueObservable<T>>(

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ShallowCopyListObservable<T> : IDisposable
+    public class UnwrapListObservable<T> : IDisposable
     {
         private IListOperand<T> _operand;
         private List<EntryData> _data = new List<EntryData>();
@@ -15,7 +15,7 @@ namespace ObserveThing
             public bool initialized;
         }
 
-        public ShallowCopyListObservable(IListObservable<IValueObservable<T>> source, IListOperand<T> operand)
+        public UnwrapListObservable(IListObservable<IValueObservable<T>> source, IListOperand<T> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(
