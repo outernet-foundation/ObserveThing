@@ -3,34 +3,34 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class BatchObservable : IInitializationOperationsProvider, IPendingObserver
+    public class BatchObservable<T> : IInitializationOperationsProvider<T>, IPendingObserver where T : IOperation
     {
         public bool immediate { get; } = false;
         public uint priority { get; private set; }
         public bool disposed { get; private set; }
 
-        private IObservable _source;
-        private IBatchOperand _operand;
+        private IObservable<T> _source;
+        private IBatchOperand<T> _operand;
         private IDisposable _subscriptions;
         private bool _pending;
 
-        private List<IOperation> _batchedOperations = new List<IOperation>();
+        private List<T> _batchedOperations = new List<T>();
 
-        public BatchObservable(IObservable source, IBatchOperand operand)
+        public BatchObservable(IObservable<T> source, IBatchOperand<T> operand)
         {
             priority = source.context.AllocateObserverPriority();
 
             _source = source;
             _operand = operand;
 
-            _subscriptions = source.Subscribe(new Observer(
+            _subscriptions = source.Subscribe(new Observer<T>(
                 onNext: HandleSourceOperation,
                 onError: operand.OnError,
                 onDispose: Dispose
             ), immediate: true);
         }
 
-        private void HandleSourceOperation(IOperation operation)
+        private void HandleSourceOperation(T operation)
         {
             _batchedOperations.Add(operation);
 
@@ -42,10 +42,10 @@ namespace ObserveThing
             _source.context.NotifyPendingObserversIfNecessary();
         }
 
-        public IReadOnlyList<IOperation> GetInitializationOperations()
+        public IReadOnlyList<T> GetInitializationOperations()
         {
-            List<IOperation> initOps = new List<IOperation>();
-            var subscription = _source.Subscribe(new Observer(x => initOps.Add(x)));
+            List<T> initOps = new List<T>();
+            var subscription = _source.Subscribe(new Observer<T>(x => initOps.Add(x)));
             subscription.Dispose();
             return initOps;
         }

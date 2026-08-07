@@ -6,10 +6,10 @@ namespace ObserveThing
 {
     public interface IOperation
     {
-        IObservable source { get; }
+        IObservable<IOperation> source { get; }
     }
 
-    public abstract class ObservableBase<TObserver, TOperation> : IObservable, IDisposable
+    public abstract class ObservableBase<TObserver, TOperation> : IObservable<IOperation>, IDisposable
         where TObserver : IObserverBase
         where TOperation : IOperation
     {
@@ -123,8 +123,8 @@ namespace ObserveThing
 
         protected abstract IEnumerable<TOperation> GetInitializationOperations();
 
-        protected IDisposable AddObserver(TObserver observer, bool immedaite, uint? priority)
-            => AddObserverInternal(observer, immedaite, priority, op => SendOperation(observer, op));
+        protected IDisposable AddObserver(TObserver observer, bool immediate, uint? priority)
+            => AddObserverInternal(observer, immediate, priority, op => SendOperation(observer, op));
 
         private IDisposable AddObserverInternal(IObserverBase observer, bool immediate, uint? priority, Action<TOperation> sendOperation)
         {
@@ -154,7 +154,10 @@ namespace ObserveThing
 
         protected abstract void SendOperation(TObserver observer, TOperation operation);
 
-        public virtual IDisposable Subscribe(IObserver observer, bool immediate, uint? priority)
+        // public virtual IDisposable Subscribe(IObserver<TOperation> observer, bool immediate, uint? priority)
+        //     => AddObserverInternal(observer, immediate, priority, op => observer.OnNext(op));
+
+        public virtual IDisposable Subscribe(IObserver<IOperation> observer, bool immediate, uint? priority)
             => AddObserverInternal(observer, immediate, priority, op => observer.OnNext(op));
 
         public void Dispose()

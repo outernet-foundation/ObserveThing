@@ -3,15 +3,13 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class OperationObservableOperator : ObservableBase<IObserver, IOperation>, IOperationObservableOperand, IObservable
+    public class ObservableOperator<T> : ObservableBase<IObserver<T>, T>, IObservableOperand<T>, IObservable<T> where T : IOperation
     {
-        IObservable IOperationObservableOperand.operationSource => this;
-
-        private Func<IOperationObservableOperand, IInitializationOperationsProvider> _generateOperator;
-        private IInitializationOperationsProvider _operator;
+        private Func<IObservableOperand<T>, IInitializationOperationsProvider<T>> _generateOperator;
+        private IInitializationOperationsProvider<T> _operator;
         private bool _active = false;
 
-        public OperationObservableOperator(ObservationContext context, Func<IOperationObservableOperand, IInitializationOperationsProvider> generateOperator) : base(context)
+        public ObservableOperator(ObservationContext context, Func<IObservableOperand<T>, IInitializationOperationsProvider<T>> generateOperator) : base(context)
         {
             _generateOperator = generateOperator;
         }
@@ -35,7 +33,7 @@ namespace ObserveThing
             _operator = null;
         }
 
-        void IOperationObservableOperand.EnqueuePendingOperation(IOperation operation)
+        void IObservableOperand<T>.EnqueuePendingOperation(T operation)
             => EnqueuePendingOperation(operation);
 
         void IOperand.OnError(Exception error)
@@ -49,13 +47,16 @@ namespace ObserveThing
             Dispose();
         }
 
-        protected override IEnumerable<IOperation> GetInitializationOperations()
+        protected override IEnumerable<T> GetInitializationOperations()
         {
             foreach (var op in _operator.GetInitializationOperations())
                 yield return op;
         }
 
-        protected override void SendOperation(IObserver observer, IOperation operation)
+        protected override void SendOperation(IObserver<T> observer, T operation)
             => observer.OnNext(operation);
+
+        public IDisposable Subscribe(IObserver<T> observer, bool immediate = false, uint? priority = null)
+            => AddObserver(observer, immediate, priority);
     }
 }

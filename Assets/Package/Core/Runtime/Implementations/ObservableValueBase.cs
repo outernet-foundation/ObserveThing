@@ -10,7 +10,7 @@ namespace ObserveThing
 
     public struct ValueOp<T> : IValueOp
     {
-        public IObservable source { get; set; }
+        public IObservable<IOperation> source { get; set; }
         public T value { get; set; }
 
         object IValueOp.value => value;

@@ -14,7 +14,7 @@ namespace ObserveThing
 
     public struct DictionaryOp<TKey, TValue> : IDictionaryOp
     {
-        public IObservable source { get; set; }
+        public IObservable<IOperation> source { get; set; }
         public uint elementId { get; set; }
         public TKey key { get; set; }
         public TValue value { get; set; }

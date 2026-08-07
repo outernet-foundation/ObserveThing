@@ -3,24 +3,24 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public interface IBatchOp : IOperation
+    public interface IBatchOp<T> : IOperation where T : IOperation
     {
-        IReadOnlyList<IOperation> operations { get; set; }
+        IReadOnlyList<T> operations { get; set; }
     }
 
-    public struct BatchOp : IBatchOp
+    public struct BatchOp<T> : IBatchOp<T> where T : IOperation
     {
-        public IObservable source { get; set; }
-        public IReadOnlyList<IOperation> operations { get; set; }
+        public IObservable<IOperation> source { get; set; }
+        public IReadOnlyList<T> operations { get; set; }
     }
 
-    public class BatchOperator : ObservableBase<IBatchObserver, BatchOp>, IBatchOperand, IBatchObservable
+    public class BatchOperator<T> : ObservableBase<IBatchObserver<T>, BatchOp<T>>, IBatchOperand<T>, IBatchObservable<T> where T : IOperation
     {
-        private Func<IBatchOperand, IInitializationOperationsProvider> _generateOperator;
-        private IInitializationOperationsProvider _operator;
+        private Func<IBatchOperand<T>, IInitializationOperationsProvider<T>> _generateOperator;
+        private IInitializationOperationsProvider<T> _operator;
         private bool _active = false;
 
-        public BatchOperator(ObservationContext context, Func<IBatchOperand, IInitializationOperationsProvider> generateOperator) : base(context)
+        public BatchOperator(ObservationContext context, Func<IBatchOperand<T>, IInitializationOperationsProvider<T>> generateOperator) : base(context)
         {
             _generateOperator = generateOperator;
         }
@@ -44,7 +44,7 @@ namespace ObserveThing
             _operator = null;
         }
 
-        void IBatchOperand.EnqueuePendingOperation(IReadOnlyList<IOperation> operation)
+        void IBatchOperand<T>.EnqueuePendingOperation(IReadOnlyList<T> operation)
             => EnqueuePendingOperation(new() { source = this, operations = operation });
 
         void IOperand.OnError(Exception error)
@@ -58,15 +58,15 @@ namespace ObserveThing
             Dispose();
         }
 
-        protected override IEnumerable<BatchOp> GetInitializationOperations()
+        protected override IEnumerable<BatchOp<T>> GetInitializationOperations()
         {
-            yield return new BatchOp() { source = this, operations = _operator.GetInitializationOperations() };
+            yield return new BatchOp<T>() { source = this, operations = _operator.GetInitializationOperations() };
         }
 
-        protected override void SendOperation(IBatchObserver observer, BatchOp operation)
+        protected override void SendOperation(IBatchObserver<T> observer, BatchOp<T> operation)
             => observer.OnNext(operation.operations);
 
-        public IDisposable Subscribe(IBatchObserver observer, bool immediate = false, uint? priority = null)
+        public IDisposable Subscribe(IBatchObserver<T> observer, bool immediate = false, uint? priority = null)
             => AddObserver(observer, immediate, priority);
     }
 }

@@ -3,18 +3,18 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public interface IObservable
+    public interface IObservable<out T> where T : IOperation
     {
         ObservationContext context { get; }
-        IDisposable Subscribe(IObserver observer, bool immediate = default, uint? priority = default);
+        IDisposable Subscribe(IObserver<T> observer, bool immediate = default, uint? priority = default);
     }
 
-    public interface IValueObservable<out T> : IObservable
+    public interface IValueObservable<out T> : IObservable<IOperation>
     {
         IDisposable Subscribe(IValueObserver<T> observer, bool immediate = default, uint? priority = default);
     }
 
-    public interface ICollectionObservable : IObservable
+    public interface ICollectionObservable : IObservable<IOperation>
     {
         IDisposable Subscribe(ICollectionObserver observer, bool immediate = default, uint? priority = default);
     }
@@ -54,8 +54,8 @@ namespace ObserveThing
         IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer, bool immediate = default, uint? priority = default);
     }
 
-    public interface IBatchObservable : IObservable
+    public interface IBatchObservable<out T> : IObservable<IOperation> where T : IOperation
     {
-        public IDisposable Subscribe(IBatchObserver observer, bool immediate = false, uint? priority = default);
+        public IDisposable Subscribe(IBatchObserver<T> observer, bool immediate = false, uint? priority = default);
     }
 }

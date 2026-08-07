@@ -256,10 +256,10 @@ namespace ObserveThing.Tests
             var callCount = 0;
 
             value.ObservableBatch().Subscribe(
-                onNext: (IReadOnlyList<IOperation> op) =>
+                onNext: ops =>
                 {
                     callCount++;
-                    lastValue = ((ValueOp<int>)op.Last()).value;
+                    lastValue = ops.Last().value;
                 }
             );
 

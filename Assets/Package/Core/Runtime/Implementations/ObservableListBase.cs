@@ -14,7 +14,7 @@ namespace ObserveThing
 
     public struct ListOp<T> : IListOp
     {
-        public IObservable source { get; set; }
+        public IObservable<IOperation> source { get; set; }
         public int index { get; set; }
         public uint elementId { get; set; }
         public T element { get; set; }

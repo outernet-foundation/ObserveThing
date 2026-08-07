@@ -3,22 +3,22 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class CombineObservable : IInitializationOperationsProvider
+    public class CombineObservable<T> : IInitializationOperationsProvider<T> where T : IOperation
     {
-        private ISetObservable<IObservable> _source;
-        private IOperationObservableOperand _operand;
+        private ISetObservable<IObservable<T>> _source;
+        private IObservableOperand<T> _operand;
         private bool _disposeOnSourceEmpty;
         private uint _elementPriority;
-        private Dictionary<IObservable, IDisposable> _observables = new Dictionary<IObservable, IDisposable>();
+        private Dictionary<IObservable<T>, IDisposable> _observables = new Dictionary<IObservable<T>, IDisposable>();
         private IDisposable _subscriptions;
 
-        public CombineObservable(ISetObservable<IObservable> source, IOperationObservableOperand operand, bool disposeOnSourceEmpty = false)
+        public CombineObservable(ISetObservable<IObservable<T>> source, IObservableOperand<T> operand, bool disposeOnSourceEmpty = false)
         {
             _source = source;
             _operand = operand;
             _disposeOnSourceEmpty = disposeOnSourceEmpty;
             _elementPriority = _source.context.AllocateObserverPriority();
-            _subscriptions = _source.Subscribe(new SetObserver<IObservable>(
+            _subscriptions = _source.Subscribe(new SetObserver<IObservable<T>>(
                 onAdd: HandleElementAdded,
                 onRemove: HandleElementRemoved,
                 onError: _operand.OnError,
@@ -26,24 +26,24 @@ namespace ObserveThing
             ), immediate: true);
         }
 
-        public IReadOnlyList<IOperation> GetInitializationOperations()
+        public IReadOnlyList<T> GetInitializationOperations()
         {
-            List<IOperation> initOps = new List<IOperation>();
+            List<T> initOps = new List<T>();
 
             foreach (var element in _observables.Keys)
             {
-                var subscription = element.Subscribe(new Observer(x => initOps.Add(x)));
+                var subscription = element.Subscribe(new Observer<T>(x => initOps.Add(x)));
                 subscription.Dispose();
             }
 
             return initOps;
         }
 
-        private void HandleElementAdded(uint _, IObservable observable)
+        private void HandleElementAdded(uint _, IObservable<T> observable)
         {
             _observables.Add(
                 observable,
-                observable.Subscribe(new Observer(
+                observable.Subscribe(new Observer<T>(
                     onNext: HandleElementChanged,
                     onError: _operand.OnError,
                     onDispose: () => HandleElementRemoved(0, observable)
@@ -51,7 +51,7 @@ namespace ObserveThing
             );
         }
 
-        private void HandleElementRemoved(uint _, IObservable observable)
+        private void HandleElementRemoved(uint _, IObservable<T> observable)
         {
             if (!_observables.TryGetValue(observable, out var subscription))
                 return;
@@ -63,7 +63,7 @@ namespace ObserveThing
                 Dispose();
         }
 
-        protected void HandleElementChanged(IOperation operation)
+        protected void HandleElementChanged(T operation)
         {
             _operand.EnqueuePendingOperation(operation);
         }

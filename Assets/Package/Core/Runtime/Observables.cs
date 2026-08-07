@@ -5,20 +5,50 @@ namespace ObserveThing
 {
     public static class Observables
     {
-        public static IBatchObservable ObservableBatch(this IObservable source)
-            => new BatchOperator(source.context, operand => new BatchObservable(source, operand));
+        public static IObservable<ValueOp<T>> ObservableOperationStream<T>(this IValueObservable<T> source)
+            => new ObservableOperator<ValueOp<T>>(source.context, operand => new ValueOperationStreamObservable<T>(source, operand));
 
-        public static IObservable ObservableCombine(this ISetObservable<IObservable> source, bool disposeOnSourceEmpty = true)
-            => new OperationObservableOperator(source.context, operand => new CombineObservable(source, operand, disposeOnSourceEmpty));
+        public static IObservable<CollectionOp<T>> ObservableOperationStream<T>(this ICollectionObservable<T> source)
+            => new ObservableOperator<CollectionOp<T>>(source.context, operand => new CollectionOperationStreamObservable<T>(source, operand));
 
-        public static IObservable ObservableCombine(params IObservable[] observables)
-            => new ObservableSet<IObservable>(observables).ObservableCombine(disposeOnSourceEmpty: true);
+        public static IObservable<ListOp<T>> ObservableOperationStream<T>(this IListObservable<T> source)
+            => new ObservableOperator<ListOp<T>>(source.context, operand => new ListOperationStreamObservable<T>(source, operand));
 
-        public static IObservable ObservableCombine(bool disposeOnSourceEmpty, params IObservable[] observables)
-            => new ObservableSet<IObservable>(observables).ObservableCombine(disposeOnSourceEmpty: disposeOnSourceEmpty);
+        public static IObservable<DictionaryOp<TKey, TValue>> ObservableOperationStream<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source)
+            => new ObservableOperator<DictionaryOp<TKey, TValue>>(source.context, operand => new DictionaryOperationStreamObservable<TKey, TValue>(source, operand));
 
-        public static IObservable ObservableCombine(IEnumerable<IObservable> observables, bool disposeOnSourceEmpty = true)
-            => new ObservableSet<IObservable>(observables).ObservableCombine(disposeOnSourceEmpty);
+        public static IObservable<SetOp<T>> ObservableOperationStream<T>(this ISetObservable<T> source)
+            => new ObservableOperator<SetOp<T>>(source.context, operand => new SetOperationStreamObservable<T>(source, operand));
+
+        public static IBatchObservable<ValueOp<T>> ObservableBatch<T>(this IValueObservable<T> source)
+            => source.ObservableOperationStream().ObservableBatch();
+
+        public static IBatchObservable<CollectionOp<T>> ObservableBatch<T>(this ICollectionObservable<T> source)
+            => source.ObservableOperationStream().ObservableBatch();
+
+        public static IBatchObservable<ListOp<T>> ObservableBatch<T>(this IListObservable<T> source)
+            => source.ObservableOperationStream().ObservableBatch();
+
+        public static IBatchObservable<DictionaryOp<TKey, TValue>> ObservableBatch<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source)
+            => source.ObservableOperationStream().ObservableBatch();
+
+        public static IBatchObservable<SetOp<T>> ObservableBatch<T>(this ISetObservable<T> source)
+            => source.ObservableOperationStream().ObservableBatch();
+
+        public static IBatchObservable<T> ObservableBatch<T>(this IObservable<T> source) where T : IOperation
+            => new BatchOperator<T>(source.context, operand => new BatchObservable<T>(source, operand));
+
+        public static IObservable<IOperation> ObservableCombine(this ISetObservable<IObservable<IOperation>> source, bool disposeOnSourceEmpty = true)
+            => new ObservableOperator<IOperation>(source.context, operand => new CombineObservable<IOperation>(source, operand, disposeOnSourceEmpty));
+
+        public static IObservable<IOperation> ObservableCombine(params IObservable<IOperation>[] observables)
+            => new ObservableSet<IObservable<IOperation>>(observables).ObservableCombine(disposeOnSourceEmpty: true);
+
+        public static IObservable<IOperation> ObservableCombine(bool disposeOnSourceEmpty, params IObservable<IOperation>[] observables)
+            => new ObservableSet<IObservable<IOperation>>(observables).ObservableCombine(disposeOnSourceEmpty: disposeOnSourceEmpty);
+
+        public static IObservable<IOperation> ObservableCombine(IEnumerable<IObservable<IOperation>> observables, bool disposeOnSourceEmpty = true)
+            => new ObservableSet<IObservable<IOperation>>(observables).ObservableCombine(disposeOnSourceEmpty);
 
         // public static IObservable<T> ObservableOnEach<T>(this IObservable<T> source, IObserver<T> thenObserver) where T : Operation
         //     => new ObservableOperator<T>(source.context, operand => new OnEachObservable<T>(source, thenObserver, operand));
@@ -216,14 +246,14 @@ namespace ObserveThing
             return result;
         }
 
-        public static IDisposable Subscribe(this IObservable source, Action<IOperation> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default)
-            => source.Subscribe(new Observer(onNext, onDispose, onError), immediate, priority);
+        public static IDisposable Subscribe<T>(this IObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default) where T : IOperation
+            => source.Subscribe(new Observer<T>(onNext, onDispose, onError), immediate, priority);
 
         public static IDisposable Subscribe<T>(this IValueObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default)
             => source.Subscribe(new ValueObserver<T>(onNext, onDispose, onError), immediate, priority);
 
-        public static IDisposable Subscribe(this IBatchObservable source, Action<IReadOnlyList<IOperation>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default)
-            => source.Subscribe(new BatchObserver(onNext, onDispose, onError), immediate, priority);
+        public static IDisposable Subscribe<T>(this IBatchObservable<T> source, Action<IReadOnlyList<T>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default) where T : IOperation
+            => source.Subscribe(new BatchObserver<T>(onNext, onDispose, onError), immediate, priority);
 
         public static IDisposable Subscribe<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<KeyValuePair<TKey, TValue>> onAdd = default, Action<KeyValuePair<TKey, TValue>> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default)
             => source.Subscribe(new DictionaryObserver<TKey, TValue>(

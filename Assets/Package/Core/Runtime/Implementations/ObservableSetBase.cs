@@ -13,7 +13,7 @@ namespace ObserveThing
 
     public struct SetOp<T> : ISetOp
     {
-        public IObservable source { get; set; }
+        public IObservable<IOperation> source { get; set; }
         public uint elementId { get; set; }
         public T element { get; set; }
         public bool isRemove { get; set; }

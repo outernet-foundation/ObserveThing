@@ -15,25 +15,25 @@ namespace ObserveThing
         void OnDispose();
     }
 
-    public interface IObserver : IObserverBase
+    public interface IObserver<in T> : IObserverBase where T : IOperation
     {
-        void OnNext(IOperation operation);
+        void OnNext(T operation);
     }
 
-    public class Observer : IObserver
+    public class Observer<T> : IObserver<T> where T : IOperation
     {
-        private Action<IOperation> _onNext;
+        private Action<T> _onNext;
         private Action _onDispose;
         private Action<Exception> _onError;
 
-        public Observer(Action<IOperation> onNext = default, Action onDispose = default, Action<Exception> onError = default)
+        public Observer(Action<T> onNext = default, Action onDispose = default, Action<Exception> onError = default)
         {
             _onNext = onNext;
             _onDispose = onDispose;
             _onError = onError;
         }
 
-        public void OnNext(IOperation operation)
+        public void OnNext(T operation)
         {
             try
             {
@@ -340,25 +340,25 @@ namespace ObserveThing
         public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
     }
 
-    public interface IBatchObserver : IObserverBase
+    public interface IBatchObserver<in T> : IObserverBase where T : IOperation
     {
-        void OnNext(IReadOnlyList<IOperation> operations);
+        void OnNext(IReadOnlyList<T> operations);
     }
 
-    public class BatchObserver : IBatchObserver
+    public class BatchObserver<T> : IBatchObserver<T> where T : IOperation
     {
-        private Action<IReadOnlyList<IOperation>> _onNext;
+        private Action<IReadOnlyList<T>> _onNext;
         private Action _onDispose;
         private Action<Exception> _onError;
 
-        public BatchObserver(Action<IReadOnlyList<IOperation>> onNext = default, Action onDispose = default, Action<Exception> onError = default)
+        public BatchObserver(Action<IReadOnlyList<T>> onNext = default, Action onDispose = default, Action<Exception> onError = default)
         {
             _onNext = onNext;
             _onDispose = onDispose;
             _onError = onError;
         }
 
-        public void OnNext(IReadOnlyList<IOperation> args)
+        public void OnNext(IReadOnlyList<T> args)
         {
             try
             {
