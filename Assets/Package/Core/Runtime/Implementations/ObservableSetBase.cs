@@ -102,9 +102,6 @@ namespace ObserveThing
             }
         }
 
-        public IDisposable Subscribe(ISetObserver<T> observer, bool immediate = false, uint? priority = null)
-            => AddObserver(observer, immediate, priority);
-
         IDisposable ISetObservable.Subscribe(ISetObserver observer, bool immediate, uint? priority)
             => Subscribe(new SetObserver<T>(
                 onAdd: (id, element) => observer.OnAdd(id, element),

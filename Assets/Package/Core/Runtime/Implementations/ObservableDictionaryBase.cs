@@ -140,9 +140,6 @@ namespace ObserveThing
             }
         }
 
-        public IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer, bool immediate = false, uint? priority = null)
-            => AddObserver(observer, immediate, priority);
-
         IDisposable IDictionaryObservable.Subscribe(IDictionaryObserver observer, bool immediate, uint? priority)
             => Subscribe(new DictionaryObserver<TKey, TValue>(
                 onAdd: (id, kvp) => observer.OnAdd(id, new KeyValuePair<object, object>(kvp.Key, kvp.Value)),

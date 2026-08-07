@@ -119,9 +119,6 @@ namespace ObserveThing
             }
         }
 
-        public IDisposable Subscribe(IListObserver<T> observer, bool immediate = false, uint? priority = null)
-            => AddObserver(observer, immediate, priority);
-
         IDisposable IListObservable.Subscribe(IListObserver observer, bool immediate, uint? priority)
             => Subscribe(new ListObserver<T>(
                 onAdd: (id, index, element) => observer.OnAdd(id, index, element),

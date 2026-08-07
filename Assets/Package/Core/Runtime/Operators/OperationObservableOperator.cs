@@ -55,8 +55,5 @@ namespace ObserveThing
 
         protected override void SendOperation(IObserver<T> observer, T operation)
             => observer.OnNext(operation);
-
-        public IDisposable Subscribe(IObserver<T> observer, bool immediate = false, uint? priority = null)
-            => AddObserver(observer, immediate, priority);
     }
 }

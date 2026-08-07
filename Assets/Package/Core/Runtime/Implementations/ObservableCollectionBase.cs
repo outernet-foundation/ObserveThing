@@ -82,9 +82,6 @@ namespace ObserveThing
         public bool Contains(T element)
             => _collection.ContainsValue(element);
 
-        public IDisposable Subscribe(ICollectionObserver<T> observer, bool immediate = false, uint? priority = null)
-            => AddObserver(observer, immediate, priority);
-
         IDisposable ICollectionObservable.Subscribe(ICollectionObserver observer, bool immediate, uint? priority)
             => Subscribe(new CollectionObserver<T>(
                 onAdd: (id, element) => observer.OnAdd(id, element),

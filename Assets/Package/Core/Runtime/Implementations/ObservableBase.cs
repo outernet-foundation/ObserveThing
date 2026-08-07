@@ -154,10 +154,10 @@ namespace ObserveThing
 
         protected abstract void SendOperation(TObserver observer, TOperation operation);
 
-        // public virtual IDisposable Subscribe(IObserver<TOperation> observer, bool immediate, uint? priority)
-        //     => AddObserverInternal(observer, immediate, priority, op => observer.OnNext(op));
+        public virtual IDisposable Subscribe(TObserver observer, bool immediate = default, uint? priority = default)
+            => AddObserverInternal(observer, immediate, priority, op => SendOperation(observer, op));
 
-        public virtual IDisposable Subscribe(IObserver<IOperation> observer, bool immediate, uint? priority)
+        public virtual IDisposable Subscribe(IObserver<IOperation> observer, bool immediate = default, uint? priority = default)
             => AddObserverInternal(observer, immediate, priority, op => observer.OnNext(op));
 
         public void Dispose()

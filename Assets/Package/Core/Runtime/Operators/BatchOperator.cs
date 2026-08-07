@@ -65,8 +65,5 @@ namespace ObserveThing
 
         protected override void SendOperation(IBatchObserver<T> observer, BatchOp<T> operation)
             => observer.OnNext(operation.operations);
-
-        public IDisposable Subscribe(IBatchObserver<T> observer, bool immediate = false, uint? priority = null)
-            => AddObserver(observer, immediate, priority);
     }
 }
