@@ -38,17 +38,17 @@ namespace ObserveThing
         public static IBatchObservable<T> ObservableBatch<T>(this IObservable<T> source) where T : IOperation
             => new BatchOperator<T>(source.context, operand => new BatchObservable<T>(source, operand));
 
-        public static IObservable<IOperation> ObservableCombine(this ISetObservable<IObservable<IOperation>> source, bool disposeOnSourceEmpty = true)
-            => new ObservableOperator<IOperation>(source.context, operand => new CombineObservable<IOperation>(source, operand, disposeOnSourceEmpty));
+        public static IObservable<T> ObservableCombine<T>(this ISetObservable<IObservable<T>> source, bool disposeOnSourceEmpty = true) where T : IOperation
+            => new ObservableOperator<T>(source.context, operand => new CombineObservable<T>(source, operand, disposeOnSourceEmpty));
 
-        public static IObservable<IOperation> ObservableCombine(params IObservable<IOperation>[] observables)
-            => new ObservableSet<IObservable<IOperation>>(observables).ObservableCombine(disposeOnSourceEmpty: true);
+        public static IObservable<T> ObservableCombine<T>(params IObservable<T>[] observables) where T : IOperation
+            => new ObservableSet<IObservable<T>>(observables).ObservableCombine(disposeOnSourceEmpty: true);
 
-        public static IObservable<IOperation> ObservableCombine(bool disposeOnSourceEmpty, params IObservable<IOperation>[] observables)
-            => new ObservableSet<IObservable<IOperation>>(observables).ObservableCombine(disposeOnSourceEmpty: disposeOnSourceEmpty);
+        public static IObservable<T> ObservableCombine<T>(bool disposeOnSourceEmpty, params IObservable<T>[] observables) where T : IOperation
+            => new ObservableSet<IObservable<T>>(observables).ObservableCombine(disposeOnSourceEmpty: disposeOnSourceEmpty);
 
-        public static IObservable<IOperation> ObservableCombine(IEnumerable<IObservable<IOperation>> observables, bool disposeOnSourceEmpty = true)
-            => new ObservableSet<IObservable<IOperation>>(observables).ObservableCombine(disposeOnSourceEmpty);
+        public static IObservable<T> ObservableCombine<T>(IEnumerable<IObservable<T>> observables, bool disposeOnSourceEmpty = true) where T : IOperation
+            => new ObservableSet<IObservable<T>>(observables).ObservableCombine(disposeOnSourceEmpty);
 
         // public static IObservable<T> ObservableOnEach<T>(this IObservable<T> source, IObserver<T> thenObserver) where T : Operation
         //     => new ObservableOperator<T>(source.context, operand => new OnEachObservable<T>(source, thenObserver, operand));
