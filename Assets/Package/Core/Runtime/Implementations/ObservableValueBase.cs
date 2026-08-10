@@ -42,5 +42,12 @@ namespace ObserveThing
 
         protected override void SendOperation(IValueObserver<T> observer, ValueOp<T> operation)
             => observer.OnNext(operation.value);
+
+        public IDisposable Subscribe(IValueObserver observer, bool immediate = false, uint? priority = null)
+            => Subscribe(new ValueObserver<T>(
+                onNext: x => observer.OnNext(x),
+                onDispose: observer.OnDispose,
+                onError: observer.OnError
+            ), immediate, priority);
     }
 }

@@ -49,6 +49,33 @@ namespace ObserveThing
         public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
     }
 
+    public interface IValueObserver : IObserverBase
+    {
+        void OnNext(object value);
+    }
+
+    public class ValueObserver : IValueObserver
+    {
+        private Action<object> _onNext;
+        private Action _onDispose;
+        private Action<Exception> _onError;
+
+        public ValueObserver(Action<object> onNext = default, Action onDispose = default, Action<Exception> onError = default)
+        {
+            _onNext = onNext;
+            _onDispose = onDispose;
+            _onError = onError;
+        }
+
+        public void OnNext(object value)
+            => _onNext?.Invoke(value);
+
+        public void OnDispose()
+            => _onDispose?.Invoke();
+
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
     public interface IValueObserver<in T> : IObserverBase
     {
         void OnNext(T value);

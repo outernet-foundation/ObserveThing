@@ -9,7 +9,12 @@ namespace ObserveThing
         IDisposable Subscribe(IObserver<T> observer, bool immediate = default, uint? priority = default);
     }
 
-    public interface IValueObservable<out T> : IObservable<IOperation>
+    public interface IValueObservable : IObservable<IOperation>
+    {
+        IDisposable Subscribe(IValueObserver observer, bool immediate = default, uint? priority = default);
+    }
+
+    public interface IValueObservable<out T> : IValueObservable
     {
         IDisposable Subscribe(IValueObserver<T> observer, bool immediate = default, uint? priority = default);
     }
