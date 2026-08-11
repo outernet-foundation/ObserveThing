@@ -11,6 +11,7 @@ namespace ObserveThing
         private uint _elementPriority;
         private Dictionary<IObservable<T>, IDisposable> _observables = new Dictionary<IObservable<T>, IDisposable>();
         private IDisposable _subscriptions;
+        private bool _disposed;
 
         public CombineObservable(ISetObservable<IObservable<T>> source, IObservableOperand<T> operand, bool disposeOnSourceEmpty = false)
         {
@@ -46,7 +47,13 @@ namespace ObserveThing
                 observable.Subscribe(new Observer<T>(
                     onNext: HandleElementChanged,
                     onError: _operand.OnError,
-                    onDispose: () => HandleElementRemoved(0, observable)
+                    onDispose: () =>
+                    {
+                        if (_disposed)
+                            return;
+                            
+                        HandleElementRemoved(0, observable);
+                    }
                 ), immediate: true, priority: _elementPriority)
             );
         }
@@ -70,6 +77,11 @@ namespace ObserveThing
 
         public void Dispose()
         {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+
             _source.context.DeallocateObserverPriority(_elementPriority);
 
             foreach (var subscription in _observables.Values)
