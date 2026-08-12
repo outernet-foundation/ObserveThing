@@ -42,13 +42,10 @@ namespace ObserveThing
             => new ObservableOperator<T>(source.context, operand => new CombineObservable<T>(source, operand, disposeOnSourceEmpty));
 
         public static IObservable<T> ObservableCombine<T>(params IObservable<T>[] observables) where T : IOperation
-            => new ObservableSet<IObservable<T>>(observables).ObservableCombine(disposeOnSourceEmpty: true);
+            => new ObservableSet<IObservable<T>>(observables[0].context, observables).ObservableCombine(disposeOnSourceEmpty: true);
 
         public static IObservable<T> ObservableCombine<T>(bool disposeOnSourceEmpty, params IObservable<T>[] observables) where T : IOperation
-            => new ObservableSet<IObservable<T>>(observables).ObservableCombine(disposeOnSourceEmpty: disposeOnSourceEmpty);
-
-        public static IObservable<T> ObservableCombine<T>(IEnumerable<IObservable<T>> observables, bool disposeOnSourceEmpty = true) where T : IOperation
-            => new ObservableSet<IObservable<T>>(observables).ObservableCombine(disposeOnSourceEmpty);
+            => new ObservableSet<IObservable<T>>(observables[0].context, observables).ObservableCombine(disposeOnSourceEmpty: disposeOnSourceEmpty);
 
         // public static IObservable<T> ObservableOnEach<T>(this IObservable<T> source, IObserver<T> thenObserver) where T : Operation
         //     => new ObservableOperator<T>(source.context, operand => new OnEachObservable<T>(source, thenObserver, operand));
@@ -138,31 +135,31 @@ namespace ObserveThing
             => new SetOperator<T>(source.context, operand => new DistinctObservable<T>(source, operand));
 
         public static ICollectionObservable<T> ObservableWhere<T>(this ICollectionObservable<T> source, Func<T, bool> where)
-            => source.ObservableWhere(x => new ObservableValue<bool>(where(x)));
+            => source.ObservableWhere(x => new ObservableValue<bool>(source.context, where(x)));
 
         public static ICollectionObservable<T> ObservableWhere<T>(this ICollectionObservable<T> source, Func<T, IValueObservable<bool>> where)
             => new CollectionOperator<T>(source.context, operand => new WhereObservable<T>(source, where, operand));
 
         public static ICollectionObservable<T> ObservableConcat<T>(this ICollectionObservable<T> source1, IEnumerable<T> source2)
-            => source1.ObservableConcat((ICollectionObservable<T>)new ObservableReadOnlyCollection<T>(source2));
+            => source1.ObservableConcat((ICollectionObservable<T>)new ObservableReadOnlyCollection<T>(source1.context, source2));
 
         public static ICollectionObservable<T> ObservableConcat<T>(this ICollectionObservable<T> source1, ICollectionObservable<T> source2)
             => new CollectionOperator<T>(source1.context, operand => new ConcatObservable<T>(source1, source2, operand));
 
         public static ICollectionObservable<U> ObservableSelectMany<T, U>(this ICollectionObservable<T> source, Func<T, IEnumerable<U>> selectMany)
-            => source.ObservableSelectMany(x => (ICollectionObservable<U>)new ObservableReadOnlyCollection<U>(selectMany(x)));
+            => source.ObservableSelectMany(x => (ICollectionObservable<U>)new ObservableReadOnlyCollection<U>(source.context, selectMany(x)));
 
         public static ICollectionObservable<U> ObservableSelectMany<T, U>(this ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> selectMany)
             => new CollectionOperator<U>(source.context, operand => new SelectManyObservable<T, U>(source, selectMany, operand));
 
         public static IListObservable<T> ObservableOrderBy<T, U>(this ICollectionObservable<T> source, Func<T, U> orderBy)
-            => source.ObservableOrderBy<T, U>(x => new ObservableValue<U>(orderBy(x)));
+            => source.ObservableOrderBy<T, U>(x => new ObservableValue<U>(source.context, orderBy(x)));
 
         public static IListObservable<T> ObservableOrderBy<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> orderBy)
             => new ListOperator<T>(source.context, operand => new OrderByObservable<T, U>(source, orderBy, false, operand));
 
         public static IListObservable<T> ObservableOrderByDescending<T, U>(this ICollectionObservable<T> source, Func<T, U> orderBy)
-            => source.ObservableOrderByDescending<T, U>(x => new ObservableValue<U>(orderBy(x)));
+            => source.ObservableOrderByDescending<T, U>(x => new ObservableValue<U>(source.context, orderBy(x)));
 
         public static IListObservable<T> ObservableOrderByDescending<T, U>(this ICollectionObservable<T> source, Func<T, IValueObservable<U>> orderBy)
             => new ListOperator<T>(source.context, operand => new OrderByObservable<T, U>(source, orderBy, true, operand));
@@ -171,25 +168,25 @@ namespace ObserveThing
             => new ValueOperator<int>(source.context, operand => new CountObservable<T>(source, operand));
 
         public static IValueObservable<bool> ObservableContains<T>(this ICollectionObservable<T> source, T contains)
-            => source.ObservableContains(new ObservableValue<T>(contains));
+            => source.ObservableContains(new ObservableValue<T>(source.context, contains));
 
         public static IValueObservable<bool> ObservableContains<T>(this ICollectionObservable<T> source, IValueObservable<T> contains)
             => new ValueOperator<bool>(source.context, operand => new ContainsObservable<T>(source, contains, operand));
 
         public static IValueObservable<T> ObservableFirstOrDefault<T>(this ICollectionObservable<T> source, Func<T, bool> validate)
-            => source.ObservableFirstOrDefault(x => new ObservableValue<bool>(validate(x)));
+            => source.ObservableFirstOrDefault(x => new ObservableValue<bool>(source.context, validate(x)));
 
         public static IValueObservable<T> ObservableFirstOrDefault<T>(this ICollectionObservable<T> source, Func<T, IValueObservable<bool>> validate)
             => source.ObservableFirst(validate).ObservableSelect(x => x.found ? x.value : default);
 
         public static IValueObservable<(bool found, T value)> ObservableFirst<T>(this ICollectionObservable<T> source, Func<T, bool> validate)
-            => source.ObservableFirst(x => new ObservableValue<bool>(validate(x)));
+            => source.ObservableFirst(x => new ObservableValue<bool>(source.context, validate(x)));
 
         public static IValueObservable<(bool found, T value)> ObservableFirst<T>(this ICollectionObservable<T> source, Func<T, IValueObservable<bool>> validate)
             => new ValueOperator<(bool found, T value)>(source.context, operand => new FirstObservable<T>(source, validate, operand));
 
         public static IValueObservable<(bool keyPresent, TValue value)> ObservableTrack<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, TKey key)
-            => source.ObservableTrack(new ObservableValue<TKey>(key));
+            => source.ObservableTrack(new ObservableValue<TKey>(source.context, key));
 
         public static IValueObservable<(bool keyPresent, TValue value)> ObservableTrack<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, IValueObservable<TKey> key)
             => new ValueOperator<(bool keyPresent, TValue value)>(source.context, operand => new TrackObservable<TKey, TValue>(source, key, operand));
@@ -207,7 +204,7 @@ namespace ObserveThing
             => source.ObservableSelect<T, IValueObservable<U>>(select).ObservableUnwrap();
 
         public static IValueObservable<(bool found, int index)> ObservableIndexOf<T>(this IListObservable<T> source, T value)
-            => source.ObservableIndexOf(new ObservableValue<T>(value));
+            => source.ObservableIndexOf(new ObservableValue<T>(source.context, value));
 
         public static IValueObservable<(bool found, int index)> ObservableIndexOf<T>(this IListObservable<T> source, IValueObservable<T> value)
             => new ValueOperator<(bool found, int index)>(source.context, operand => new IndexOfObservable<T>(source, value, operand));
