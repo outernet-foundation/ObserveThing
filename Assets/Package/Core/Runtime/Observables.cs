@@ -47,11 +47,35 @@ namespace ObserveThing
         public static IObservable<T> ObservableCombine<T>(bool disposeOnSourceEmpty, params IObservable<T>[] observables) where T : IOperation
             => new ObservableSet<IObservable<T>>(observables[0].context, observables).ObservableCombine(disposeOnSourceEmpty: disposeOnSourceEmpty);
 
-        // public static IObservable<T> ObservableOnEach<T>(this IObservable<T> source, IObserver<T> thenObserver) where T : Operation
-        //     => new ObservableOperator<T>(source.context, operand => new OnEachObservable<T>(source, thenObserver, operand));
+        public static IValueObservable<T> ObservableThen<T>(this IValueObservable<T> source, IValueObserver<T> thenObserver)
+            => new ValueOperator<T>(source.context, operand => new ThenValueObservable<T>(source, thenObserver, operand));
 
-        // public static IObservable<T> ObservableOnEach<T>(this IObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default) where T : Operation
-        //     => source.ObservableOnEach(new Observer<T>(onNext, onError, onDispose));
+        public static IValueObservable<T> ObservableThen<T>(this IValueObservable<T> source, Action<T> onNext = default, Action onDispose = default, Action<Exception> onError = default)
+            => source.ObservableThen(new ValueObserver<T>(onNext, onDispose, onError));
+
+        public static ICollectionObservable<T> ObservableThen<T>(this ICollectionObservable<T> source, ICollectionObserver<T> thenObserver)
+            => new CollectionOperator<T>(source.context, operand => new ThenCollectionObservable<T>(source, thenObserver, operand));
+
+        public static ICollectionObservable<T> ObservableThen<T>(this ICollectionObservable<T> source, Action<T> onAdd = default, Action<T> onRemove = default, Action onDispose = default, Action<Exception> onError = default)
+            => source.ObservableThen(new CollectionObserver<T>((id, x) => onAdd?.Invoke(x), (id, x) => onRemove?.Invoke(x), onDispose, onError));
+
+        public static IListObservable<T> ObservableThen<T>(this IListObservable<T> source, IListObserver<T> thenObserver)
+            => new ListOperator<T>(source.context, operand => new ThenListObservable<T>(source, thenObserver, operand));
+
+        public static IListObservable<T> ObservableThen<T>(this IListObservable<T> source, Action<int, T> onAdd = default, Action<int, T> onRemove = default, Action onDispose = default, Action<Exception> onError = default)
+            => source.ObservableThen(new ListObserver<T>((id, index, x) => onAdd?.Invoke(index, x), (id, index, x) => onRemove?.Invoke(index, x), onDispose, onError));
+
+        public static ISetObservable<T> ObservableThen<T>(this ISetObservable<T> source, ISetObserver<T> thenObserver)
+            => new SetOperator<T>(source.context, operand => new ThenSetObservable<T>(source, thenObserver, operand));
+
+        public static ISetObservable<T> ObservableThen<T>(this ISetObservable<T> source, Action<T> onAdd = default, Action<T> onRemove = default, Action onDispose = default, Action<Exception> onError = default)
+            => source.ObservableThen(new SetObserver<T>((id, x) => onAdd?.Invoke(x), (id, x) => onRemove?.Invoke(x), onDispose, onError));
+
+        public static IDictionaryObservable<TKey, TValue> ObservableThen<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, IDictionaryObserver<TKey, TValue> thenObserver)
+            => new DictionaryOperator<TKey, TValue>(source.context, operand => new ThenDictionaryObservable<TKey, TValue>(source, thenObserver, operand));
+
+        public static IDictionaryObservable<TKey, TValue> ObservableThen<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<KeyValuePair<TKey, TValue>> onAdd = default, Action<KeyValuePair<TKey, TValue>> onRemove = default, Action onDispose = default, Action<Exception> onError = default)
+            => source.ObservableThen(new DictionaryObserver<TKey, TValue>((id, x) => onAdd?.Invoke(x), (id, x) => onRemove?.Invoke(x), onDispose, onError));
 
         public static IValueObservable<(T1, T2)> ObservableCombineValues<T1, T2>(IValueObservable<T1> source1, IValueObservable<T2> source2)
             => new ValueOperator<(T1, T2)>(source1.context, operand => new CombineValueObservable<T1, T2>(source1, source2, operand));
