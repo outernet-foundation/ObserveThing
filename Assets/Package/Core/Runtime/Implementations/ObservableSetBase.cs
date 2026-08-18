@@ -77,7 +77,7 @@ namespace ObserveThing
             foreach (var kvp in _set.ToArray())
             {
                 _set.Remove(kvp.Key);
-                EnqueuePendingOperation(new SetOp<T>() { source = this, elementId = kvp.Value, element = kvp.Key, isRemove = false });
+                EnqueuePendingOperation(new SetOp<T>() { source = this, elementId = kvp.Value, element = kvp.Key, isRemove = true });
             }
         }
 
