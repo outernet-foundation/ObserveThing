@@ -178,11 +178,11 @@ namespace ObserveThing.Tests
         {
             var result = 0;
             var nestedSource = new ObservableValue<int>(10);
-            var source = new ObservableValue<IObservable<IOperation<int>>>(nestedSource);
+            var source = new ObservableValue<IValueObservable<int>>(nestedSource);
             bool disposed = false;
             bool receivedCall = false;
             var d = source.ObservableSelect(x => x.AsObservable());
-            var subscription = source.ObservableShallowCopy().Subscribe(
+            var subscription = source.ObservableUnwrap().Subscribe(
                 onNext: x =>
                 {
                     result = x;

@@ -3,10 +3,8 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ObservableOperator<T> : Observable<T>, IObservableOperand<T> where T : IOperation
+    public class ObservableOperator<T> : ObservableBase<IObserver<T>, T>, IObservableOperand<T>, IObservable<T> where T : IOperation
     {
-        IObservable<T> IObservableOperand<T>.operationSource => this;
-
         private Func<IObservableOperand<T>, IInitializationOperationsProvider<T>> _generateOperator;
         private IInitializationOperationsProvider<T> _operator;
         private bool _active = false;
@@ -35,9 +33,6 @@ namespace ObserveThing
             _operator = null;
         }
 
-        public override IReadOnlyList<T> GetInitializationOperations()
-            => _operator.GetInitializationOperations();
-
         void IObservableOperand<T>.EnqueuePendingOperation(T operation)
             => EnqueuePendingOperation(operation);
 
@@ -51,5 +46,14 @@ namespace ObserveThing
 
             Dispose();
         }
+
+        protected override IEnumerable<T> GetInitializationOperations()
+        {
+            foreach (var op in _operator.GetInitializationOperations())
+                yield return op;
+        }
+
+        protected override void SendOperation(IObserver<T> observer, T operation)
+            => observer.OnNext(operation);
     }
 }

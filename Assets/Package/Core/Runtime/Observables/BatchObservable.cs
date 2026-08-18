@@ -1,56 +1,23 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace ObserveThing
 {
-    public interface IBatchOperation<T> : IOperation<IReadOnlyList<T>> { }
-
-    public class BatchObservable<T> : IInitializationOperationsProvider<IBatchOperation<T>>, IPendingObserver where T : IOperation
+    public class BatchObservable<T> : IInitializationOperationsProvider<T>, IPendingObserver where T : IOperation
     {
-        private class BatchOperation : IBatchOperation<T>
-        {
-            public IObservable<IOperation> source { get; set; }
-            public IReadOnlyList<T> value { get; set; }
-
-            private OperationPool<BatchOperation> _pool;
-
-            public BatchOperation(OperationPool<BatchOperation> pool)
-            {
-                _pool = pool;
-            }
-
-            public IOperation Duplicate()
-            {
-                var duplicate = _pool.Allocate();
-                duplicate.source = source;
-                duplicate.value = value;
-                return duplicate;
-            }
-
-            public void Dispose()
-            {
-                source = default;
-                value = default;
-                _pool.Deallocate(this);
-            }
-        }
-
         public bool immediate { get; } = false;
         public uint priority { get; private set; }
         public bool disposed { get; private set; }
 
         private IObservable<T> _source;
-        private IObservableOperand<IBatchOperation<T>> _operand;
+        private IBatchOperand<T> _operand;
         private IDisposable _subscriptions;
         private bool _pending;
 
         private List<T> _batchedOperations = new List<T>();
-        private OperationPool<BatchOperation> _operationPool;
 
-        public BatchObservable(IObservable<T> source, IObservableOperand<IBatchOperation<T>> operand)
+        public BatchObservable(IObservable<T> source, IBatchOperand<T> operand)
         {
-            _operationPool = new OperationPool<BatchOperation>(pool => new BatchOperation(pool));
             priority = source.context.AllocateObserverPriority();
 
             _source = source;
@@ -59,24 +26,13 @@ namespace ObserveThing
             _subscriptions = source.Subscribe(new Observer<T>(
                 onNext: HandleSourceOperation,
                 onError: operand.OnError,
-                onDispose: Dispose,
-                immediate: true
-            ));
-        }
-
-        private BatchOperation AllocateOperation(IReadOnlyList<T> value)
-        {
-            var operation = _operationPool.Allocate();
-
-            operation.source = (IObservable<IOperation>)_source;
-            operation.value = value;
-
-            return operation;
+                onDispose: Dispose
+            ), immediate: true);
         }
 
         private void HandleSourceOperation(T operation)
         {
-            _batchedOperations.Add((T)operation.Duplicate());
+            _batchedOperations.Add(operation);
 
             if (_pending)
                 return;
@@ -86,8 +42,13 @@ namespace ObserveThing
             _source.context.NotifyPendingObserversIfNecessary();
         }
 
-        public IReadOnlyList<IBatchOperation<T>> GetInitializationOperations()
-            => new IBatchOperation<T>[] { AllocateOperation(_source.GetInitializationOperations().Select(x => (T)x.Duplicate()).ToArray()) };
+        public IReadOnlyList<T> GetInitializationOperations()
+        {
+            List<T> initOps = new List<T>();
+            var subscription = _source.Subscribe(new Observer<T>(x => initOps.Add(x)));
+            subscription.Dispose();
+            return initOps;
+        }
 
         public void SendNext()
         {
@@ -96,7 +57,7 @@ namespace ObserveThing
             var batch = _batchedOperations.ToArray();
             _batchedOperations.Clear();
 
-            _operand.EnqueuePendingOperation(AllocateOperation(batch));
+            _operand.EnqueuePendingOperation(batch);
         }
 
         public void Dispose()

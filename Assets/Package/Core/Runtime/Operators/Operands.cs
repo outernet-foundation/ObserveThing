@@ -46,11 +46,15 @@ namespace ObserveThing
 
     public interface IObservableOperand<T> : IOperand where T : IOperation
     {
-        IObservable<T> operationSource { get; }
         void EnqueuePendingOperation(T operation);
     }
 
-    public interface IInitializationOperationsProvider<T> : IDisposable
+    public interface IBatchOperand<T> : IOperand where T : IOperation
+    {
+        void EnqueuePendingOperation(IReadOnlyList<T> operation);
+    }
+
+    public interface IInitializationOperationsProvider<T> : IDisposable where T : IOperation
     {
         IReadOnlyList<T> GetInitializationOperations();
     }

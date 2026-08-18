@@ -9,39 +9,383 @@ namespace ObserveThing
         public static ObservationContext DefaultObservationContext = new ObservationContext();
     }
 
-    public enum OpType
+    public interface IObserverBase
     {
-        Add,
-        Remove
-    }
-
-    public interface IObserver<in T>
-    {
-        uint? overridePriority { get; }
-        bool immediate { get; }
-        void OnNext(T operation);
         void OnError(Exception exc);
         void OnDispose();
     }
 
-    public class Observer<T> : IObserver<T>
+    public interface IObserver<in T> : IObserverBase where T : IOperation
     {
-        public uint? overridePriority { get; }
-        public bool immediate { get; }
-        private Action<T> _onNext;
-        private Action<Exception> _onError;
-        private Action _onDispose;
+        void OnNext(T operation);
+    }
 
-        public Observer(Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, uint? overridePriority = default, bool immediate = false)
+    public class Observer<T> : IObserver<T> where T : IOperation
+    {
+        private Action<T> _onNext;
+        private Action _onDispose;
+        private Action<Exception> _onError;
+
+        public Observer(Action<T> onNext = default, Action onDispose = default, Action<Exception> onError = default)
         {
             _onNext = onNext;
-            _onError = onError;
             _onDispose = onDispose;
-            this.overridePriority = overridePriority;
-            this.immediate = immediate;
+            _onError = onError;
         }
 
-        public void OnNext(T args)
+        public void OnNext(T operation)
+        {
+            try
+            {
+                _onNext?.Invoke(operation);
+            }
+            catch (Exception exc)
+            {
+                OnError(exc);
+            }
+        }
+
+        public void OnDispose() => _onDispose?.Invoke();
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
+    public interface IValueObserver : IObserverBase
+    {
+        void OnNext(object value);
+    }
+
+    public class ValueObserver : IValueObserver
+    {
+        private Action<object> _onNext;
+        private Action _onDispose;
+        private Action<Exception> _onError;
+
+        public ValueObserver(Action<object> onNext = default, Action onDispose = default, Action<Exception> onError = default)
+        {
+            _onNext = onNext;
+            _onDispose = onDispose;
+            _onError = onError;
+        }
+
+        public void OnNext(object value)
+            => _onNext?.Invoke(value);
+
+        public void OnDispose()
+            => _onDispose?.Invoke();
+
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
+    public interface IValueObserver<in T> : IObserverBase
+    {
+        void OnNext(T value);
+    }
+
+    public class ValueObserver<T> : IValueObserver<T>
+    {
+        private Action<T> _onNext;
+        private Action _onDispose;
+        private Action<Exception> _onError;
+
+        public ValueObserver(Action<T> onNext = default, Action onDispose = default, Action<Exception> onError = default)
+        {
+            _onNext = onNext;
+            _onDispose = onDispose;
+            _onError = onError;
+        }
+
+        public void OnNext(T value)
+            => _onNext?.Invoke(value);
+
+        public void OnDispose()
+            => _onDispose?.Invoke();
+
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
+    public interface ICollectionObserver : IObserverBase
+    {
+        void OnAdd(uint elementId, object element);
+        void OnRemove(uint elementId, object element);
+    }
+
+    public class CollectionObserver : ICollectionObserver
+    {
+        private Action<uint, object> _onAdd;
+        private Action<uint, object> _onRemove;
+        private Action _onDispose;
+        private Action<Exception> _onError;
+
+        public CollectionObserver(Action<uint, object> onAdd = default, Action<uint, object> onRemove = default, Action onDispose = default, Action<Exception> onError = default)
+        {
+            _onAdd = onAdd;
+            _onRemove = onRemove;
+            _onDispose = onDispose;
+            _onError = onError;
+        }
+
+        public void OnAdd(uint elementId, object element)
+            => _onAdd?.Invoke(elementId, element);
+
+        public void OnRemove(uint elementId, object element)
+            => _onRemove?.Invoke(elementId, element);
+
+        public void OnDispose()
+            => _onDispose?.Invoke();
+
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
+    public interface ICollectionObserver<in T> : IObserverBase
+    {
+        void OnAdd(uint elementId, T element);
+        void OnRemove(uint elementId, T element);
+    }
+
+    public class CollectionObserver<T> : ICollectionObserver<T>
+    {
+        private Action<uint, T> _onAdd;
+        private Action<uint, T> _onRemove;
+        private Action _onDispose;
+        private Action<Exception> _onError;
+
+        public CollectionObserver(Action<uint, T> onAdd = default, Action<uint, T> onRemove = default, Action onDispose = default, Action<Exception> onError = default)
+        {
+            _onAdd = onAdd;
+            _onRemove = onRemove;
+            _onDispose = onDispose;
+            _onError = onError;
+        }
+
+        public void OnAdd(uint elementId, T element)
+            => _onAdd?.Invoke(elementId, element);
+
+        public void OnRemove(uint elementId, T element)
+            => _onRemove?.Invoke(elementId, element);
+
+        public void OnDispose()
+            => _onDispose?.Invoke();
+
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
+    public interface IListObserver : IObserverBase
+    {
+        void OnAdd(uint elementId, int index, object element);
+        void OnRemove(uint elementId, int index, object element);
+    }
+
+    public class ListObserver : IListObserver
+    {
+        private Action<uint, int, object> _onAdd;
+        private Action<uint, int, object> _onRemove;
+        private Action _onDispose;
+        private Action<Exception> _onError;
+
+        public ListObserver(Action<uint, int, object> onAdd = default, Action<uint, int, object> onRemove = default, Action onDispose = default, Action<Exception> onError = default)
+        {
+            _onAdd = onAdd;
+            _onRemove = onRemove;
+            _onDispose = onDispose;
+            _onError = onError;
+        }
+
+        public void OnAdd(uint elementId, int index, object element)
+            => _onAdd?.Invoke(elementId, index, element);
+
+        public void OnRemove(uint elementId, int index, object element)
+            => _onRemove?.Invoke(elementId, index, element);
+
+        public void OnDispose()
+            => _onDispose?.Invoke();
+
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
+    public interface IListObserver<in T> : IObserverBase
+    {
+        void OnAdd(uint elementId, int index, T element);
+        void OnRemove(uint elementId, int index, T element);
+    }
+
+    public class ListObserver<T> : IListObserver<T>
+    {
+        private Action<uint, int, T> _onAdd;
+        private Action<uint, int, T> _onRemove;
+        private Action _onDispose;
+        private Action<Exception> _onError;
+
+        public ListObserver(Action<uint, int, T> onAdd = default, Action<uint, int, T> onRemove = default, Action onDispose = default, Action<Exception> onError = default)
+        {
+            _onAdd = onAdd;
+            _onRemove = onRemove;
+            _onDispose = onDispose;
+            _onError = onError;
+        }
+
+        public void OnAdd(uint elementId, int index, T element)
+            => _onAdd?.Invoke(elementId, index, element);
+
+        public void OnRemove(uint elementId, int index, T element)
+            => _onRemove?.Invoke(elementId, index, element);
+
+        public void OnDispose()
+            => _onDispose?.Invoke();
+
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
+    public interface ISetObserver : IObserverBase
+    {
+        void OnAdd(uint elementId, object element);
+        void OnRemove(uint elementId, object element);
+    }
+
+    public class SetObserver : ISetObserver
+    {
+        private Action<uint, object> _onAdd;
+        private Action<uint, object> _onRemove;
+        private Action _onDispose;
+        private Action<Exception> _onError;
+
+        public SetObserver(Action<uint, object> onAdd = default, Action<uint, object> onRemove = default, Action onDispose = default, Action<Exception> onError = default)
+        {
+            _onAdd = onAdd;
+            _onRemove = onRemove;
+            _onDispose = onDispose;
+            _onError = onError;
+        }
+
+        public void OnAdd(uint elementId, object element)
+            => _onAdd?.Invoke(elementId, element);
+
+        public void OnRemove(uint elementId, object element)
+            => _onRemove?.Invoke(elementId, element);
+
+        public void OnDispose()
+            => _onDispose?.Invoke();
+
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
+    public interface ISetObserver<in T> : IObserverBase
+    {
+        void OnAdd(uint elementId, T element);
+        void OnRemove(uint elementId, T element);
+    }
+
+    public class SetObserver<T> : ISetObserver<T>
+    {
+        private Action<uint, T> _onAdd;
+        private Action<uint, T> _onRemove;
+        private Action _onDispose;
+        private Action<Exception> _onError;
+
+        public SetObserver(Action<uint, T> onAdd = default, Action<uint, T> onRemove = default, Action onDispose = default, Action<Exception> onError = default)
+        {
+            _onAdd = onAdd;
+            _onRemove = onRemove;
+            _onDispose = onDispose;
+            _onError = onError;
+        }
+
+        public void OnAdd(uint elementId, T element)
+            => _onAdd?.Invoke(elementId, element);
+
+        public void OnRemove(uint elementId, T element)
+            => _onRemove?.Invoke(elementId, element);
+
+        public void OnDispose()
+            => _onDispose?.Invoke();
+
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
+    public interface IDictionaryObserver : IObserverBase
+    {
+        void OnAdd(uint elementId, KeyValuePair<object, object> kvp);
+        void OnRemove(uint elementId, KeyValuePair<object, object> kvp);
+    }
+
+    public class DictionaryObserver : IDictionaryObserver
+    {
+        private Action<uint, KeyValuePair<object, object>> _onAdd;
+        private Action<uint, KeyValuePair<object, object>> _onRemove;
+        private Action _onDispose;
+        private Action<Exception> _onError;
+
+        public DictionaryObserver(Action<uint, KeyValuePair<object, object>> onAdd = default, Action<uint, KeyValuePair<object, object>> onRemove = default, Action onDispose = default, Action<Exception> onError = default)
+        {
+            _onAdd = onAdd;
+            _onRemove = onRemove;
+            _onDispose = onDispose;
+            _onError = onError;
+        }
+
+        public void OnAdd(uint elementId, KeyValuePair<object, object> kvp)
+            => _onAdd?.Invoke(elementId, kvp);
+
+        public void OnRemove(uint elementId, KeyValuePair<object, object> kvp)
+            => _onRemove?.Invoke(elementId, kvp);
+
+        public void OnDispose()
+            => _onDispose?.Invoke();
+
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
+    public interface IDictionaryObserver<TKey, TValue> : IObserverBase
+    {
+        void OnAdd(uint elementId, KeyValuePair<TKey, TValue> kvp);
+        void OnRemove(uint elementId, KeyValuePair<TKey, TValue> kvp);
+    }
+
+    public class DictionaryObserver<TKey, TValue> : IDictionaryObserver<TKey, TValue>
+    {
+        private Action<uint, KeyValuePair<TKey, TValue>> _onAdd;
+        private Action<uint, KeyValuePair<TKey, TValue>> _onRemove;
+        private Action _onDispose;
+        private Action<Exception> _onError;
+
+        public DictionaryObserver(Action<uint, KeyValuePair<TKey, TValue>> onAdd = default, Action<uint, KeyValuePair<TKey, TValue>> onRemove = default, Action onDispose = default, Action<Exception> onError = default)
+        {
+            _onAdd = onAdd;
+            _onRemove = onRemove;
+            _onDispose = onDispose;
+            _onError = onError;
+        }
+
+        public void OnAdd(uint elementId, KeyValuePair<TKey, TValue> element)
+            => _onAdd?.Invoke(elementId, element);
+
+        public void OnRemove(uint elementId, KeyValuePair<TKey, TValue> element)
+            => _onRemove?.Invoke(elementId, element);
+
+        public void OnDispose()
+            => _onDispose?.Invoke();
+
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
+    public interface IBatchObserver<in T> : IObserverBase where T : IOperation
+    {
+        void OnNext(IReadOnlyList<T> operations);
+    }
+
+    public class BatchObserver<T> : IBatchObserver<T> where T : IOperation
+    {
+        private Action<IReadOnlyList<T>> _onNext;
+        private Action _onDispose;
+        private Action<Exception> _onError;
+
+        public BatchObserver(Action<IReadOnlyList<T>> onNext = default, Action onDispose = default, Action<Exception> onError = default)
+        {
+            _onNext = onNext;
+            _onDispose = onDispose;
+            _onError = onError;
+        }
+
+        public void OnNext(IReadOnlyList<T> args)
         {
             try
             {

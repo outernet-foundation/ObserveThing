@@ -3,10 +3,10 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ShallowCopyCollectionObservable<T> : IDisposable
+    public class UnwrapListObservable<T> : IDisposable
     {
-        private ICollectionOperand<T> _operand;
-        private Dictionary<uint, EntryData> _dataById = new Dictionary<uint, EntryData>();
+        private IListOperand<T> _operand;
+        private List<EntryData> _data = new List<EntryData>();
         private IDisposable _subscriptions;
 
         private class EntryData
@@ -15,51 +15,54 @@ namespace ObserveThing
             public bool initialized;
         }
 
-        public ShallowCopyCollectionObservable(IObservable<ICollectionOperation<IObservable<IOperation<T>>>> source, ICollectionOperand<T> operand)
+        public UnwrapListObservable(IListObservable<IValueObservable<T>> source, IListOperand<T> operand)
         {
             _operand = operand;
-            _subscriptions = source.SubscribeWithId(
+            _subscriptions = source.Subscribe(
                 onAdd: HandleAdd,
                 onRemove: HandleRemove,
-                onError: operand.OnError,
+                onError: _operand.OnError,
                 onDispose: Dispose,
                 immediate: true
             );
         }
 
-        private void HandleAdd(uint id, IObservable<IOperation<T>> observable)
+        private void HandleAdd(int index, IValueObservable<T> element)
         {
             var data = new EntryData();
-            _dataById.Add(id, data);
-            data.subscription = observable.Subscribe(
+            _data.Insert(index, data);
+            data.subscription = element.Subscribe(
                 onNext: x =>
                 {
+                    var index = _data.IndexOf(data);
+
                     if (data.initialized)
-                        _operand.Remove(id);
+                        _operand.RemoveAt(index);
 
                     data.initialized = true;
-                    _operand.Add(id, x);
+                    _operand.Insert(index, x);
                 },
                 onError: _operand.OnError,
                 immediate: true
             );
         }
 
-        private void HandleRemove(uint id, IObservable<IOperation<T>> observable)
+        private void HandleRemove(int index, IValueObservable<T> element)
         {
-            var data = _dataById[id];
-            _dataById.Remove(id);
+            var data = _data[index];
+            _data.RemoveAt(index);
             data.subscription.Dispose();
-            _operand.Remove(id);
+            _operand.RemoveAt(index);
         }
 
         public void Dispose()
         {
-            foreach (var data in _dataById.Values)
-                data.subscription.Dispose();
-
             _subscriptions?.Dispose();
             _subscriptions = null;
+
+            foreach (var data in _data)
+                data.subscription.Dispose();
+
             _operand.OnDisposed();
         }
     }
