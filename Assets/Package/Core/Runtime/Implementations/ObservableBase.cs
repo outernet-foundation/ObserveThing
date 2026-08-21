@@ -177,5 +177,8 @@ namespace ObserveThing
 
             DisposeInternal();
         }
+
+        public void NotifyError(Exception error)
+            => OnError(error);
     }
 }
