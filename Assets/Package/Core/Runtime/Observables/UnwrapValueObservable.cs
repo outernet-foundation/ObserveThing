@@ -4,12 +4,12 @@ namespace ObserveThing
 {
     public class UnwrapValueObservable<T> : IDisposable
     {
-        private IValueOperand<T> _operand;
+        private ObservableValue<T> _operand;
         private ValueObserver<T> _nestedObserver;
         private IDisposable _nestedSubscription;
         private IDisposable _subscriptions;
 
-        public UnwrapValueObservable(IValueObservable<IValueObservable<T>> source, IValueOperand<T> operand)
+        public UnwrapValueObservable(IValueObservable<IValueObservable<T>> source, ObservableValue<T> operand)
         {
             _operand = operand;
 
@@ -50,7 +50,7 @@ namespace ObserveThing
             _nestedSubscription?.Dispose();
             _nestedSubscription = null;
 
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

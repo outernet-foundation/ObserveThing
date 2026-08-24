@@ -5,58 +5,162 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public class ObservableDictionary<TKey, TValue> : ObservableDictionaryBase<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>
+    public interface IDictionaryOp : IOperation
     {
-        public int Count => GetCountInternal();
+        uint elementId { get; }
+        object key { get; }
+        object value { get; }
+        bool isRemove { get; }
+    }
 
-        public IEnumerable<TKey> Keys => GetKeysInternal();
-        public IEnumerable<TValue> Values => GetValuesInternal();
+    public struct DictionaryOp<TKey, TValue> : IDictionaryOp
+    {
+        public IObservable<IOperation> source { get; set; }
+        public uint elementId { get; set; }
+        public TKey key { get; set; }
+        public TValue value { get; set; }
+        public bool isRemove { get; set; }
 
-        IEnumerator<KeyValuePair<TKey, TValue>> IEnumerable<KeyValuePair<TKey, TValue>>.GetEnumerator()
-            => ElementsInternal().Select(x => KeyValuePair.Create(x.Key, x.Value.value)).GetEnumerator();
+        object IDictionaryOp.key => key;
+        object IDictionaryOp.value => value;
+    }
 
-        IEnumerator IEnumerable.GetEnumerator()
-            => ElementsInternal().Select(x => KeyValuePair.Create(x.Key, x.Value.value)).GetEnumerator();
-
-        public IEnumerable<(uint id, KeyValuePair<TKey, TValue> kvp)> ElementsWithIds
-            => ElementsInternal().Select<KeyValuePair<TKey, (uint id, TValue value)>, (uint id, KeyValuePair<TKey, TValue>)>(x => new(x.Value.id, KeyValuePair.Create(x.Key, x.Value.value)));
-
+    public class ObservableDictionary<TKey, TValue> : ObservableBase<IDictionaryObserver<TKey, TValue>, DictionaryOp<TKey, TValue>>, IDictionaryObservable<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>
+    {
         public TValue this[TKey key]
         {
-            get => GetValue(key);
-            set => SetInternal(key, value);
+            get => _dictionary[key];
+            set
+            {
+                Remove(key);
+                Add(key, value);
+            }
         }
 
-        public ObservableDictionary(ObservationContext context, params KeyValuePair<TKey, TValue>[] source) : base(context, source) { }
-        public ObservableDictionary(ObservationContext context, IEnumerable<KeyValuePair<TKey, TValue>> source) : base(context, source) { }
-        public ObservableDictionary(ObservationContext context) : base(context, default) { }
+        public int Count => _dictionary.Count;
 
-        public ObservableDictionary(params KeyValuePair<TKey, TValue>[] source) : base(default, source) { }
-        public ObservableDictionary(IEnumerable<KeyValuePair<TKey, TValue>> source) : base(default, source) { }
-        public ObservableDictionary() : base(default, default) { }
+        public IEnumerable<TKey> Keys => _dictionary.Keys;
+        public IEnumerable<TValue> Values => _dictionary.Values;
+
+        IEnumerator<KeyValuePair<TKey, TValue>> IEnumerable<KeyValuePair<TKey, TValue>>.GetEnumerator()
+            => _dictionary.GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator()
+            => _dictionary.GetEnumerator();
+
+        private Dictionary<TKey, TValue> _dictionary = new Dictionary<TKey, TValue>();
+        private Dictionary<TKey, uint> _ids = new Dictionary<TKey, uint>();
+        private CollectionIdProvider _idProvider;
+
+        public ObservableDictionary() : this(default, default) { }
+        public ObservableDictionary(IEnumerable<KeyValuePair<TKey, TValue>> value) : this(default, value) { }
+
+        public ObservableDictionary(ObservationContext context) : this(context, default) { }
+        public ObservableDictionary(ObservationContext context, IEnumerable<KeyValuePair<TKey, TValue>> value) : base(context)
+        {
+            _idProvider = new CollectionIdProvider(_ids.Values.Contains);
+
+            if (value == null)
+                return;
+
+            foreach (var kvp in value)
+            {
+                _dictionary.Add(kvp.Key, kvp.Value);
+                _ids.Add(kvp.Key, _idProvider.GetUnusedId());
+            }
+        }
 
         public void Add(TKey key, TValue value)
-            => AddInternal(key, value);
+        {
+            var id = _idProvider.GetUnusedId();
+            _dictionary.Add(key, value);
+            _ids.Add(key, id);
+            EnqueuePendingOperation(new DictionaryOp<TKey, TValue>() { source = this, elementId = id, key = key, value = value, isRemove = false });
+        }
 
         public bool Remove(TKey key)
-            => RemoveInternal(key);
+        {
+            if (!_dictionary.TryGetValue(key, out var value))
+                return false;
+
+            var id = _ids[key];
+
+            _dictionary.Remove(key);
+            _ids.Remove(key);
+            EnqueuePendingOperation(new DictionaryOp<TKey, TValue>() { source = this, elementId = id, key = key, value = value, isRemove = true });
+
+            return true;
+        }
 
         public void Clear()
-            => ClearInternal();
+        {
+            foreach (var kvp in _dictionary.ToArray())
+            {
+                var id = _ids[kvp.Key];
+                _dictionary.Remove(kvp.Key);
+                _ids.Remove(kvp.Key);
+                EnqueuePendingOperation(new DictionaryOp<TKey, TValue>() { source = this, elementId = id, key = kvp.Key, value = kvp.Value, isRemove = true });
+            }
+        }
 
-        public (uint id, TValue value) GetValueWithId(TKey key)
-            => GetValueWithIdInternal(key);
-
-        public bool TryGetValue(TKey key, out TValue value)
-            => TryGetValueInternal(key, out value);
-
-        public bool TryGetValueWithId(TKey key, out (uint id, TValue value) valueWithId)
-            => TryGetValueWithIdInternal(key, out valueWithId);
+        public bool TryGetValueInternal(TKey key, out TValue value)
+            => _dictionary.TryGetValue(key, out value);
 
         public bool ContainsKey(TKey key)
-            => ContainsKeyInternal(key);
+            => _dictionary.ContainsKey(key);
 
         public bool ContainsValue(TValue value)
-            => ContainsValueInternal(value);
+            => _dictionary.ContainsValue(value);
+
+        protected override IEnumerable<DictionaryOp<TKey, TValue>> GetInitializationOperations()
+        {
+            foreach (var kvp in _dictionary)
+            {
+                yield return new DictionaryOp<TKey, TValue>()
+                {
+                    source = this,
+                    elementId = _ids[kvp.Key],
+                    key = kvp.Key,
+                    value = kvp.Value,
+                    isRemove = false
+                };
+            }
+        }
+
+        protected override void SendOperation(IDictionaryObserver<TKey, TValue> observer, DictionaryOp<TKey, TValue> operation)
+        {
+            if (operation.isRemove)
+            {
+                observer.OnRemove(operation.elementId, KeyValuePair.Create(operation.key, operation.value));
+            }
+            else
+            {
+                observer.OnAdd(operation.elementId, KeyValuePair.Create(operation.key, operation.value));
+            }
+        }
+
+        IDisposable IDictionaryObservable.Subscribe(IDictionaryObserver observer, bool immediate, uint? priority)
+            => Subscribe(new DictionaryObserver<TKey, TValue>(
+                onAdd: (id, kvp) => observer.OnAdd(id, new KeyValuePair<object, object>(kvp.Key, kvp.Value)),
+                onRemove: (id, kvp) => observer.OnRemove(id, new KeyValuePair<object, object>(kvp.Key, kvp.Value)),
+                onDispose: observer.OnDispose,
+                onError: observer.OnError
+            ), immediate, priority);
+
+        IDisposable ICollectionObservable<KeyValuePair<TKey, TValue>>.Subscribe(ICollectionObserver<KeyValuePair<TKey, TValue>> observer, bool immediate, uint? priority)
+            => Subscribe(new DictionaryObserver<TKey, TValue>(
+                onAdd: (id, kvp) => observer.OnAdd(id, kvp),
+                onRemove: (id, kvp) => observer.OnRemove(id, kvp),
+                onDispose: observer.OnDispose,
+                onError: observer.OnError
+            ), immediate, priority);
+
+        IDisposable ICollectionObservable.Subscribe(ICollectionObserver observer, bool immediate, uint? priority)
+            => Subscribe(new DictionaryObserver<TKey, TValue>(
+                onAdd: (id, kvp) => observer.OnAdd(id, kvp),
+                onRemove: (id, kvp) => observer.OnRemove(id, kvp),
+                onDispose: observer.OnDispose,
+                onError: observer.OnError
+            ), immediate, priority);
     }
 }

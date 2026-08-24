@@ -6,14 +6,14 @@ namespace ObserveThing
     public class CombineObservable<T> : IInitializationOperationsProvider<T> where T : IOperation
     {
         private ISetObservable<IObservable<T>> _source;
-        private IObservableOperand<T> _operand;
+        private Observable<T> _operand;
         private bool _disposeOnSourceEmpty;
         private uint _elementPriority;
         private Dictionary<IObservable<T>, IDisposable> _observables = new Dictionary<IObservable<T>, IDisposable>();
         private IDisposable _subscriptions;
         private bool _disposed;
 
-        public CombineObservable(ISetObservable<IObservable<T>> source, IObservableOperand<T> operand, bool disposeOnSourceEmpty = false)
+        public CombineObservable(ISetObservable<IObservable<T>> source, Observable<T> operand, bool disposeOnSourceEmpty = false)
         {
             _source = source;
             _operand = operand;
@@ -27,7 +27,7 @@ namespace ObserveThing
             ), immediate: true);
         }
 
-        public IReadOnlyList<T> GetInitializationOperations()
+        public IEnumerable<T> GetInitializationOperations()
         {
             List<T> initOps = new List<T>();
 
@@ -37,7 +37,8 @@ namespace ObserveThing
                 subscription.Dispose();
             }
 
-            return initOps;
+            foreach (var op in initOps)
+                yield return op;
         }
 
         private void HandleElementAdded(uint _, IObservable<T> observable)
@@ -51,7 +52,7 @@ namespace ObserveThing
                     {
                         if (_disposed)
                             return;
-                            
+
                         HandleElementRemoved(0, observable);
                     }
                 ), immediate: true, priority: _elementPriority)
@@ -72,7 +73,7 @@ namespace ObserveThing
 
         protected void HandleElementChanged(T operation)
         {
-            _operand.EnqueuePendingOperation(operation);
+            _operand.EnqueueOperation(operation);
         }
 
         public void Dispose()
@@ -89,7 +90,7 @@ namespace ObserveThing
 
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

@@ -87,9 +87,6 @@ namespace ObserveThing
             if (!_observers.Remove(data))
                 return;
 
-            if (_observers.Count == 0)
-                OnLastObserverRemoved();
-
             if (data.priorityAllocated)
                 context.DeallocateObserverPriority(data.priority);
         }
@@ -111,11 +108,9 @@ namespace ObserveThing
             context.NotifyPendingObserversIfNecessary();
         }
 
-        protected virtual void OnFirstObserverAdded() { }
-        protected virtual void OnLastObserverRemoved() { }
         protected virtual void DisposeInternal() { }
 
-        protected void OnError(Exception error)
+        public void OnError(Exception error)
         {
             foreach (var observer in _observers.OrderByDescending(x => x.immediate).ThenBy(x => x.priority))
                 observer.observer.OnError(error);
@@ -130,9 +125,6 @@ namespace ObserveThing
         {
             if (disposed)
                 throw new ObjectDisposedException(GetType().Name);
-
-            if (_observers.Count == 0)
-                OnFirstObserverAdded();
 
             var observerData = new ObserverData(
                 observer,

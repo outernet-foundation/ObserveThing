@@ -5,7 +5,7 @@ namespace ObserveThing
 {
     public class WhereObservable<T> : IDisposable
     {
-        private ICollectionOperand<T> _operand;
+        private ObservableCollection<T> _operand;
         private Func<T, IValueObservable<bool>> _where;
         private Dictionary<uint, EntryData> _dataById = new Dictionary<uint, EntryData>();
         private IDisposable _subscriptions;
@@ -18,7 +18,7 @@ namespace ObserveThing
             public IDisposable subscription;
         }
 
-        public WhereObservable(ICollectionObservable<T> source, Func<T, IValueObservable<bool>> where, ICollectionOperand<T> operand)
+        public WhereObservable(ICollectionObservable<T> source, Func<T, IValueObservable<bool>> where, ObservableCollection<T> operand)
         {
             _operand = operand;
             _where = where;
@@ -79,7 +79,7 @@ namespace ObserveThing
 
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

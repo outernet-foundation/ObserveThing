@@ -4,10 +4,10 @@ namespace ObserveThing
 {
     public class CastValueObservable<T> : IDisposable
     {
-        private IValueOperand<T> _operand;
+        private ObservableValue<T> _operand;
         private IDisposable _subscription;
 
-        public CastValueObservable(IValueObservable source, IValueOperand<T> operand)
+        public CastValueObservable(IValueObservable source, ObservableValue<T> operand)
         {
             _operand = operand;
             _subscription = source.Subscribe(
@@ -22,16 +22,16 @@ namespace ObserveThing
         {
             _subscription?.Dispose();
             _subscription = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 
     public class CastCollectionObservable<T> : IDisposable
     {
-        private ICollectionOperand<T> _operand;
+        private ObservableCollection<T> _operand;
         private IDisposable _subscription;
 
-        public CastCollectionObservable(ICollectionObservable source, ICollectionOperand<T> operand)
+        public CastCollectionObservable(ICollectionObservable source, ObservableCollection<T> operand)
         {
             _operand = operand;
             _subscription = source.SubscribeWithId(
@@ -47,16 +47,16 @@ namespace ObserveThing
         {
             _subscription?.Dispose();
             _subscription = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 
     public class CastListObservable<T> : IDisposable
     {
-        private IListOperand<T> _operand;
+        private ObservableList<T> _operand;
         private IDisposable _subscription;
 
-        public CastListObservable(IListObservable source, IListOperand<T> operand)
+        public CastListObservable(IListObservable source, ObservableList<T> operand)
         {
             _operand = operand;
             _subscription = source.Subscribe(
@@ -72,16 +72,16 @@ namespace ObserveThing
         {
             _subscription?.Dispose();
             _subscription = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 
     public class CastSetObservable<T> : IDisposable
     {
-        private ISetOperand<T> _operand;
+        private ObservableSet<T> _operand;
         private IDisposable _subscription;
 
-        public CastSetObservable(ISetObservable source, ISetOperand<T> operand)
+        public CastSetObservable(ISetObservable source, ObservableSet<T> operand)
         {
             _operand = operand;
             _subscription = source.Subscribe(
@@ -97,16 +97,16 @@ namespace ObserveThing
         {
             _subscription?.Dispose();
             _subscription = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 
     public class CastDictionaryObservable<TKey, TValue> : IDisposable
     {
-        private IDictionaryOperand<TKey, TValue> _operand;
+        private ObservableDictionary<TKey, TValue> _operand;
         private IDisposable _subscription;
 
-        public CastDictionaryObservable(IDictionaryObservable source, IDictionaryOperand<TKey, TValue> operand)
+        public CastDictionaryObservable(IDictionaryObservable source, ObservableDictionary<TKey, TValue> operand)
         {
             _operand = operand;
             _subscription = source.Subscribe(
@@ -122,7 +122,7 @@ namespace ObserveThing
         {
             _subscription?.Dispose();
             _subscription = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

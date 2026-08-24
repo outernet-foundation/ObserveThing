@@ -2,54 +2,29 @@ using System;
 
 namespace ObserveThing
 {
-    public class ValueOperator<T> : ObservableValueBase<T>, IValueOperand<T>
+    public class ValueOperator<T> : Operator<ObservableValue<T>>, IValueObservable<T>
     {
-        T IValueOperand<T>.value
+        public ValueOperator(ObservationContext context, Func<ObservableValue<T>, IDisposable> generateOperator) : base(context, generateOperator) { }
+
+        public IDisposable Subscribe(IValueObserver<T> observer, bool immediate = false, uint? priority = null)
         {
-            get => _value;
-            set => SetValueInternal(value);
+            AddObserver(observer);
+            var subscription = ((IValueObservable<T>)_observable).Subscribe(observer, immediate, priority);
+            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
 
-        private Func<IValueOperand<T>, IDisposable> _generateOperator;
-        private IDisposable _operator;
-        private bool _active = false;
-
-        public ValueOperator(ObservationContext context, Func<IValueOperand<T>, IDisposable> generateOperator) : base(context)
+        public IDisposable Subscribe(IValueObserver observer, bool immediate = false, uint? priority = null)
         {
-            _generateOperator = generateOperator;
+            AddObserver(observer);
+            var subscription = ((IValueObservable)_observable).Subscribe(observer, immediate, priority);
+            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
 
-        protected override void OnFirstObserverAdded()
+        public IDisposable Subscribe(IObserver<IOperation> observer, bool immediate = false, uint? priority = null)
         {
-            _active = true;
-            _operator = _generateOperator.Invoke(this);
-        }
-
-        protected override void OnLastObserverRemoved()
-        {
-            _active = false;
-            _operator?.Dispose();
-            _operator = null;
-
-            if (!disposed)
-                SetValueInternal(default);
-        }
-
-        protected override void DisposeInternal()
-        {
-            _operator?.Dispose();
-            _operator = null;
-        }
-
-        void IOperand.OnError(Exception error)
-            => OnError(error);
-
-        void IOperand.OnDisposed()
-        {
-            if (!_active)
-                return;
-
-            Dispose();
+            AddObserver(observer);
+            var subscription = ((IObservable<IOperation>)_observable).Subscribe(observer, immediate, priority);
+            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
     }
 }

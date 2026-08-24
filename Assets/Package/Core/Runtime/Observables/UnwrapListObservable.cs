@@ -5,7 +5,7 @@ namespace ObserveThing
 {
     public class UnwrapListObservable<T> : IDisposable
     {
-        private IListOperand<T> _operand;
+        private ObservableList<T> _operand;
         private List<EntryData> _data = new List<EntryData>();
         private IDisposable _subscriptions;
 
@@ -15,7 +15,7 @@ namespace ObserveThing
             public bool initialized;
         }
 
-        public UnwrapListObservable(IListObservable<IValueObservable<T>> source, IListOperand<T> operand)
+        public UnwrapListObservable(IListObservable<IValueObservable<T>> source, ObservableList<T> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(
@@ -63,7 +63,7 @@ namespace ObserveThing
             foreach (var data in _data)
                 data.subscription.Dispose();
 
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

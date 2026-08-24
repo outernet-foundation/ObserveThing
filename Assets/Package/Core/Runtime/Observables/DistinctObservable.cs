@@ -5,11 +5,11 @@ namespace ObserveThing
 {
     public class DistinctObservable<T> : IDisposable
     {
-        private ISetOperand<T> _operand;
+        private ObservableSet<T> _operand;
         private Dictionary<T, int> _countByElement = new Dictionary<T, int>();
         private IDisposable _subscriptions;
 
-        public DistinctObservable(ICollectionObservable<T> source, ISetOperand<T> operand)
+        public DistinctObservable(ICollectionObservable<T> source, ObservableSet<T> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(
@@ -49,7 +49,7 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

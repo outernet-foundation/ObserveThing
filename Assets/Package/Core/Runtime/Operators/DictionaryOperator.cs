@@ -1,58 +1,45 @@
 using System;
+using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class DictionaryOperator<TKey, TValue> : ObservableDictionaryBase<TKey, TValue>, IDictionaryOperand<TKey, TValue>
+    public class DictionaryOperator<TKey, TValue> : Operator<ObservableDictionary<TKey, TValue>>, IDictionaryObservable<TKey, TValue>
     {
-        private Func<IDictionaryOperand<TKey, TValue>, IDisposable> _generateOperator;
-        private IDisposable _operator;
-        private bool _active = false;
+        public DictionaryOperator(ObservationContext context, Func<ObservableDictionary<TKey, TValue>, IDisposable> generateOperator) : base(context, generateOperator) { }
 
-        public DictionaryOperator(ObservationContext context, Func<IDictionaryOperand<TKey, TValue>, IDisposable> generateOperator) : base(context)
+        public IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer, bool immediate = false, uint? priority = null)
         {
-            _generateOperator = generateOperator;
+            AddObserver(observer);
+            var subscription = ((IDictionaryObservable<TKey, TValue>)_observable).Subscribe(observer, immediate, priority);
+            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
 
-        protected override void OnFirstObserverAdded()
+        public IDisposable Subscribe(IDictionaryObserver observer, bool immediate = false, uint? priority = null)
         {
-            _active = true;
-            _operator = _generateOperator.Invoke(this);
+            AddObserver(observer);
+            var subscription = ((IDictionaryObservable)_observable).Subscribe(observer, immediate, priority);
+            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
 
-        protected override void OnLastObserverRemoved()
+        public IDisposable Subscribe(ICollectionObserver<KeyValuePair<TKey, TValue>> observer, bool immediate = false, uint? priority = null)
         {
-            _active = false;
-            _operator?.Dispose();
-            _operator = null;
-
-            if (!disposed)
-                ClearInternal();
+            AddObserver(observer);
+            var subscription = ((ICollectionObservable<KeyValuePair<TKey, TValue>>)_observable).Subscribe(observer, immediate, priority);
+            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
 
-        protected override void DisposeInternal()
+        public IDisposable Subscribe(ICollectionObserver observer, bool immediate = false, uint? priority = null)
         {
-            _operator?.Dispose();
-            _operator = null;
+            AddObserver(observer);
+            var subscription = ((ICollectionObservable)_observable).Subscribe(observer, immediate, priority);
+            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
 
-        void IDictionaryOperand<TKey, TValue>.Add(TKey key, TValue value)
-            => AddInternal(key, value);
-
-        void IDictionaryOperand<TKey, TValue>.Remove(TKey key)
-            => RemoveInternal(key);
-
-        void IDictionaryOperand<TKey, TValue>.Clear()
-            => ClearInternal();
-
-        void IOperand.OnError(Exception error)
-            => OnError(error);
-
-        void IOperand.OnDisposed()
+        public IDisposable Subscribe(IObserver<IOperation> observer, bool immediate = false, uint? priority = null)
         {
-            if (!_active)
-                return;
-
-            Dispose();
+            AddObserver(observer);
+            var subscription = ((IObservable<IOperation>)_observable).Subscribe(observer, immediate, priority);
+            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
     }
 }

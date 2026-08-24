@@ -4,16 +4,16 @@ namespace ObserveThing
 {
     public class SelectValueOperator<T, U> : IDisposable
     {
-        private IValueOperand<U> _operand;
+        private ObservableValue<U> _operand;
         private IDisposable _subscriptions;
 
-        public SelectValueOperator(IValueObservable<T> source, Func<T, U> select, IValueOperand<U> operand)
+        public SelectValueOperator(IValueObservable<T> source, Func<T, U> select, ObservableValue<U> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(
                 onNext: x => operand.value = select(x),
                 onError: operand.OnError,
-                onDispose: operand.OnDisposed,
+                onDispose: operand.Dispose,
                 immediate: true
             );
         }
@@ -22,7 +22,7 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

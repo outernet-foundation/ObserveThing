@@ -6,9 +6,9 @@ namespace ObserveThing
     public class ToDictionaryObservable<T, TKey, TValue> : IDisposable
     {
         private IDisposable _subscription;
-        private IDictionaryOperand<TKey, TValue> _operand;
+        private ObservableDictionary<TKey, TValue> _operand;
 
-        public ToDictionaryObservable(ICollectionObservable<T> source, Func<T, IValueObservable<TKey>> selectKey, Func<T, IValueObservable<TValue>> selectValue, IDictionaryOperand<TKey, TValue> operand)
+        public ToDictionaryObservable(ICollectionObservable<T> source, Func<T, IValueObservable<TKey>> selectKey, Func<T, IValueObservable<TValue>> selectValue, ObservableDictionary<TKey, TValue> operand)
         {
             _operand = operand;
             _subscription = source.ObservableSelect(
@@ -29,7 +29,7 @@ namespace ObserveThing
         {
             _subscription?.Dispose();
             _subscription = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

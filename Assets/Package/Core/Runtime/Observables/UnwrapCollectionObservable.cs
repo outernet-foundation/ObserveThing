@@ -5,7 +5,7 @@ namespace ObserveThing
 {
     public class UnwrapCollectionObservable<T> : IDisposable
     {
-        private ICollectionOperand<T> _operand;
+        private ObservableCollection<T> _operand;
         private Dictionary<uint, EntryData> _dataById = new Dictionary<uint, EntryData>();
         private IDisposable _subscriptions;
 
@@ -15,7 +15,7 @@ namespace ObserveThing
             public bool initialized;
         }
 
-        public UnwrapCollectionObservable(ICollectionObservable<IValueObservable<T>> source, ICollectionOperand<T> operand)
+        public UnwrapCollectionObservable(ICollectionObservable<IValueObservable<T>> source, ObservableCollection<T> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(new CollectionObserver<IValueObservable<T>>(
@@ -58,7 +58,7 @@ namespace ObserveThing
 
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

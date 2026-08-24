@@ -4,10 +4,10 @@ namespace ObserveThing
 {
     public class SkipWhileObservable<T> : IDisposable
     {
-        private IValueOperand<T> _operand;
+        private ObservableValue<T> _operand;
         private IDisposable _subscriptions;
 
-        public SkipWhileObservable(IValueObservable<T> source, Func<bool> skipWhile, IValueOperand<T> operand)
+        public SkipWhileObservable(IValueObservable<T> source, Func<bool> skipWhile, ObservableValue<T> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(
@@ -26,7 +26,7 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

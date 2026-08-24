@@ -12,13 +12,13 @@ namespace ObserveThing
             public Dictionary<uint, uint> elementIds = new Dictionary<uint, uint>();
         }
 
-        private ICollectionOperand<U> _operand;
+        private ObservableCollection<U> _operand;
         private Func<T, ICollectionObservable<U>> _select;
         private Dictionary<uint, ElementData> _dataById = new Dictionary<uint, ElementData>();
         private CollectionIdProvider _idProvider;
         private IDisposable _subscriptions;
 
-        public SelectManyObservable(ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> select, ICollectionOperand<U> operand)
+        public SelectManyObservable(ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> select, ObservableCollection<U> operand)
         {
             _select = select;
             _operand = operand;
@@ -72,7 +72,7 @@ namespace ObserveThing
             foreach (var data in _dataById.Values)
                 data.subscription.Dispose();
 
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

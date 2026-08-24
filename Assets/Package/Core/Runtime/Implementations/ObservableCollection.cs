@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -21,25 +22,78 @@ namespace ObserveThing
         object ICollectionOp.element => element;
     }
 
-    public class ObservableCollectionBase<T> : ObservableBase<ICollectionObserver<T>, CollectionOp<T>>, ICollectionObservable<T>
+    public class ObservableCollection<T> : ObservableBase<ICollectionObserver<T>, CollectionOp<T>>, ICollectionObservable<T>, IEnumerable<T>
     {
+        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+            => _collection.Values.GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator()
+            => _collection.Values.GetEnumerator();
+
+        public int Count => _collection.Count;
+
         private Dictionary<uint, T> _collection = new Dictionary<uint, T>();
 
-        public ObservableCollectionBase(ObservationContext context) : base(context) { }
+        private CollectionIdProvider _idProvider;
 
-        protected IEnumerable<(uint id, T element)> GetElementsWithIdsInternal()
-            => _collection.Select<KeyValuePair<uint, T>, (uint id, T element)>(x => new(x.Key, x.Value));
+        public ObservableCollection() : this(default, default(IEnumerable<T>)) { }
+        public ObservableCollection(params T[] value) : this(default, (IEnumerable<T>)value) { }
+        public ObservableCollection(IEnumerable<T> value) : this(default, value) { }
 
-        protected int GetCountInternal() => _collection.Count;
-
-        protected uint AddInternal(uint id, T element)
+        public ObservableCollection(ObservationContext context) : this(context, default(IEnumerable<T>)) { }
+        public ObservableCollection(ObservationContext context, params T[] value) : this(context, (IEnumerable<T>)value) { }
+        public ObservableCollection(ObservationContext context, IEnumerable<T> value) : base(context)
         {
-            _collection.Add(id, element);
-            EnqueuePendingOperation(new CollectionOp<T>() { source = this, elementId = id, element = element, isRemove = false });
+            _idProvider = new CollectionIdProvider(_collection.ContainsKey);
+
+            if (value == null)
+                return;
+
+            foreach (var element in value)
+            {
+                var id = _idProvider.GetUnusedId();
+                _collection.Add(id, element);
+            }
+        }
+
+        public bool Contains(T element)
+            => _collection.ContainsValue(element);
+
+        public uint Add(T element)
+        {
+            var id = _idProvider.GetUnusedId();
+            Add(id, element);
             return id;
         }
 
-        protected bool RemoveInternal(uint id)
+        public void Add(uint id, T element)
+        {
+            _collection.Add(id, element);
+            EnqueuePendingOperation(new CollectionOp<T>() { source = this, elementId = id, element = element, isRemove = false });
+        }
+
+        public bool Remove(T element)
+        {
+            var id = default(uint);
+            var found = false;
+
+            foreach (var kvp in _collection)
+            {
+                if (!Equals(element, kvp.Value))
+                    continue;
+
+                id = kvp.Key;
+                found = true;
+                break;
+            }
+
+            if (!found)
+                return false;
+
+            return Remove(id);
+        }
+
+        public bool Remove(uint id)
         {
             if (!_collection.TryGetValue(id, out var element))
                 return false;
@@ -49,7 +103,7 @@ namespace ObserveThing
             return true;
         }
 
-        protected void ClearInternal()
+        public void Clear()
         {
             foreach (var kvp in _collection.ToArray())
             {
@@ -75,12 +129,6 @@ namespace ObserveThing
                 observer.OnAdd(operation.elementId, operation.element);
             }
         }
-
-        public bool ContainsId(uint id)
-            => _collection.ContainsKey(id);
-
-        public bool Contains(T element)
-            => _collection.ContainsValue(element);
 
         IDisposable ICollectionObservable.Subscribe(ICollectionObserver observer, bool immediate, uint? priority)
             => Subscribe(new CollectionObserver<T>(

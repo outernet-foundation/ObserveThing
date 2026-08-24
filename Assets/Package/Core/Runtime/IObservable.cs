@@ -59,8 +59,8 @@ namespace ObserveThing
         IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer, bool immediate = default, uint? priority = default);
     }
 
-    public interface IBatchObservable<out T> : IObservable<IOperation> where T : IOperation
-    {
-        public IDisposable Subscribe(IBatchObserver<T> observer, bool immediate = false, uint? priority = default);
-    }
+    // public interface IBatchObservable<out T> : IObservable<IOperation> where T : IOperation
+    // {
+    //     public IDisposable Subscribe(IBatchObserver<T> observer, bool immediate = false, uint? priority = default);
+    // }
 }

@@ -5,14 +5,14 @@ namespace ObserveThing
 {
     public class ConcatObservable<T> : IDisposable
     {
-        private ICollectionOperand<T> _operand;
+        private ObservableCollection<T> _operand;
         private CollectionIdProvider _idProvider;
         private Dictionary<uint, uint> _source1IdMap = new Dictionary<uint, uint>();
         private Dictionary<uint, uint> _source2IdMap = new Dictionary<uint, uint>();
 
         private IDisposable _subscription;
 
-        public ConcatObservable(ICollectionObservable<T> source1, ICollectionObservable<T> source2, ICollectionOperand<T> operand)
+        public ConcatObservable(ICollectionObservable<T> source1, ICollectionObservable<T> source2, ObservableCollection<T> operand)
         {
             _idProvider = new CollectionIdProvider(x => !_source1IdMap.ContainsValue(x) && !_source2IdMap.ContainsValue(x));
             _operand = operand;
@@ -69,7 +69,7 @@ namespace ObserveThing
         {
             _subscription?.Dispose();
             _subscription = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

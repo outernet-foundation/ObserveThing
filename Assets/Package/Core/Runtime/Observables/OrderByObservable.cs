@@ -7,7 +7,7 @@ namespace ObserveThing
 {
     public class OrderByObservable<T, U> : IDisposable
     {
-        private IListOperand<T> _operand;
+        private ObservableList<T> _operand;
         private Func<T, IValueObservable<U>> _orderBy;
         private Func<U, U, int> _compare;
         private Dictionary<uint, EntryData> _dataById = new Dictionary<uint, EntryData>();
@@ -22,7 +22,7 @@ namespace ObserveThing
             public IDisposable subscription;
         }
 
-        public OrderByObservable(ICollectionObservable<T> source, Func<T, IValueObservable<U>> orderBy, bool descending, IListOperand<T> operand)
+        public OrderByObservable(ICollectionObservable<T> source, Func<T, IValueObservable<U>> orderBy, bool descending, ObservableList<T> operand)
         {
             _orderBy = orderBy;
             _compare = descending ? DescendingCompare : AscendingCompare;
@@ -110,7 +110,7 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }
