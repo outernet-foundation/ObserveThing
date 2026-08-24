@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class Observable<T> : ObservableBase<Observer<T>, T> where T : IOperation
+    public class Observable<T> : ObservableBase<IObserver<T>, T> where T : IOperation
     {
         private IInitializationOperationsProvider<T> _initializationOperationsProvider;
 
@@ -21,7 +21,7 @@ namespace ObserveThing
                 yield return op;
         }
 
-        protected override void SendOperation(Observer<T> observer, T operation)
+        protected override void SendOperation(IObserver<T> observer, T operation)
             => observer.OnNext(operation);
 
         public void EnqueueOperation(T operation)

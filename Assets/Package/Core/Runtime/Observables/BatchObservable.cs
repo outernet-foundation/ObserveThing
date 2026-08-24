@@ -42,12 +42,12 @@ namespace ObserveThing
             _source.context.NotifyPendingObserversIfNecessary();
         }
 
-        public IReadOnlyList<BatchOp<T>> GetInitializationOperations()
+        public IEnumerable<BatchOp<T>> GetInitializationOperations()
         {
             List<T> initOps = new List<T>();
             var subscription = _source.Subscribe(new Observer<T>(x => initOps.Add(x)));
             subscription.Dispose();
-            return new[] { new BatchOp<T>() { source = _source, operations = initOps } };
+            yield return new BatchOp<T>() { source = _source, operations = initOps };
         }
 
         public void SendNext()

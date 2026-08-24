@@ -27,7 +27,7 @@ namespace ObserveThing
             ), immediate: true);
         }
 
-        public IReadOnlyList<T> GetInitializationOperations()
+        public IEnumerable<T> GetInitializationOperations()
         {
             List<T> initOps = new List<T>();
 
@@ -37,7 +37,8 @@ namespace ObserveThing
                 subscription.Dispose();
             }
 
-            return initOps;
+            foreach (var op in initOps)
+                yield return op;
         }
 
         private void HandleElementAdded(uint _, IObservable<T> observable)

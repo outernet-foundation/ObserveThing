@@ -65,11 +65,11 @@ namespace ObserveThing
         public IDisposable Subscribe(IObserver<T> observer, bool immediate = false, uint? priority = null)
         {
             AddObserver(observer);
-            var subscription = ((IObservable<T>)_observable).Subscribe(observer, immediate, priority);
+            var subscription = _observable.Subscribe(observer, immediate, priority);
             return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
 
-        public IReadOnlyList<T> GetInitializationOperations()
+        public IEnumerable<T> GetInitializationOperations()
             => _operator.GetInitializationOperations();
     }
 }
