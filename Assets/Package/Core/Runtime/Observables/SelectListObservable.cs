@@ -4,10 +4,10 @@ namespace ObserveThing
 {
     public class SelectListObservable<T, U> : IDisposable
     {
-        private IListOperand<U> _operand;
+        private ObservableList<U> _operand;
         private IDisposable _subscriptions;
 
-        public SelectListObservable(IListObservable<T> source, Func<T, U> select, IListOperand<U> operand)
+        public SelectListObservable(IListObservable<T> source, Func<T, U> select, ObservableList<U> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(
@@ -23,7 +23,7 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

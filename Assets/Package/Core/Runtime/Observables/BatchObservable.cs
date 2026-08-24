@@ -3,20 +3,20 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class BatchObservable<T> : IInitializationOperationsProvider<T>, IPendingObserver where T : IOperation
+    public class BatchObservable<T> : IInitializationOperationsProvider<BatchOp<T>>, IPendingObserver where T : IOperation
     {
         public bool immediate { get; } = false;
         public uint priority { get; private set; }
         public bool disposed { get; private set; }
 
         private IObservable<T> _source;
-        private IBatchOperand<T> _operand;
+        private Observable<BatchOp<T>> _operand;
         private IDisposable _subscriptions;
         private bool _pending;
 
         private List<T> _batchedOperations = new List<T>();
 
-        public BatchObservable(IObservable<T> source, IBatchOperand<T> operand)
+        public BatchObservable(IObservable<T> source, Observable<BatchOp<T>> operand)
         {
             priority = source.context.AllocateObserverPriority();
 
@@ -42,12 +42,12 @@ namespace ObserveThing
             _source.context.NotifyPendingObserversIfNecessary();
         }
 
-        public IReadOnlyList<T> GetInitializationOperations()
+        public IReadOnlyList<BatchOp<T>> GetInitializationOperations()
         {
             List<T> initOps = new List<T>();
             var subscription = _source.Subscribe(new Observer<T>(x => initOps.Add(x)));
             subscription.Dispose();
-            return initOps;
+            return new[] { new BatchOp<T>() { source = _source, operations = initOps } };
         }
 
         public void SendNext()
@@ -57,7 +57,7 @@ namespace ObserveThing
             var batch = _batchedOperations.ToArray();
             _batchedOperations.Clear();
 
-            _operand.EnqueuePendingOperation(batch);
+            _operand.EnqueueOperation(new BatchOp<T>() { source = _source, operations = batch });
         }
 
         public void Dispose()
@@ -66,7 +66,7 @@ namespace ObserveThing
             _source.context.DeallocateObserverPriority(priority);
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

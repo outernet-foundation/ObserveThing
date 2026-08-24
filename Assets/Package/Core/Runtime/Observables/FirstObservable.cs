@@ -5,12 +5,12 @@ namespace ObserveThing
 {
     public class FirstObservable<T> : IDisposable
     {
-        private IValueOperand<(bool found, T value)> _operand;
+        private ObservableValue<(bool found, T value)> _operand;
         private List<(uint id, T value)> _sortedList = new List<(uint id, T value)>();
         private (uint id, T value) _latest;
         private IDisposable _subscriptions;
 
-        public FirstObservable(ICollectionObservable<T> source, Func<T, IValueObservable<bool>> validate, IValueOperand<(bool found, T value)> operand)
+        public FirstObservable(ICollectionObservable<T> source, Func<T, IValueObservable<bool>> validate, ObservableValue<(bool found, T value)> operand)
         {
             _operand = operand;
             _subscriptions = source.ObservableWhere(x => validate(x)).SubscribeWithId(
@@ -47,7 +47,7 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

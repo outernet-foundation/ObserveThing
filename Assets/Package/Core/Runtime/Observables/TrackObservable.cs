@@ -5,14 +5,14 @@ namespace ObserveThing
 {
     public class TrackObservable<TKey, TValue> : IDisposable
     {
-        private IValueOperand<(bool keyPresent, TValue value)> _operand;
+        private ObservableValue<(bool keyPresent, TValue value)> _operand;
         private Dictionary<TKey, TValue> _dict = new Dictionary<TKey, TValue>();
         private TKey _key = default;
         private bool _present = false;
 
         private IDisposable _subscriptions;
 
-        public TrackObservable(IDictionaryObservable<TKey, TValue> source, IValueObservable<TKey> key, IValueOperand<(bool keyPresent, TValue value)> operand)
+        public TrackObservable(IDictionaryObservable<TKey, TValue> source, IValueObservable<TKey> key, ObservableValue<(bool keyPresent, TValue value)> operand)
         {
             _operand = operand;
             _subscriptions = new ComposedDisposable(
@@ -68,7 +68,7 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

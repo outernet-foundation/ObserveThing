@@ -5,12 +5,12 @@ namespace ObserveThing
 {
     public class ContainsObservable<T> : IDisposable
     {
-        private IValueOperand<bool> _operand;
+        private ObservableValue<bool> _operand;
         private List<T> _list = new List<T>();
         private T _latest = default;
         private IDisposable _subscriptions;
 
-        public ContainsObservable(ICollectionObservable<T> source, IValueObservable<T> value, IValueOperand<bool> operand)
+        public ContainsObservable(ICollectionObservable<T> source, IValueObservable<T> value, ObservableValue<bool> operand)
         {
             _operand = operand;
             _subscriptions = new ComposedDisposable(
@@ -65,7 +65,7 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

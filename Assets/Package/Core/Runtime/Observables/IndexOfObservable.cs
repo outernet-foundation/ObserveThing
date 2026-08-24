@@ -5,12 +5,12 @@ namespace ObserveThing
 {
     public class IndexOfObservable<T> : IDisposable
     {
-        private IValueOperand<(bool found, int index)> _operand;
+        private ObservableValue<(bool found, int index)> _operand;
         private T _latest = default;
         private List<T> _list = new List<T>();
         private IDisposable _subscriptions;
 
-        public IndexOfObservable(IListObservable<T> source, IValueObservable<T> value, IValueOperand<(bool found, int index)> operand)
+        public IndexOfObservable(IListObservable<T> source, IValueObservable<T> value, ObservableValue<(bool found, int index)> operand)
         {
             _operand = operand;
             _subscriptions = new ComposedDisposable(
@@ -77,7 +77,7 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

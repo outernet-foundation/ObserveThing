@@ -3,18 +3,18 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ObservableOperator<T> : IObservable<T>, IInitializationOperationsProvider<T> where T : IOperation
+    public class Operator<T> where T : class, IDisposable, new()
     {
         public ObservationContext context { get; }
 
-        private Func<Observable<T>, IInitializationOperationsProvider<T>> _generateOperator;
-        protected Observable<T> _observable { get; private set; }
-        private IInitializationOperationsProvider<T> _operator;
+        private Func<T, IDisposable> _generateOperator;
+        protected T _observable { get; private set; }
+        private IDisposable _operator;
         private bool _active = false;
         private List<IObserverBase> _observers = new List<IObserverBase>();
         private bool _disposed;
 
-        public ObservableOperator(ObservationContext context, Func<Observable<T>, IInitializationOperationsProvider<T>> generateOperator)
+        public Operator(ObservationContext context, Func<T, IDisposable> generateOperator)
         {
             this.context = context;
             _generateOperator = generateOperator;
@@ -42,7 +42,7 @@ namespace ObserveThing
                 return;
 
             _active = true;
-            _observable = new Observable<T>(context, this);
+            _observable = new T();
             _operator = _generateOperator(_observable);
         }
 
@@ -61,15 +61,5 @@ namespace ObserveThing
                 _observable = default;
             }
         }
-
-        public IDisposable Subscribe(IObserver<T> observer, bool immediate = false, uint? priority = null)
-        {
-            AddObserver(observer);
-            var subscription = ((IObservable<T>)_observable).Subscribe(observer, immediate, priority);
-            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
-        }
-
-        public IReadOnlyList<T> GetInitializationOperations()
-            => _operator.GetInitializationOperations();
     }
 }

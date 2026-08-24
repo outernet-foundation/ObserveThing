@@ -1,71 +1,163 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace ObserveThing
 {
-    public class ObservableList<T> : ObservableListBase<T>, IEnumerable<T>
+    public interface IListOp : IOperation
     {
-        IEnumerator<T> IEnumerable<T>.GetEnumerator()
-            => ElementsInternal().Select(x => x.value).GetEnumerator();
+        uint elementId { get; }
+        int index { get; }
+        object element { get; }
+        bool isRemove { get; }
+    }
 
-        IEnumerator IEnumerable.GetEnumerator()
-            => ElementsInternal().Select(x => x.value).GetEnumerator();
+    public struct ListOp<T> : IListOp
+    {
+        public IObservable<IOperation> source { get; set; }
+        public int index { get; set; }
+        public uint elementId { get; set; }
+        public T element { get; set; }
+        public bool isRemove { get; set; }
 
-        public IEnumerable<(uint id, T element)> ElementsWithIds
-            => ElementsInternal();
+        object IListOp.element => element;
+    }
 
-        public int Count => GetCountInternal();
-
+    public class ObservableList<T> : ObservableBase<IListObserver<T>, ListOp<T>>, IListObservable<T>, IEnumerable<T>
+    {
         public T this[int index]
         {
-            get => ElementAt(index);
+            get => _list[index];
             set
             {
-                if (Equals(ElementAt(index), value))
-                    return;
-
                 RemoveAt(index);
                 Insert(index, value);
             }
         }
 
-        public ObservableList(ObservationContext context, params T[] value) : base(context, value) { }
-        public ObservableList(ObservationContext context, IEnumerable<T> value) : base(context, value) { }
-        public ObservableList(ObservationContext context) : base(context, default) { }
+        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+            => _list.GetEnumerator();
 
-        public ObservableList(params T[] value) : base(default, value) { }
-        public ObservableList(IEnumerable<T> value) : base(default, value) { }
-        public ObservableList() : base(default, default) { }
+        IEnumerator IEnumerable.GetEnumerator()
+            => _list.GetEnumerator();
+
+        public int count => _list.Count;
+
+        private List<T> _list = new List<T>();
+        private List<uint> _ids = new List<uint>();
+        private CollectionIdProvider _idProvider;
+
+        public ObservableList() : this(default, default(IEnumerable<T>)) { }
+        public ObservableList(params T[] value) : this(default, (IEnumerable<T>)value) { }
+        public ObservableList(IEnumerable<T> value) : this(default, value) { }
+
+        public ObservableList(ObservationContext context) : this(context, default(IEnumerable<T>)) { }
+        public ObservableList(ObservationContext context, params T[] value) : this(context, (IEnumerable<T>)value) { }
+        public ObservableList(ObservationContext context, IEnumerable<T> value) : base(context)
+        {
+            _idProvider = new CollectionIdProvider(_ids.Contains);
+
+            if (value == null)
+                return;
+
+            foreach (var element in value)
+            {
+                _list.Add(element);
+                _ids.Add(_idProvider.GetUnusedId());
+            }
+        }
 
         public void Add(T added)
-            => AddInternal(added);
+            => Insert(_list.Count, added);
 
         public void AddRange(IEnumerable<T> toAdd)
-            => AddRangeInternal(toAdd);
+        {
+            foreach (var added in toAdd)
+                Add(added);
+        }
 
         public bool Remove(T removed)
-            => RemoveInternal(removed);
+        {
+            var index = _list.IndexOf(removed);
+
+            if (index == -1)
+                return false;
+
+            RemoveAt(index);
+            return true;
+        }
 
         public void RemoveAt(int index)
-            => RemoveAtInternal(index);
+        {
+            var removed = _list[index];
+            var id = _ids[index];
+            _list.RemoveAt(index);
+            _ids.RemoveAt(index);
+            EnqueuePendingOperation(new ListOp<T>() { source = this, element = removed, elementId = id, index = index, isRemove = true });
+        }
 
         public void Insert(int index, T item)
-            => InsertInternal(index, item);
+        {
+            var id = _idProvider.GetUnusedId();
+            _list.Insert(index, item);
+            _ids.Insert(index, id);
+            EnqueuePendingOperation(new ListOp<T>() { source = this, element = item, elementId = id, index = index, isRemove = false });
+        }
 
         public void Clear()
-            => ClearInternal();
-
-        public T ElementAt(int index)
-            => ElementAtInternal(index);
-
-        public (uint id, T value) ElementAndIdAt(int index)
-            => ElementAndIdAtInternal(index);
+        {
+            while (_list.Count > 0)
+                RemoveAt(_list.Count - 1);
+        }
 
         public int IndexOf(T item)
-            => IndexOfInternal(item);
+            => _list.IndexOf(item);
 
         public bool Contains(T item)
-            => ContainsInternal(item);
+            => _list.Contains(item);
+
+        protected override IEnumerable<ListOp<T>> GetInitializationOperations()
+        {
+            for (int i = 0; i < _list.Count; i++)
+            {
+                yield return new ListOp<T>() { source = this, element = _list[i], elementId = _ids[i], index = i, isRemove = false };
+            }
+        }
+
+        protected override void SendOperation(IListObserver<T> observer, ListOp<T> operation)
+        {
+            if (operation.isRemove)
+            {
+                observer.OnRemove(operation.elementId, operation.index, operation.element);
+            }
+            else
+            {
+                observer.OnAdd(operation.elementId, operation.index, operation.element);
+            }
+        }
+
+        IDisposable IListObservable.Subscribe(IListObserver observer, bool immediate, uint? priority)
+            => Subscribe(new ListObserver<T>(
+                onAdd: (id, index, element) => observer.OnAdd(id, index, element),
+                onRemove: (id, index, element) => observer.OnRemove(id, index, element),
+                onDispose: observer.OnDispose,
+                onError: observer.OnError
+            ), immediate, priority);
+
+        IDisposable ICollectionObservable<T>.Subscribe(ICollectionObserver<T> observer, bool immediate, uint? priority)
+            => Subscribe(new ListObserver<T>(
+                onAdd: (id, index, element) => observer.OnAdd(id, element),
+                onRemove: (id, index, element) => observer.OnRemove(id, element),
+                onDispose: observer.OnDispose,
+                onError: observer.OnError
+            ), immediate, priority);
+
+        IDisposable ICollectionObservable.Subscribe(ICollectionObserver observer, bool immediate, uint? priority)
+            => Subscribe(new ListObserver<T>(
+                onAdd: (id, index, element) => observer.OnAdd(id, element),
+                onRemove: (id, index, element) => observer.OnRemove(id, element),
+                onDispose: observer.OnDispose,
+                onError: observer.OnError
+            ), immediate, priority);
     }
 }

@@ -2,63 +2,43 @@ using System;
 
 namespace ObserveThing
 {
-    public class ListOperator<T> : ObservableListBase<T>, IListOperand<T>
+    public class ListOperator<T> : Operator<ObservableList<T>>, IListObservable<T>
     {
-        private Func<IListOperand<T>, IDisposable> _generateOperator;
-        private IDisposable _operator;
-        private bool _active = false;
+        public ListOperator(ObservationContext context, Func<ObservableList<T>, IDisposable> generateOperator) : base(context, generateOperator) { }
 
-        public ListOperator(ObservationContext context, Func<IListOperand<T>, IDisposable> generateOperator) : base(context)
+        public IDisposable Subscribe(IListObserver<T> observer, bool immediate = false, uint? priority = null)
         {
-            _generateOperator = generateOperator;
+            AddObserver(observer);
+            var subscription = ((IListObservable<T>)_observable).Subscribe(observer, immediate, priority);
+            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
 
-        protected override void OnFirstObserverAdded()
+        public IDisposable Subscribe(IListObserver observer, bool immediate = false, uint? priority = null)
         {
-            _active = true;
-            _operator = _generateOperator.Invoke(this);
+            AddObserver(observer);
+            var subscription = ((IListObservable)_observable).Subscribe(observer, immediate, priority);
+            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
 
-        protected override void OnLastObserverRemoved()
+        public IDisposable Subscribe(ICollectionObserver<T> observer, bool immediate = false, uint? priority = null)
         {
-            _active = false;
-            _operator?.Dispose();
-            _operator = null;
-
-            if (!disposed)
-                ClearInternal();
+            AddObserver(observer);
+            var subscription = ((ICollectionObservable<T>)_observable).Subscribe(observer, immediate, priority);
+            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
 
-        protected override void DisposeInternal()
+        public IDisposable Subscribe(ICollectionObserver observer, bool immediate = false, uint? priority = null)
         {
-            _operator?.Dispose();
-            _operator = null;
+            AddObserver(observer);
+            var subscription = ((ICollectionObservable)_observable).Subscribe(observer, immediate, priority);
+            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
 
-        void IListOperand<T>.Add(T element)
-            => AddInternal(element);
-
-        void IListOperand<T>.Remove(T element)
-            => RemoveInternal(element);
-
-        void IListOperand<T>.Insert(int index, T element)
-            => InsertInternal(index, element);
-
-        void IListOperand<T>.RemoveAt(int index)
-            => RemoveAtInternal(index);
-
-        void IListOperand<T>.Clear()
-            => ClearInternal();
-
-        void IOperand.OnError(Exception error)
-            => OnError(error);
-
-        void IOperand.OnDisposed()
+        public IDisposable Subscribe(IObserver<IOperation> observer, bool immediate = false, uint? priority = null)
         {
-            if (!_active)
-                return;
-
-            Dispose();
+            AddObserver(observer);
+            var subscription = ((IObservable<IOperation>)_observable).Subscribe(observer, immediate, priority);
+            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
     }
 }

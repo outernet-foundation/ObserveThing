@@ -115,7 +115,7 @@ namespace ObserveThing
         protected virtual void OnLastObserverRemoved() { }
         protected virtual void DisposeInternal() { }
 
-        protected void OnError(Exception error)
+        public void OnError(Exception error)
         {
             foreach (var observer in _observers.OrderByDescending(x => x.immediate).ThenBy(x => x.priority))
                 observer.observer.OnError(error);
@@ -177,8 +177,5 @@ namespace ObserveThing
 
             DisposeInternal();
         }
-
-        public void NotifyError(Exception error)
-            => OnError(error);
     }
 }

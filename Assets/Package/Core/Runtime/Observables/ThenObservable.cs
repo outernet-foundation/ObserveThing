@@ -6,10 +6,10 @@ namespace ObserveThing
     {
         private IValueObservable<T> _source;
         private IValueObserver<T> _then;
-        private IValueOperand<T> _operand;
+        private ObservableValue<T> _operand;
         private IDisposable _subscriptions;
 
-        public ThenValueObservable(IValueObservable<T> source, IValueObserver<T> then, IValueOperand<T> operand)
+        public ThenValueObservable(IValueObservable<T> source, IValueObserver<T> then, ObservableValue<T> operand)
         {
             _source = source;
             _then = then;
@@ -35,7 +35,7 @@ namespace ObserveThing
             _subscriptions = null;
 
             _then.OnDispose();
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 
@@ -43,10 +43,10 @@ namespace ObserveThing
     {
         private ICollectionObservable<T> _source;
         private ICollectionObserver<T> _then;
-        private ICollectionOperand<T> _operand;
+        private ObservableCollection<T> _operand;
         private IDisposable _subscriptions;
 
-        public ThenCollectionObservable(ICollectionObservable<T> source, ICollectionObserver<T> then, ICollectionOperand<T> operand)
+        public ThenCollectionObservable(ICollectionObservable<T> source, ICollectionObserver<T> then, ObservableCollection<T> operand)
         {
             _source = source;
             _then = then;
@@ -77,7 +77,7 @@ namespace ObserveThing
             _subscriptions = null;
 
             _then.OnDispose();
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 
@@ -85,10 +85,10 @@ namespace ObserveThing
     {
         private IListObservable<T> _source;
         private IListObserver<T> _then;
-        private IListOperand<T> _operand;
+        private ObservableList<T> _operand;
         private IDisposable _subscriptions;
 
-        public ThenListObservable(IListObservable<T> source, IListObserver<T> then, IListOperand<T> operand)
+        public ThenListObservable(IListObservable<T> source, IListObserver<T> then, ObservableList<T> operand)
         {
             _source = source;
             _then = then;
@@ -119,7 +119,7 @@ namespace ObserveThing
             _subscriptions = null;
 
             _then.OnDispose();
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 
@@ -127,10 +127,10 @@ namespace ObserveThing
     {
         private ISetObservable<T> _source;
         private ISetObserver<T> _then;
-        private ISetOperand<T> _operand;
+        private ObservableSet<T> _operand;
         private IDisposable _subscriptions;
 
-        public ThenSetObservable(ISetObservable<T> source, ISetObserver<T> then, ISetOperand<T> operand)
+        public ThenSetObservable(ISetObservable<T> source, ISetObserver<T> then, ObservableSet<T> operand)
         {
             _source = source;
             _then = then;
@@ -161,7 +161,7 @@ namespace ObserveThing
             _subscriptions = null;
 
             _then.OnDispose();
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 
@@ -169,10 +169,10 @@ namespace ObserveThing
     {
         private IDictionaryObservable<TKey, TValue> _source;
         private IDictionaryObserver<TKey, TValue> _then;
-        private IDictionaryOperand<TKey, TValue> _operand;
+        private ObservableDictionary<TKey, TValue> _operand;
         private IDisposable _subscriptions;
 
-        public ThenDictionaryObservable(IDictionaryObservable<TKey, TValue> source, IDictionaryObserver<TKey, TValue> then, IDictionaryOperand<TKey, TValue> operand)
+        public ThenDictionaryObservable(IDictionaryObservable<TKey, TValue> source, IDictionaryObserver<TKey, TValue> then, ObservableDictionary<TKey, TValue> operand)
         {
             _source = source;
             _then = then;
@@ -203,7 +203,7 @@ namespace ObserveThing
             _subscriptions = null;
 
             _then.OnDispose();
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

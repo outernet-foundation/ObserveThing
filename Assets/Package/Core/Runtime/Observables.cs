@@ -35,23 +35,23 @@ namespace ObserveThing
         public static IObservable<SetOp<T>> ObservableOperationStream<T>(this ISetObservable<T> source)
             => new ObservableOperator<SetOp<T>>(source.context, operand => new SetOperationStreamObservable<T>(source, operand));
 
-        public static IBatchObservable<ValueOp<T>> ObservableBatch<T>(this IValueObservable<T> source)
+        public static IObservable<BatchOp<ValueOp<T>>> ObservableBatch<T>(this IValueObservable<T> source)
             => source.ObservableOperationStream().ObservableBatch();
 
-        public static IBatchObservable<CollectionOp<T>> ObservableBatch<T>(this ICollectionObservable<T> source)
+        public static IObservable<BatchOp<CollectionOp<T>>> ObservableBatch<T>(this ICollectionObservable<T> source)
             => source.ObservableOperationStream().ObservableBatch();
 
-        public static IBatchObservable<ListOp<T>> ObservableBatch<T>(this IListObservable<T> source)
+        public static IObservable<BatchOp<ListOp<T>>> ObservableBatch<T>(this IListObservable<T> source)
             => source.ObservableOperationStream().ObservableBatch();
 
-        public static IBatchObservable<DictionaryOp<TKey, TValue>> ObservableBatch<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source)
+        public static IObservable<BatchOp<DictionaryOp<TKey, TValue>>> ObservableBatch<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source)
             => source.ObservableOperationStream().ObservableBatch();
 
-        public static IBatchObservable<SetOp<T>> ObservableBatch<T>(this ISetObservable<T> source)
+        public static IObservable<BatchOp<SetOp<T>>> ObservableBatch<T>(this ISetObservable<T> source)
             => source.ObservableOperationStream().ObservableBatch();
 
-        public static IBatchObservable<T> ObservableBatch<T>(this IObservable<T> source) where T : IOperation
-            => new BatchOperator<T>(source.context, operand => new BatchObservable<T>(source, operand));
+        public static IObservable<BatchOp<T>> ObservableBatch<T>(this IObservable<T> source) where T : IOperation
+            => new ObservableOperator<BatchOp<T>>(source.context, operand => new BatchObservable<T>(source, operand));
 
         public static IObservable<T> ObservableCombine<T>(this ISetObservable<IObservable<T>> source, bool disposeOnSourceEmpty = true) where T : IOperation
             => new ObservableOperator<T>(source.context, operand => new CombineObservable<T>(source, operand, disposeOnSourceEmpty));
@@ -180,13 +180,13 @@ namespace ObserveThing
             => new CollectionOperator<T>(source.context, operand => new WhereObservable<T>(source, where, operand));
 
         public static ICollectionObservable<T> ObservableConcat<T>(this ICollectionObservable<T> source1, IEnumerable<T> source2)
-            => source1.ObservableConcat((ICollectionObservable<T>)new ObservableReadOnlyCollection<T>(source1.context, source2));
+            => source1.ObservableConcat((ICollectionObservable<T>)new ObservableCollection<T>(source1.context, source2));
 
         public static ICollectionObservable<T> ObservableConcat<T>(this ICollectionObservable<T> source1, ICollectionObservable<T> source2)
             => new CollectionOperator<T>(source1.context, operand => new ConcatObservable<T>(source1, source2, operand));
 
         public static ICollectionObservable<U> ObservableSelectMany<T, U>(this ICollectionObservable<T> source, Func<T, IEnumerable<U>> selectMany)
-            => source.ObservableSelectMany(x => (ICollectionObservable<U>)new ObservableReadOnlyCollection<U>(source.context, selectMany(x)));
+            => source.ObservableSelectMany(x => (ICollectionObservable<U>)new ObservableCollection<U>(source.context, selectMany(x)));
 
         public static ICollectionObservable<U> ObservableSelectMany<T, U>(this ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> selectMany)
             => new CollectionOperator<U>(source.context, operand => new SelectManyObservable<T, U>(source, selectMany, operand));
@@ -291,8 +291,8 @@ namespace ObserveThing
         public static IDisposable Subscribe<T>(this IValueObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default)
             => source.Subscribe(new ValueObserver<T>(onNext, onDispose, onError), immediate, priority);
 
-        public static IDisposable Subscribe<T>(this IBatchObservable<T> source, Action<IReadOnlyList<T>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default) where T : IOperation
-            => source.Subscribe(new BatchObserver<T>(onNext, onDispose, onError), immediate, priority);
+        public static IDisposable Subscribe<T>(this IObservable<BatchOp<T>> source, Action<IReadOnlyList<T>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default) where T : IOperation
+            => source.Subscribe(new Observer<BatchOp<T>>(onNext: x => onNext?.Invoke(x.operations), onDispose, onError), immediate, priority);
 
         public static IDisposable Subscribe(this IDictionaryObservable source, Action<KeyValuePair<object, object>> onAdd = default, Action<KeyValuePair<object, object>> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default)
             => source.Subscribe(new DictionaryObserver(

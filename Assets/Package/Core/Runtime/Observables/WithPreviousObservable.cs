@@ -4,11 +4,11 @@ namespace ObserveThing
 {
     public class WithPreviousObservable<T> : IDisposable
     {
-        private IValueOperand<(T previous, T current)> _operand;
+        private ObservableValue<(T previous, T current)> _operand;
         private T _previousValue;
         private IDisposable _subscriptions;
 
-        public WithPreviousObservable(IValueObservable<T> source, IValueOperand<(T previous, T current)> operand)
+        public WithPreviousObservable(IValueObservable<T> source, ObservableValue<(T previous, T current)> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(
@@ -30,7 +30,7 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

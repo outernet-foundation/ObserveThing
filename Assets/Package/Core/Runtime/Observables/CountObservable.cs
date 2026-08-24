@@ -4,10 +4,10 @@ namespace ObserveThing
 {
     public class CountObservable<T> : IDisposable
     {
-        private IValueOperand<int> _operand;
+        private ObservableValue<int> _operand;
         private IDisposable _subscriptions;
 
-        public CountObservable(ICollectionObservable<T> source, IValueOperand<int> operand)
+        public CountObservable(ICollectionObservable<T> source, ObservableValue<int> operand)
         {
             _operand = operand;
             _subscriptions = source.Subscribe(
@@ -23,7 +23,7 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }

@@ -7,16 +7,16 @@ namespace ObserveThing
     public class ValueOperationStreamObservable<T> : IInitializationOperationsProvider<ValueOp<T>>, IDisposable
     {
         private IValueObservable<T> _source;
-        private IObservableOperand<ValueOp<T>> _operand;
+        private Observable<ValueOp<T>> _operand;
         private IDisposable _subscriptions;
 
-        public ValueOperationStreamObservable(IValueObservable<T> source, IObservableOperand<ValueOp<T>> operand)
+        public ValueOperationStreamObservable(IValueObservable<T> source, Observable<ValueOp<T>> operand)
         {
             _source = source;
             _operand = operand;
 
             _subscriptions = _source.Subscribe(
-                onNext: x => operand.EnqueuePendingOperation(new() { source = _source, value = x }),
+                onNext: x => operand.EnqueueOperation(new() { source = _source, value = x }),
                 onDispose: Dispose,
                 onError: operand.OnError,
                 immediate: true
@@ -35,24 +35,24 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 
     public class CollectionOperationStreamObservable<T> : IInitializationOperationsProvider<CollectionOp<T>>, IDisposable
     {
         private ICollectionObservable<T> _source;
-        private IObservableOperand<CollectionOp<T>> _operand;
+        private Observable<CollectionOp<T>> _operand;
         private IDisposable _subscriptions;
 
-        public CollectionOperationStreamObservable(ICollectionObservable<T> source, IObservableOperand<CollectionOp<T>> operand)
+        public CollectionOperationStreamObservable(ICollectionObservable<T> source, Observable<CollectionOp<T>> operand)
         {
             _source = source;
             _operand = operand;
 
             _subscriptions = _source.SubscribeWithId(
-                onAdd: (id, element) => operand.EnqueuePendingOperation(new() { source = _source, elementId = id, element = element, isRemove = false }),
-                onRemove: (id, element) => operand.EnqueuePendingOperation(new() { source = _source, elementId = id, element = element, isRemove = true }),
+                onAdd: (id, element) => operand.EnqueueOperation(new() { source = _source, elementId = id, element = element, isRemove = false }),
+                onRemove: (id, element) => operand.EnqueueOperation(new() { source = _source, elementId = id, element = element, isRemove = true }),
                 onDispose: Dispose,
                 onError: operand.OnError,
                 immediate: true
@@ -71,24 +71,24 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 
     public class ListOperationStreamObservable<T> : IInitializationOperationsProvider<ListOp<T>>, IDisposable
     {
         private IListObservable<T> _source;
-        private IObservableOperand<ListOp<T>> _operand;
+        private Observable<ListOp<T>> _operand;
         private IDisposable _subscriptions;
 
-        public ListOperationStreamObservable(IListObservable<T> source, IObservableOperand<ListOp<T>> operand)
+        public ListOperationStreamObservable(IListObservable<T> source, Observable<ListOp<T>> operand)
         {
             _source = source;
             _operand = operand;
 
             _subscriptions = _source.SubscribeWithId(
-                onAdd: (id, index, element) => operand.EnqueuePendingOperation(new() { source = _source, elementId = id, index = index, element = element, isRemove = false }),
-                onRemove: (id, index, element) => operand.EnqueuePendingOperation(new() { source = _source, elementId = id, index = index, element = element, isRemove = true }),
+                onAdd: (id, index, element) => operand.EnqueueOperation(new() { source = _source, elementId = id, index = index, element = element, isRemove = false }),
+                onRemove: (id, index, element) => operand.EnqueueOperation(new() { source = _source, elementId = id, index = index, element = element, isRemove = true }),
                 onDispose: Dispose,
                 onError: operand.OnError,
                 immediate: true
@@ -107,24 +107,24 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 
     public class DictionaryOperationStreamObservable<TKey, TValue> : IInitializationOperationsProvider<DictionaryOp<TKey, TValue>>, IDisposable
     {
         private IDictionaryObservable<TKey, TValue> _source;
-        private IObservableOperand<DictionaryOp<TKey, TValue>> _operand;
+        private Observable<DictionaryOp<TKey, TValue>> _operand;
         private IDisposable _subscriptions;
 
-        public DictionaryOperationStreamObservable(IDictionaryObservable<TKey, TValue> source, IObservableOperand<DictionaryOp<TKey, TValue>> operand)
+        public DictionaryOperationStreamObservable(IDictionaryObservable<TKey, TValue> source, Observable<DictionaryOp<TKey, TValue>> operand)
         {
             _source = source;
             _operand = operand;
 
             _subscriptions = _source.SubscribeWithId(
-                onAdd: (id, kvp) => operand.EnqueuePendingOperation(new() { source = _source, elementId = id, key = kvp.Key, value = kvp.Value, isRemove = false }),
-                onRemove: (id, kvp) => operand.EnqueuePendingOperation(new() { source = _source, elementId = id, key = kvp.Key, value = kvp.Value, isRemove = true }),
+                onAdd: (id, kvp) => operand.EnqueueOperation(new() { source = _source, elementId = id, key = kvp.Key, value = kvp.Value, isRemove = false }),
+                onRemove: (id, kvp) => operand.EnqueueOperation(new() { source = _source, elementId = id, key = kvp.Key, value = kvp.Value, isRemove = true }),
                 onDispose: Dispose,
                 onError: operand.OnError,
                 immediate: true
@@ -143,24 +143,24 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 
     public class SetOperationStreamObservable<T> : IInitializationOperationsProvider<SetOp<T>>, IDisposable
     {
         private ISetObservable<T> _source;
-        private IObservableOperand<SetOp<T>> _operand;
+        private Observable<SetOp<T>> _operand;
         private IDisposable _subscriptions;
 
-        public SetOperationStreamObservable(ISetObservable<T> source, IObservableOperand<SetOp<T>> operand)
+        public SetOperationStreamObservable(ISetObservable<T> source, Observable<SetOp<T>> operand)
         {
             _source = source;
             _operand = operand;
 
             _subscriptions = _source.SubscribeWithId(
-                onAdd: (id, element) => operand.EnqueuePendingOperation(new() { source = _source, elementId = id, element = element, isRemove = false }),
-                onRemove: (id, element) => operand.EnqueuePendingOperation(new() { source = _source, elementId = id, element = element, isRemove = true }),
+                onAdd: (id, element) => operand.EnqueueOperation(new() { source = _source, elementId = id, element = element, isRemove = false }),
+                onRemove: (id, element) => operand.EnqueueOperation(new() { source = _source, elementId = id, element = element, isRemove = true }),
                 onDispose: Dispose,
                 onError: operand.OnError,
                 immediate: true
@@ -179,7 +179,7 @@ namespace ObserveThing
         {
             _subscriptions?.Dispose();
             _subscriptions = null;
-            _operand.OnDisposed();
+            _operand.Dispose();
         }
     }
 }
