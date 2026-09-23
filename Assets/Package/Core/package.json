@@ -1,6 +1,6 @@
 {
   "name": "com.fofx.observething",
-  "version": "1.0.0",
+  "version": "0.0.0-local",
   "description": "An observable event stream library.",
   "keywords": [
     "observability",
