@@ -11,7 +11,7 @@ namespace ObserveThing
         protected T _observable { get; private set; }
         private IDisposable _operator;
         private bool _active = false;
-        private List<IObserverBase> _observers = new List<IObserverBase>();
+        private List<IObserver> _observers = new List<IObserver>();
         private bool _disposed;
 
         public Operator(ObservationContext context, Func<T, IDisposable> generateOperator)
@@ -34,7 +34,7 @@ namespace ObserveThing
             _observable = default;
         }
 
-        protected void AddObserver(IObserverBase observer)
+        protected void AddObserver(IObserver observer)
         {
             _observers.Add(observer);
 
@@ -46,7 +46,7 @@ namespace ObserveThing
             _operator = _generateOperator(_observable);
         }
 
-        protected void RemoveObserver(IObserverBase observer)
+        protected void RemoveObserver(IObserver observer)
         {
             _observers.Remove(observer);
 

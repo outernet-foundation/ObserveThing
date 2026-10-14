@@ -283,7 +283,7 @@ namespace ObserveThing
         }
 
         public static IDisposable Subscribe<T>(this IObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default) where T : IOperation
-            => source.Subscribe(new Observer<T>(onNext, onDispose, onError), immediate, priority);
+            => source.Subscribe(new OpStreamObserver<T>(onNext, onDispose, onError), immediate, priority);
 
         public static IDisposable Subscribe(this IValueObservable source, Action<object> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default)
             => source.Subscribe(new ValueObserver(onNext, onDispose, onError), immediate, priority);
@@ -292,7 +292,7 @@ namespace ObserveThing
             => source.Subscribe(new ValueObserver<T>(onNext, onDispose, onError), immediate, priority);
 
         public static IDisposable Subscribe<T>(this IObservable<BatchOp<T>> source, Action<IReadOnlyList<T>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default) where T : IOperation
-            => source.Subscribe(new Observer<BatchOp<T>>(onNext: x => onNext?.Invoke(x.operations), onDispose, onError), immediate, priority);
+            => source.Subscribe(new OpStreamObserver<BatchOp<T>>(onNext: x => onNext?.Invoke(x.operations), onDispose, onError), immediate, priority);
 
         public static IDisposable Subscribe(this IDictionaryObservable source, Action<KeyValuePair<object, object>> onAdd = default, Action<KeyValuePair<object, object>> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default)
             => source.Subscribe(new DictionaryObserver(

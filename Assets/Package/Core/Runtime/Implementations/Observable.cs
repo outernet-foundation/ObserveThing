@@ -3,11 +3,11 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class Observable<T> : ObservableBase<IObserver<T>, T> where T : IOperation
+    public class OpStreamObservable<T> : ObservableBase<IOpStreamObserver<T>, T>
     {
         private IInitializationOperationsProvider<T> _initializationOperationsProvider;
 
-        public Observable(ObservationContext context, IInitializationOperationsProvider<T> initializationOperationsProvider) : base(context)
+        public OpStreamObservable(ObservationContext context, IInitializationOperationsProvider<T> initializationOperationsProvider) : base(context)
         {
             _initializationOperationsProvider = initializationOperationsProvider;
         }
@@ -21,7 +21,7 @@ namespace ObserveThing
                 yield return op;
         }
 
-        protected override void SendOperation(IObserver<T> observer, T operation)
+        protected override void SendOperation(IOpStreamObserver<T> observer, T operation)
             => observer.OnNext(operation);
 
         public void EnqueueOperation(T operation)

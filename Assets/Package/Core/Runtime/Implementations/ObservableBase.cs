@@ -9,13 +9,11 @@ namespace ObserveThing
         IObservable<IOperation> source { get; }
     }
 
-    public abstract class ObservableBase<TObserver, TOperation> : IObservable<IOperation>, IDisposable
-        where TObserver : IObserverBase
-        where TOperation : IOperation
+    public abstract class ObservableBase<TObserver, TOperation> : IObservable, IDisposable where TObserver : IObserver
     {
         private class ObserverData : IPendingObserver, IDisposable
         {
-            public IObserverBase observer { get; }
+            public IObserver observer { get; }
             public bool immediate { get; }
             public uint priority { get; }
             public bool priorityAllocated { get; }
@@ -25,7 +23,7 @@ namespace ObserveThing
             private Action<TOperation> _sendOperation;
             private Action<ObserverData> _onDispose;
 
-            public ObserverData(IObserverBase observer, bool immediate, uint priority, bool priorityAllocated, Action<TOperation> sendOperation, Action<ObserverData> onDispose)
+            public ObserverData(IObserver observer, bool immediate, uint priority, bool priorityAllocated, Action<TOperation> sendOperation, Action<ObserverData> onDispose)
             {
                 this.observer = observer;
                 this.immediate = immediate;
@@ -118,10 +116,7 @@ namespace ObserveThing
 
         protected abstract IEnumerable<TOperation> GetInitializationOperations();
 
-        protected IDisposable AddObserver(TObserver observer, bool immediate, uint? priority)
-            => AddObserverInternal(observer, immediate, priority, op => SendOperation(observer, op));
-
-        private IDisposable AddObserverInternal(IObserverBase observer, bool immediate, uint? priority, Action<TOperation> sendOperation)
+        private IDisposable AddObserverInternal(IObserver observer, bool immediate, uint? priority, Action<TOperation> sendOperation)
         {
             if (disposed)
                 throw new ObjectDisposedException(GetType().Name);
@@ -148,9 +143,6 @@ namespace ObserveThing
 
         public virtual IDisposable Subscribe(TObserver observer, bool immediate = default, uint? priority = default)
             => AddObserverInternal(observer, immediate, priority, op => SendOperation(observer, op));
-
-        public virtual IDisposable Subscribe(IObserver<IOperation> observer, bool immediate = default, uint? priority = default)
-            => AddObserverInternal(observer, immediate, priority, op => observer.OnNext(op));
 
         public void Dispose()
         {

@@ -5,24 +5,20 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public interface IDictionaryOp : IOperation
-    {
-        uint elementId { get; }
-        object key { get; }
-        object value { get; }
-        bool isRemove { get; }
-    }
+    // public interface IDictionaryOp : IOperation
+    // {
+    //     uint elementId { get; }
+    //     object key { get; }
+    //     object value { get; }
+    //     bool isRemove { get; }
+    // }
 
-    public struct DictionaryOp<TKey, TValue> : IDictionaryOp
+    public struct DictionaryOp<TKey, TValue>
     {
-        public IObservable<IOperation> source { get; set; }
         public uint elementId { get; set; }
         public TKey key { get; set; }
         public TValue value { get; set; }
         public bool isRemove { get; set; }
-
-        object IDictionaryOp.key => key;
-        object IDictionaryOp.value => value;
     }
 
     public class ObservableDictionary<TKey, TValue> : ObservableBase<IDictionaryObserver<TKey, TValue>, DictionaryOp<TKey, TValue>>, IDictionaryObservable<TKey, TValue>, IEnumerable<KeyValuePair<TKey, TValue>>
@@ -75,7 +71,7 @@ namespace ObserveThing
             var id = _idProvider.GetUnusedId();
             _dictionary.Add(key, value);
             _ids.Add(key, id);
-            EnqueuePendingOperation(new DictionaryOp<TKey, TValue>() { source = this, elementId = id, key = key, value = value, isRemove = false });
+            EnqueuePendingOperation(new DictionaryOp<TKey, TValue>() { elementId = id, key = key, value = value, isRemove = false });
         }
 
         public bool Remove(TKey key)
@@ -87,7 +83,7 @@ namespace ObserveThing
 
             _dictionary.Remove(key);
             _ids.Remove(key);
-            EnqueuePendingOperation(new DictionaryOp<TKey, TValue>() { source = this, elementId = id, key = key, value = value, isRemove = true });
+            EnqueuePendingOperation(new DictionaryOp<TKey, TValue>() { elementId = id, key = key, value = value, isRemove = true });
 
             return true;
         }
@@ -99,7 +95,7 @@ namespace ObserveThing
                 var id = _ids[kvp.Key];
                 _dictionary.Remove(kvp.Key);
                 _ids.Remove(kvp.Key);
-                EnqueuePendingOperation(new DictionaryOp<TKey, TValue>() { source = this, elementId = id, key = kvp.Key, value = kvp.Value, isRemove = true });
+                EnqueuePendingOperation(new DictionaryOp<TKey, TValue>() { elementId = id, key = kvp.Key, value = kvp.Value, isRemove = true });
             }
         }
 
@@ -118,7 +114,6 @@ namespace ObserveThing
             {
                 yield return new DictionaryOp<TKey, TValue>()
                 {
-                    source = this,
                     elementId = _ids[kvp.Key],
                     key = kvp.Key,
                     value = kvp.Value,

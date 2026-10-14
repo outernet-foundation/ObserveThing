@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public interface IInitializationOperationsProvider<T> : IDisposable where T : IOperation
+    public interface IInitializationOperationsProvider<T> : IDisposable
     {
         IEnumerable<T> GetInitializationOperations();
     }

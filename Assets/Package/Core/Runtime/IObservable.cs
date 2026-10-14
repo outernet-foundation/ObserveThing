@@ -3,13 +3,17 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public interface IObservable<out T> where T : IOperation
+    public interface IObservable
     {
         ObservationContext context { get; }
-        IDisposable Subscribe(IObserver<T> observer, bool immediate = default, uint? priority = default);
     }
 
-    public interface IValueObservable : IObservable<IOperation>
+    public interface IOpStreamObservable<T> : IObservable
+    {
+        IDisposable Subscribe(IOpStreamObserver<T> observer, bool immediate = default, uint? priority = default);
+    }
+
+    public interface IValueObservable : IObservable
     {
         IDisposable Subscribe(IValueObserver observer, bool immediate = default, uint? priority = default);
     }
@@ -19,7 +23,7 @@ namespace ObserveThing
         IDisposable Subscribe(IValueObserver<T> observer, bool immediate = default, uint? priority = default);
     }
 
-    public interface ICollectionObservable : IObservable<IOperation>
+    public interface ICollectionObservable : IObservable
     {
         IDisposable Subscribe(ICollectionObserver observer, bool immediate = default, uint? priority = default);
     }
