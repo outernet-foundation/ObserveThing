@@ -3,17 +3,10 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public interface IValueOp : IOperation
+    public struct ValueOp<T>
     {
-        object value { get; }
-    }
-
-    public struct ValueOp<T> : IValueOp
-    {
-        public IObservable<IOperation> source { get; set; }
-        public T value { get; set; }
-
-        object IValueOp.value => value;
+        public IValueObservable<T> source;
+        public T value;
     }
 
     public class ObservableValue<T> : ObservableBase<IValueObserver<T>, ValueOp<T>>, IValueObservable<T>

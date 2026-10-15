@@ -8,9 +8,14 @@ namespace ObserveThing
         ObservationContext context { get; }
     }
 
-    public interface IOpStreamObservable<T> : IObservable
+    public interface IEventStreamObservable : IObservable
     {
-        IDisposable Subscribe(IOpStreamObserver<T> observer, bool immediate = default, uint? priority = default);
+        IDisposable Subscribe(IEventStreamObserver observer, bool immediate = default, uint? priority = default);
+    }
+
+    public interface IEventStreamObservable<out T> : IEventStreamObservable
+    {
+        IDisposable Subscribe(IEventStreamObserver<T> observer, bool immediate = default, uint? priority = default);
     }
 
     public interface IValueObservable : IObservable
@@ -62,9 +67,4 @@ namespace ObserveThing
     {
         IDisposable Subscribe(IDictionaryObserver<TKey, TValue> observer, bool immediate = default, uint? priority = default);
     }
-
-    // public interface IBatchObservable<out T> : IObservable<IOperation> where T : IOperation
-    // {
-    //     public IDisposable Subscribe(IBatchObserver<T> observer, bool immediate = false, uint? priority = default);
-    // }
 }

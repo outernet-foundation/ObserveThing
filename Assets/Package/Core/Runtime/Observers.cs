@@ -15,18 +15,45 @@ namespace ObserveThing
         void OnDispose();
     }
 
-    public interface IOpStreamObserver<in T> : IObserver
+    public interface IEventStreamObserver : IObserver
+    {
+        void OnNext(object value);
+    }
+
+    public class EventStreamObserver : IValueObserver
+    {
+        private Action<object> _onNext;
+        private Action _onDispose;
+        private Action<Exception> _onError;
+
+        public EventStreamObserver(Action<object> onNext = default, Action onDispose = default, Action<Exception> onError = default)
+        {
+            _onNext = onNext;
+            _onDispose = onDispose;
+            _onError = onError;
+        }
+
+        public void OnNext(object value)
+            => _onNext?.Invoke(value);
+
+        public void OnDispose()
+            => _onDispose?.Invoke();
+
+        public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
+    }
+
+    public interface IEventStreamObserver<in T> : IObserver
     {
         void OnNext(T operation);
     }
 
-    public class OpStreamObserver<T> : IOpStreamObserver<T>
+    public class EventStreamObserver<T> : IEventStreamObserver<T>
     {
         private Action<T> _onNext;
         private Action _onDispose;
         private Action<Exception> _onError;
 
-        public OpStreamObserver(Action<T> onNext = default, Action onDispose = default, Action<Exception> onError = default)
+        public EventStreamObserver(Action<T> onNext = default, Action onDispose = default, Action<Exception> onError = default)
         {
             _onNext = onNext;
             _onDispose = onDispose;
@@ -367,12 +394,12 @@ namespace ObserveThing
         public void OnError(Exception error) => (_onError ?? Settings.DefaultExceptionHandler)?.Invoke(error);
     }
 
-    public interface IBatchObserver<in T> : IObserver where T : IOperation
+    public interface IBatchObserver<in T> : IObserver
     {
         void OnNext(IReadOnlyList<T> operations);
     }
 
-    public class BatchObserver<T> : IBatchObserver<T> where T : IOperation
+    public class BatchObserver<T> : IBatchObserver<T>
     {
         private Action<IReadOnlyList<T>> _onNext;
         private Action _onDispose;

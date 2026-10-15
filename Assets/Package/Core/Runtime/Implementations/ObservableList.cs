@@ -4,23 +4,13 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public interface IListOp : IOperation
+    public struct ListOp<T>
     {
-        uint elementId { get; }
-        int index { get; }
-        object element { get; }
-        bool isRemove { get; }
-    }
-
-    public struct ListOp<T> : IListOp
-    {
-        public IObservable<IOperation> source { get; set; }
+        public IListObservable<T> source { get; set; }
         public int index { get; set; }
         public uint elementId { get; set; }
         public T element { get; set; }
         public bool isRemove { get; set; }
-
-        object IListOp.element => element;
     }
 
     public class ObservableList<T> : ObservableBase<IListObserver<T>, ListOp<T>>, IListObservable<T>, IEnumerable<T>

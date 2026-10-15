@@ -5,21 +5,12 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public interface ICollectionOp : IOperation
+    public struct CollectionOp<T>
     {
-        object element { get; }
-        uint elementId { get; }
-        bool isRemove { get; }
-    }
-
-    public struct CollectionOp<T> : ICollectionOp
-    {
-        public IObservable<IOperation> source { get; set; }
-        public T element { get; set; }
-        public uint elementId { get; set; }
-        public bool isRemove { get; set; }
-
-        object ICollectionOp.element => element;
+        public ICollectionObservable<T> source;
+        public T element;
+        public uint elementId;
+        public bool isRemove;
     }
 
     public class ObservableCollection<T> : ObservableBase<ICollectionObserver<T>, CollectionOp<T>>, ICollectionObservable<T>, IEnumerable<T>

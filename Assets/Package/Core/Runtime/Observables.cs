@@ -20,47 +20,82 @@ namespace ObserveThing
         public static IDictionaryObservable<TKey, TValue> ObservableCast<TKey, TValue>(this IDictionaryObservable source)
             => new DictionaryOperator<TKey, TValue>(source.context, operand => new CastDictionaryObservable<TKey, TValue>(source, operand));
 
-        public static IObservable<ValueOp<T>> ObservableOperationStream<T>(this IValueObservable<T> source)
-            => new ObservableOperator<ValueOp<T>>(source.context, operand => new ValueOperationStreamObservable<T>(source, operand));
+        public static IEventStreamObservable<TOperation> ObservableEventStream<T, TOperation>(this IValueObservable<T> source, Func<T, TOperation> constructOperation)
+            => new EventStreamOperator<TOperation>(source.context, operand => new ValueEventStreamObservable<T, TOperation>(source, constructOperation, operand));
 
-        public static IObservable<CollectionOp<T>> ObservableOperationStream<T>(this ICollectionObservable<T> source)
-            => new ObservableOperator<CollectionOp<T>>(source.context, operand => new CollectionOperationStreamObservable<T>(source, operand));
+        public static IEventStreamObservable<ValueOp<T>> ObservableEventStream<T>(this IValueObservable<T> source)
+            => source.ObservableEventStream(x => new ValueOp<T>() { source = source, value = x });
 
-        public static IObservable<ListOp<T>> ObservableOperationStream<T>(this IListObservable<T> source)
-            => new ObservableOperator<ListOp<T>>(source.context, operand => new ListOperationStreamObservable<T>(source, operand));
+        public static IEventStreamObservable<TOperation> ObservableEventStream<T, TOperation>(this ICollectionObservable<T> source, Func<uint, T, TOperation> constructAddOperation, Func<uint, T, TOperation> constructRemoveOperation)
+            => new EventStreamOperator<TOperation>(source.context, operand => new CollectionEventStreamObservable<T, TOperation>(source, constructAddOperation, constructRemoveOperation, operand));
 
-        public static IObservable<DictionaryOp<TKey, TValue>> ObservableOperationStream<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source)
-            => new ObservableOperator<DictionaryOp<TKey, TValue>>(source.context, operand => new DictionaryOperationStreamObservable<TKey, TValue>(source, operand));
+        public static IEventStreamObservable<CollectionOp<T>> ObservableEventStream<T>(this ICollectionObservable<T> source)
+            => new EventStreamOperator<CollectionOp<T>>(source.context, operand => new CollectionEventStreamObservable<T, CollectionOp<T>>(
+                source,
+                (id, element) => new() { source = source, elementId = id, element = element, isRemove = false },
+                (id, element) => new() { source = source, elementId = id, element = element, isRemove = true },
+                operand
+            ));
 
-        public static IObservable<SetOp<T>> ObservableOperationStream<T>(this ISetObservable<T> source)
-            => new ObservableOperator<SetOp<T>>(source.context, operand => new SetOperationStreamObservable<T>(source, operand));
+        public static IEventStreamObservable<TOperation> ObservableEventStream<T, TOperation>(this IListObservable<T> source, Func<uint, int, T, TOperation> constructAddOperation, Func<uint, int, T, TOperation> constructRemoveOperation)
+            => new EventStreamOperator<TOperation>(source.context, operand => new ListEventStreamObservable<T, TOperation>(source, constructAddOperation, constructRemoveOperation, operand));
 
-        public static IObservable<BatchOp<ValueOp<T>>> ObservableBatch<T>(this IValueObservable<T> source)
-            => source.ObservableOperationStream().ObservableBatch();
+        public static IEventStreamObservable<ListOp<T>> ObservableEventStream<T>(this IListObservable<T> source)
+            => new EventStreamOperator<ListOp<T>>(source.context, operand => new ListEventStreamObservable<T, ListOp<T>>(
+                source,
+                (id, index, element) => new() { source = source, elementId = id, index = index, element = element, isRemove = false },
+                (id, index, element) => new() { source = source, elementId = id, index = index, element = element, isRemove = true },
+                operand
+            ));
 
-        public static IObservable<BatchOp<CollectionOp<T>>> ObservableBatch<T>(this ICollectionObservable<T> source)
-            => source.ObservableOperationStream().ObservableBatch();
+        public static IEventStreamObservable<TOperation> ObservableEventStream<TKey, TValue, TOperation>(this IDictionaryObservable<TKey, TValue> source, Func<uint, KeyValuePair<TKey, TValue>, TOperation> constructAddOperation, Func<uint, KeyValuePair<TKey, TValue>, TOperation> constructRemoveOperation)
+            => new EventStreamOperator<TOperation>(source.context, operand => new DictionaryEventStreamObservable<TKey, TValue, TOperation>(source, constructAddOperation, constructRemoveOperation, operand));
 
-        public static IObservable<BatchOp<ListOp<T>>> ObservableBatch<T>(this IListObservable<T> source)
-            => source.ObservableOperationStream().ObservableBatch();
+        public static IEventStreamObservable<DictionaryOp<TKey, TValue>> ObservableEventStream<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source)
+            => new EventStreamOperator<DictionaryOp<TKey, TValue>>(source.context, operand => new DictionaryEventStreamObservable<TKey, TValue, DictionaryOp<TKey, TValue>>(
+                source,
+                (id, kvp) => new() { source = source, elementId = id, key = kvp.Key, value = kvp.Value, isRemove = false },
+                (id, kvp) => new() { source = source, elementId = id, key = kvp.Key, value = kvp.Value, isRemove = true },
+                operand
+            ));
 
-        public static IObservable<BatchOp<DictionaryOp<TKey, TValue>>> ObservableBatch<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source)
-            => source.ObservableOperationStream().ObservableBatch();
+        public static IEventStreamObservable<TOperation> ObservableEventStream<T, TOperation>(this ISetObservable<T> source, Func<uint, T, TOperation> constructAddOperation, Func<uint, T, TOperation> constructRemoveOperation)
+            => new EventStreamOperator<TOperation>(source.context, operand => new SetEventStreamObservable<T, TOperation>(source, constructAddOperation, constructRemoveOperation, operand));
 
-        public static IObservable<BatchOp<SetOp<T>>> ObservableBatch<T>(this ISetObservable<T> source)
-            => source.ObservableOperationStream().ObservableBatch();
+        public static IEventStreamObservable<SetOp<T>> ObservableEventStream<T>(this ISetObservable<T> source)
+            => new EventStreamOperator<SetOp<T>>(source.context, operand => new SetEventStreamObservable<T, SetOp<T>>(
+                source,
+                (id, element) => new() { source = source, elementId = id, element = element, isRemove = false },
+                (id, element) => new() { source = source, elementId = id, element = element, isRemove = true },
+                operand
+            ));
 
-        public static IObservable<BatchOp<T>> ObservableBatch<T>(this IObservable<T> source) where T : IOperation
-            => new ObservableOperator<BatchOp<T>>(source.context, operand => new BatchObservable<T>(source, operand));
+        public static IEventStreamObservable<IReadOnlyList<ValueOp<T>>> ObservableBatch<T>(this IValueObservable<T> source)
+            => source.ObservableEventStream().ObservableBatch();
 
-        public static IObservable<T> ObservableCombine<T>(this ISetObservable<IObservable<T>> source, bool disposeOnSourceEmpty = true) where T : IOperation
-            => new ObservableOperator<T>(source.context, operand => new CombineObservable<T>(source, operand, disposeOnSourceEmpty));
+        public static IEventStreamObservable<IReadOnlyList<CollectionOp<T>>> ObservableBatch<T>(this ICollectionObservable<T> source)
+            => source.ObservableEventStream().ObservableBatch();
 
-        public static IObservable<T> ObservableCombine<T>(params IObservable<T>[] observables) where T : IOperation
-            => new ObservableSet<IObservable<T>>(observables[0].context, observables).ObservableCombine(disposeOnSourceEmpty: true);
+        public static IEventStreamObservable<IReadOnlyList<ListOp<T>>> ObservableBatch<T>(this IListObservable<T> source)
+            => source.ObservableEventStream().ObservableBatch();
 
-        public static IObservable<T> ObservableCombine<T>(bool disposeOnSourceEmpty, params IObservable<T>[] observables) where T : IOperation
-            => new ObservableSet<IObservable<T>>(observables[0].context, observables).ObservableCombine(disposeOnSourceEmpty: disposeOnSourceEmpty);
+        public static IEventStreamObservable<IReadOnlyList<DictionaryOp<TKey, TValue>>> ObservableBatch<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source)
+            => source.ObservableEventStream().ObservableBatch();
+
+        public static IEventStreamObservable<IReadOnlyList<SetOp<T>>> ObservableBatch<T>(this ISetObservable<T> source)
+            => source.ObservableEventStream().ObservableBatch();
+
+        public static IEventStreamObservable<IReadOnlyList<T>> ObservableBatch<T>(this IEventStreamObservable<T> source)
+            => new EventStreamOperator<IReadOnlyList<T>>(source.context, operand => new BatchObservable<T>(source, operand));
+
+        public static IEventStreamObservable<T> ObservableCombine<T>(this ISetObservable<IEventStreamObservable<T>> source, bool disposeOnSourceEmpty = true)
+            => new EventStreamOperator<T>(source.context, operand => new CombineObservable<T>(source, operand, disposeOnSourceEmpty));
+
+        public static IEventStreamObservable<T> ObservableCombine<T>(params IEventStreamObservable<T>[] observables)
+            => new ObservableSet<IEventStreamObservable<T>>(observables[0].context, observables).ObservableCombine(disposeOnSourceEmpty: true);
+
+        public static IEventStreamObservable<T> ObservableCombine<T>(bool disposeOnSourceEmpty, params IEventStreamObservable<T>[] observables)
+            => new ObservableSet<IEventStreamObservable<T>>(observables[0].context, observables).ObservableCombine(disposeOnSourceEmpty: disposeOnSourceEmpty);
 
         public static IValueObservable<T> ObservableThen<T>(this IValueObservable<T> source, IValueObserver<T> thenObserver)
             => new ValueOperator<T>(source.context, operand => new ThenValueObservable<T>(source, thenObserver, operand));
@@ -282,17 +317,14 @@ namespace ObserveThing
             return result;
         }
 
-        public static IDisposable Subscribe<T>(this IObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default) where T : IOperation
-            => source.Subscribe(new OpStreamObserver<T>(onNext, onDispose, onError), immediate, priority);
+        public static IDisposable Subscribe<T>(this IEventStreamObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default)
+            => source.Subscribe(new EventStreamObserver<T>(onNext, onDispose, onError), immediate, priority);
 
         public static IDisposable Subscribe(this IValueObservable source, Action<object> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default)
             => source.Subscribe(new ValueObserver(onNext, onDispose, onError), immediate, priority);
 
         public static IDisposable Subscribe<T>(this IValueObservable<T> source, Action<T> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default)
             => source.Subscribe(new ValueObserver<T>(onNext, onDispose, onError), immediate, priority);
-
-        public static IDisposable Subscribe<T>(this IObservable<BatchOp<T>> source, Action<IReadOnlyList<T>> onNext = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default) where T : IOperation
-            => source.Subscribe(new OpStreamObserver<BatchOp<T>>(onNext: x => onNext?.Invoke(x.operations), onDispose, onError), immediate, priority);
 
         public static IDisposable Subscribe(this IDictionaryObservable source, Action<KeyValuePair<object, object>> onAdd = default, Action<KeyValuePair<object, object>> onRemove = default, Action<Exception> onError = default, Action onDispose = default, bool immediate = default, uint? priority = default)
             => source.Subscribe(new DictionaryObserver(

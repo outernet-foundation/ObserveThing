@@ -3,29 +3,31 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ValueOperationStreamObservable<T> : IInitializationOperationsProvider<ValueOp<T>>, IDisposable
+    public class ValueEventStreamObservable<T, TOperation> : IInitializationOperationsProvider<TOperation>, IDisposable
     {
         private IValueObservable<T> _source;
-        private OpStreamObservable<ValueOp<T>> _operand;
+        private Func<T, TOperation> _constructOperation;
+        private EventStreamObservable<TOperation> _operand;
         private IDisposable _subscriptions;
 
-        public ValueOperationStreamObservable(IValueObservable<T> source, OpStreamObservable<ValueOp<T>> operand)
+        public ValueEventStreamObservable(IValueObservable<T> source, Func<T, TOperation> constructOperation, EventStreamObservable<TOperation> operand)
         {
             _source = source;
+            _constructOperation = constructOperation;
             _operand = operand;
 
             _subscriptions = _source.Subscribe(
-                onNext: x => operand.EnqueueOperation(new() { value = x }),
+                onNext: x => operand.EnqueueOperation(_constructOperation(x)),
                 onDispose: Dispose,
                 onError: operand.OnError,
                 immediate: true
             );
         }
 
-        public IEnumerable<ValueOp<T>> GetInitializationOperations()
+        public IEnumerable<TOperation> GetInitializationOperations()
         {
-            var initOperations = new List<ValueOp<T>>();
-            var subscription = _source.Subscribe(x => initOperations.Add(new ValueOp<T>() { value = x }));
+            var initOperations = new List<TOperation>();
+            var subscription = _source.Subscribe(x => initOperations.Add(_constructOperation(x)));
             subscription.Dispose();
 
             foreach (var op in initOperations)
@@ -40,30 +42,34 @@ namespace ObserveThing
         }
     }
 
-    public class CollectionOperationStreamObservable<T> : IInitializationOperationsProvider<CollectionOp<T>>, IDisposable
+    public class CollectionEventStreamObservable<T, TOperation> : IInitializationOperationsProvider<TOperation>, IDisposable
     {
         private ICollectionObservable<T> _source;
-        private OpStreamObservable<CollectionOp<T>> _operand;
+        private Func<uint, T, TOperation> _constructAddOperation;
+        private Func<uint, T, TOperation> _constructRemoveOperation;
+        private EventStreamObservable<TOperation> _operand;
         private IDisposable _subscriptions;
 
-        public CollectionOperationStreamObservable(ICollectionObservable<T> source, OpStreamObservable<CollectionOp<T>> operand)
+        public CollectionEventStreamObservable(ICollectionObservable<T> source, Func<uint, T, TOperation> constructAddOperation, Func<uint, T, TOperation> constructRemoveOperation, EventStreamObservable<TOperation> operand)
         {
             _source = source;
+            _constructAddOperation = constructAddOperation;
+            _constructRemoveOperation = constructRemoveOperation;
             _operand = operand;
 
             _subscriptions = _source.SubscribeWithId(
-                onAdd: (id, element) => operand.EnqueueOperation(new() { elementId = id, element = element, isRemove = false }),
-                onRemove: (id, element) => operand.EnqueueOperation(new() { elementId = id, element = element, isRemove = true }),
+                onAdd: (id, element) => operand.EnqueueOperation(_constructAddOperation(id, element)),
+                onRemove: (id, element) => operand.EnqueueOperation(_constructRemoveOperation(id, element)),
                 onDispose: Dispose,
                 onError: operand.OnError,
                 immediate: true
             );
         }
 
-        public IEnumerable<CollectionOp<T>> GetInitializationOperations()
+        public IEnumerable<TOperation> GetInitializationOperations()
         {
-            var initOperations = new List<CollectionOp<T>>();
-            var subscription = _source.SubscribeWithId((id, element) => initOperations.Add(new CollectionOp<T>() { elementId = id, element = element }));
+            var initOperations = new List<TOperation>();
+            var subscription = _source.SubscribeWithId((id, element) => initOperations.Add(_constructAddOperation(id, element)));
             subscription.Dispose();
 
             foreach (var op in initOperations)
@@ -78,30 +84,34 @@ namespace ObserveThing
         }
     }
 
-    public class ListOperationStreamObservable<T> : IInitializationOperationsProvider<ListOp<T>>, IDisposable
+    public class ListEventStreamObservable<T, TOperation> : IInitializationOperationsProvider<TOperation>, IDisposable
     {
         private IListObservable<T> _source;
-        private OpStreamObservable<ListOp<T>> _operand;
+        private Func<uint, int, T, TOperation> _constructAddOperation;
+        private Func<uint, int, T, TOperation> _constructRemoveOperation;
+        private EventStreamObservable<TOperation> _operand;
         private IDisposable _subscriptions;
 
-        public ListOperationStreamObservable(IListObservable<T> source, OpStreamObservable<ListOp<T>> operand)
+        public ListEventStreamObservable(IListObservable<T> source, Func<uint, int, T, TOperation> constructAddOperation, Func<uint, int, T, TOperation> constructRemoveOperation, EventStreamObservable<TOperation> operand)
         {
             _source = source;
+            _constructAddOperation = constructAddOperation;
+            _constructRemoveOperation = constructRemoveOperation;
             _operand = operand;
 
             _subscriptions = _source.SubscribeWithId(
-                onAdd: (id, index, element) => operand.EnqueueOperation(new() { elementId = id, index = index, element = element, isRemove = false }),
-                onRemove: (id, index, element) => operand.EnqueueOperation(new() { elementId = id, index = index, element = element, isRemove = true }),
+                onAdd: (id, index, element) => operand.EnqueueOperation(_constructAddOperation(id, index, element)),
+                onRemove: (id, index, element) => operand.EnqueueOperation(_constructRemoveOperation(id, index, element)),
                 onDispose: Dispose,
                 onError: operand.OnError,
                 immediate: true
             );
         }
 
-        public IEnumerable<ListOp<T>> GetInitializationOperations()
+        public IEnumerable<TOperation> GetInitializationOperations()
         {
-            var initOperations = new List<ListOp<T>>();
-            var subscription = _source.SubscribeWithId((id, index, element) => initOperations.Add(new ListOp<T>() { elementId = id, index = index, element = element }));
+            var initOperations = new List<TOperation>();
+            var subscription = _source.SubscribeWithId((id, index, element) => initOperations.Add(_constructAddOperation(id, index, element)));
             subscription.Dispose();
 
             foreach (var op in initOperations)
@@ -116,30 +126,34 @@ namespace ObserveThing
         }
     }
 
-    public class DictionaryOperationStreamObservable<TKey, TValue> : IInitializationOperationsProvider<DictionaryOp<TKey, TValue>>, IDisposable
+    public class DictionaryEventStreamObservable<TKey, TValue, TOperation> : IInitializationOperationsProvider<TOperation>, IDisposable
     {
         private IDictionaryObservable<TKey, TValue> _source;
-        private OpStreamObservable<DictionaryOp<TKey, TValue>> _operand;
+        private Func<uint, KeyValuePair<TKey, TValue>, TOperation> _constructAddOperation;
+        private Func<uint, KeyValuePair<TKey, TValue>, TOperation> _constructRemoveOperation;
+        private EventStreamObservable<TOperation> _operand;
         private IDisposable _subscriptions;
 
-        public DictionaryOperationStreamObservable(IDictionaryObservable<TKey, TValue> source, OpStreamObservable<DictionaryOp<TKey, TValue>> operand)
+        public DictionaryEventStreamObservable(IDictionaryObservable<TKey, TValue> source, Func<uint, KeyValuePair<TKey, TValue>, TOperation> constructAddOperation, Func<uint, KeyValuePair<TKey, TValue>, TOperation> constructRemoveOperation, EventStreamObservable<TOperation> operand)
         {
             _source = source;
+            _constructAddOperation = constructAddOperation;
+            _constructRemoveOperation = constructRemoveOperation;
             _operand = operand;
 
             _subscriptions = _source.SubscribeWithId(
-                onAdd: (id, kvp) => operand.EnqueueOperation(new() { elementId = id, key = kvp.Key, value = kvp.Value, isRemove = false }),
-                onRemove: (id, kvp) => operand.EnqueueOperation(new() { elementId = id, key = kvp.Key, value = kvp.Value, isRemove = true }),
+                onAdd: (id, kvp) => operand.EnqueueOperation(_constructAddOperation(id, kvp)),
+                onRemove: (id, kvp) => operand.EnqueueOperation(_constructRemoveOperation(id, kvp)),
                 onDispose: Dispose,
                 onError: operand.OnError,
                 immediate: true
             );
         }
 
-        public IEnumerable<DictionaryOp<TKey, TValue>> GetInitializationOperations()
+        public IEnumerable<TOperation> GetInitializationOperations()
         {
-            var initOperations = new List<DictionaryOp<TKey, TValue>>();
-            var subscription = _source.SubscribeWithId((id, kvp) => initOperations.Add(new DictionaryOp<TKey, TValue>() { elementId = id, key = kvp.Key, value = kvp.Value }));
+            var initOperations = new List<TOperation>();
+            var subscription = _source.SubscribeWithId((id, kvp) => initOperations.Add(_constructAddOperation(id, kvp)));
             subscription.Dispose();
 
             foreach (var op in initOperations)
@@ -154,30 +168,34 @@ namespace ObserveThing
         }
     }
 
-    public class SetOperationStreamObservable<T> : IInitializationOperationsProvider<SetOp<T>>, IDisposable
+    public class SetEventStreamObservable<T, TOperation> : IInitializationOperationsProvider<TOperation>, IDisposable
     {
         private ISetObservable<T> _source;
-        private OpStreamObservable<SetOp<T>> _operand;
+        private Func<uint, T, TOperation> _constructAddOperation;
+        private Func<uint, T, TOperation> _constructRemoveOperation;
+        private EventStreamObservable<TOperation> _operand;
         private IDisposable _subscriptions;
 
-        public SetOperationStreamObservable(ISetObservable<T> source, OpStreamObservable<SetOp<T>> operand)
+        public SetEventStreamObservable(ISetObservable<T> source, Func<uint, T, TOperation> constructAddOperation, Func<uint, T, TOperation> constructRemoveOperation, EventStreamObservable<TOperation> operand)
         {
             _source = source;
+            _constructAddOperation = constructAddOperation;
+            _constructRemoveOperation = constructRemoveOperation;
             _operand = operand;
 
             _subscriptions = _source.SubscribeWithId(
-                onAdd: (id, element) => operand.EnqueueOperation(new() { elementId = id, element = element, isRemove = false }),
-                onRemove: (id, element) => operand.EnqueueOperation(new() { elementId = id, element = element, isRemove = true }),
+                onAdd: (id, element) => operand.EnqueueOperation(_constructAddOperation(id, element)),
+                onRemove: (id, element) => operand.EnqueueOperation(_constructRemoveOperation(id, element)),
                 onDispose: Dispose,
                 onError: operand.OnError,
                 immediate: true
             );
         }
 
-        public IEnumerable<SetOp<T>> GetInitializationOperations()
+        public IEnumerable<TOperation> GetInitializationOperations()
         {
-            var initOperations = new List<SetOp<T>>();
-            var subscription = _source.SubscribeWithId((id, element) => initOperations.Add(new SetOp<T>() { elementId = id, element = element }));
+            var initOperations = new List<TOperation>();
+            var subscription = _source.SubscribeWithId((id, element) => initOperations.Add(_constructAddOperation(id, element)));
             subscription.Dispose();
 
             foreach (var op in initOperations)

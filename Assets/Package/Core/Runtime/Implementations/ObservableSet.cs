@@ -5,21 +5,12 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public interface ISetOp : IOperation
+    public struct SetOp<T>
     {
-        uint elementId { get; }
-        object element { get; }
-        bool isRemove { get; }
-    }
-
-    public struct SetOp<T> : ISetOp
-    {
-        public IObservable<IOperation> source { get; set; }
-        public uint elementId { get; set; }
-        public T element { get; set; }
-        public bool isRemove { get; set; }
-
-        object ISetOp.element => element;
+        public ISetObservable<T> source;
+        public uint elementId;
+        public T element;
+        public bool isRemove;
     }
 
     public class ObservableSet<T> : ObservableBase<ISetObserver<T>, SetOp<T>>, ISetObservable<T>, IEnumerable<T>

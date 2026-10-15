@@ -3,18 +3,18 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ObservableOperator<T> : IObservable<T>, IInitializationOperationsProvider<T> where T : IOperation
+    public class EventStreamOperator<T> : IEventStreamObservable<T>, IInitializationOperationsProvider<T>
     {
         public ObservationContext context { get; }
 
-        private Func<Observable<T>, IInitializationOperationsProvider<T>> _generateOperator;
-        protected Observable<T> _observable { get; private set; }
+        private Func<EventStreamObservable<T>, IInitializationOperationsProvider<T>> _generateOperator;
+        protected EventStreamObservable<T> _observable { get; private set; }
         private IInitializationOperationsProvider<T> _operator;
         private bool _active = false;
         private List<IObserver> _observers = new List<IObserver>();
         private bool _disposed;
 
-        public ObservableOperator(ObservationContext context, Func<Observable<T>, IInitializationOperationsProvider<T>> generateOperator)
+        public EventStreamOperator(ObservationContext context, Func<EventStreamObservable<T>, IInitializationOperationsProvider<T>> generateOperator)
         {
             this.context = context;
             _generateOperator = generateOperator;
@@ -42,7 +42,7 @@ namespace ObserveThing
                 return;
 
             _active = true;
-            _observable = new Observable<T>(context, this);
+            _observable = new EventStreamObservable<T>(context, this);
             _operator = _generateOperator(_observable);
         }
 
@@ -62,10 +62,17 @@ namespace ObserveThing
             }
         }
 
-        public IDisposable Subscribe(IObserver<T> observer, bool immediate = false, uint? priority = null)
+        public IDisposable Subscribe(IEventStreamObserver<T> observer, bool immediate = false, uint? priority = null)
         {
             AddObserver(observer);
             var subscription = _observable.Subscribe(observer, immediate, priority);
+            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
+        }
+
+        public IDisposable Subscribe(IEventStreamObserver observer, bool immediate = false, uint? priority = null)
+        {
+            AddObserver(observer);
+            var subscription = ((IEventStreamObservable)_observable).Subscribe(observer, immediate, priority);
             return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
 

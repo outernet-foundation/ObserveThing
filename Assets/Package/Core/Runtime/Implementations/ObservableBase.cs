@@ -4,11 +4,6 @@ using System.Linq;
 
 namespace ObserveThing
 {
-    public interface IOperation
-    {
-        IObservable<IOperation> source { get; }
-    }
-
     public abstract class ObservableBase<TObserver, TOperation> : IObservable, IDisposable where TObserver : IObserver
     {
         private class ObserverData : IPendingObserver, IDisposable

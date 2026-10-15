@@ -3,27 +3,27 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class BatchObservable<T> : IInitializationOperationsProvider<BatchOp<T>>, IPendingObserver where T : IOperation
+    public class BatchObservable<T> : IInitializationOperationsProvider<IReadOnlyList<T>>, IPendingObserver
     {
         public bool immediate { get; } = false;
         public uint priority { get; private set; }
         public bool disposed { get; private set; }
 
-        private IOpStreamObservable<T> _source;
-        private Observable<BatchOp<T>> _operand;
+        private IEventStreamObservable<T> _source;
+        private EventStreamObservable<IReadOnlyList<T>> _operand;
         private IDisposable _subscriptions;
         private bool _pending;
 
         private List<T> _batchedOperations = new List<T>();
 
-        public BatchObservable(IOpStreamObservable<T> source, Observable<BatchOp<T>> operand)
+        public BatchObservable(IEventStreamObservable<T> source, EventStreamObservable<IReadOnlyList<T>> operand)
         {
             priority = source.context.AllocateObserverPriority();
 
             _source = source;
             _operand = operand;
 
-            _subscriptions = source.Subscribe(new OpStreamObserver<T>(
+            _subscriptions = source.Subscribe(new EventStreamObserver<T>(
                 onNext: HandleSourceOperation,
                 onError: operand.OnError,
                 onDispose: Dispose
@@ -42,12 +42,12 @@ namespace ObserveThing
             _source.context.NotifyPendingObserversIfNecessary();
         }
 
-        public IEnumerable<BatchOp<T>> GetInitializationOperations()
+        public IEnumerable<IReadOnlyList<T>> GetInitializationOperations()
         {
             List<T> initOps = new List<T>();
-            var subscription = _source.Subscribe(new OpStreamObserver<T>(x => initOps.Add(x)));
+            var subscription = _source.Subscribe(new EventStreamObserver<T>(x => initOps.Add(x)));
             subscription.Dispose();
-            yield return new BatchOp<T>() { source = _source, operations = initOps };
+            yield return initOps;
         }
 
         public void SendNext()
@@ -57,7 +57,7 @@ namespace ObserveThing
             var batch = _batchedOperations.ToArray();
             _batchedOperations.Clear();
 
-            _operand.EnqueueOperation(new BatchOp<T>() { source = _source, operations = batch });
+            _operand.EnqueueOperation(batch);
         }
 
         public void Dispose()

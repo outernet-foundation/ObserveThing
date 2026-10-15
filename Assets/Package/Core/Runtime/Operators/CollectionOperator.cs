@@ -19,12 +19,5 @@ namespace ObserveThing
             var subscription = ((ICollectionObservable)_observable).Subscribe(observer, immediate, priority);
             return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
         }
-
-        public IDisposable Subscribe(IObserver<IOperation> observer, bool immediate = false, uint? priority = null)
-        {
-            AddObserver(observer);
-            var subscription = ((IObservable<IOperation>)_observable).Subscribe(observer, immediate, priority);
-            return new ComposedDisposable(subscription, new Disposable(() => RemoveObserver(observer)));
-        }
     }
 }

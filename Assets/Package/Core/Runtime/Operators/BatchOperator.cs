@@ -3,19 +3,6 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public interface IBatchOp<T> : IOperation where T : IOperation
-    {
-        IReadOnlyList<T> operations { get; set; }
-    }
-
-    public struct BatchOp<T> : IBatchOp<T> where T : IOperation
-    {
-        public IObservable<T> source { get; set; }
-        public IReadOnlyList<T> operations { get; set; }
-
-        IObservable<IOperation> IOperation.source => (IObservable<IOperation>)source;
-    }
-
     // public class BatchOperator<T> : ObservableBase<IBatchObserver<T>, BatchOp<T>>, IBatchOperand<T>, IBatchObservable<T> where T : IOperation
     // {
     //     private Func<IBatchOperand<T>, IInitializationOperationsProvider<T>> _generateOperator;
