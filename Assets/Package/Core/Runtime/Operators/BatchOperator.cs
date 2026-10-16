@@ -3,69 +3,70 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public interface IBatchOp<T> : IOperation where T : IOperation
+    public class BatchOperator<T> : IInitializationOperationsProvider<IReadOnlyList<T>>, IPendingObserver
     {
-        IReadOnlyList<T> operations { get; set; }
+        public bool immediate { get; } = false;
+        public uint priority { get; private set; }
+        public bool disposed { get; private set; }
+
+        private IEventStreamObservable<T> _source;
+        private ObservableEventStream<IReadOnlyList<T>> _operand;
+        private IDisposable _subscriptions;
+        private bool _pending;
+
+        private List<T> _batchedOperations = new List<T>();
+
+        public BatchOperator(IEventStreamObservable<T> source, ObservableEventStream<IReadOnlyList<T>> operand)
+        {
+            priority = source.context.AllocateObserverPriority();
+
+            _source = source;
+            _operand = operand;
+
+            _subscriptions = source.Subscribe(new EventStreamObserver<T>(
+                onNext: HandleSourceOperation,
+                onError: operand.OnError,
+                onDispose: Dispose
+            ), immediate: true);
+        }
+
+        private void HandleSourceOperation(T operation)
+        {
+            _batchedOperations.Add(operation);
+
+            if (_pending)
+                return;
+
+            _pending = true;
+            _source.context.RegisterPendingObserver(this);
+            _source.context.NotifyPendingObserversIfNecessary();
+        }
+
+        public IEnumerable<IReadOnlyList<T>> GetInitializationOperations()
+        {
+            List<T> initOps = new List<T>();
+            var subscription = _source.Subscribe(new EventStreamObserver<T>(x => initOps.Add(x)));
+            subscription.Dispose();
+            yield return initOps;
+        }
+
+        public void SendNext()
+        {
+            _pending = false;
+
+            var batch = _batchedOperations.ToArray();
+            _batchedOperations.Clear();
+
+            _operand.EnqueueOperation(batch);
+        }
+
+        public void Dispose()
+        {
+            disposed = true;
+            _source.context.DeallocateObserverPriority(priority);
+            _subscriptions?.Dispose();
+            _subscriptions = null;
+            _operand.Dispose();
+        }
     }
-
-    public struct BatchOp<T> : IBatchOp<T> where T : IOperation
-    {
-        public IObservable<T> source { get; set; }
-        public IReadOnlyList<T> operations { get; set; }
-
-        IObservable<IOperation> IOperation.source => (IObservable<IOperation>)source;
-    }
-
-    // public class BatchOperator<T> : ObservableBase<IBatchObserver<T>, BatchOp<T>>, IBatchOperand<T>, IBatchObservable<T> where T : IOperation
-    // {
-    //     private Func<IBatchOperand<T>, IInitializationOperationsProvider<T>> _generateOperator;
-    //     private IInitializationOperationsProvider<T> _operator;
-    //     private bool _active = false;
-
-    //     public BatchOperator(ObservationContext context, Func<IBatchOperand<T>, IInitializationOperationsProvider<T>> generateOperator) : base(context)
-    //     {
-    //         _generateOperator = generateOperator;
-    //     }
-
-    //     protected override void OnFirstObserverAdded()
-    //     {
-    //         _active = true;
-    //         _operator = _generateOperator.Invoke(this);
-    //     }
-
-    //     protected override void OnLastObserverRemoved()
-    //     {
-    //         _active = false;
-    //         _operator?.Dispose();
-    //         _operator = null;
-    //     }
-
-    //     protected override void DisposeInternal()
-    //     {
-    //         _operator?.Dispose();
-    //         _operator = null;
-    //     }
-
-    //     void IBatchOperand<T>.EnqueuePendingOperation(IReadOnlyList<T> operation)
-    //         => EnqueuePendingOperation(new() { source = this, operations = operation });
-
-    //     void IOperand.OnError(Exception error)
-    //         => OnError(error);
-
-    //     void IOperand.OnDisposed()
-    //     {
-    //         if (!_active)
-    //             return;
-
-    //         Dispose();
-    //     }
-
-    //     protected override IEnumerable<BatchOp<T>> GetInitializationOperations()
-    //     {
-    //         yield return new BatchOp<T>() { source = this, operations = _operator.GetInitializationOperations() };
-    //     }
-
-    //     protected override void SendOperation(IBatchObserver<T> observer, BatchOp<T> operation)
-    //         => observer.OnNext(operation.operations);
-    // }
 }
