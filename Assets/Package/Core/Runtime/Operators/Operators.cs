@@ -5,29 +5,68 @@ namespace ObserveThing
 {
     public static class Operators
     {
+        /// <summary>
+        /// Casts the value of source.
+        /// </summary>
+        /// <typeparam name="T">Type to cast to.</typeparam>
+        /// <param name="source">The source of the values to cast.</param>
+        /// <returns></returns>
         public static IValueObservable<T> ObservableCast<T>(this IValueObservable source)
             => new ValueOperatorFactory<T>(source.context, operand => new CastValueOperator<T>(source, operand));
 
+        /// <summary>
+        /// Casts the elements of source.
+        /// </summary>
+        /// <typeparam name="T">Type to cast to.</typeparam>
+        /// <param name="source">The source of the elements to cast.</param>
+        /// <returns></returns>
         public static ICollectionObservable<T> ObservableCast<T>(this ICollectionObservable source)
             => new CollectionOperatorFactory<T>(source.context, operand => new CastCollectionOperator<T>(source, operand));
 
+        /// <summary>
+        /// Casts the elements of source.
+        /// </summary>
+        /// <typeparam name="T">Type to cast to.</typeparam>
+        /// <param name="source">The source of the elements to cast.</param>
+        /// <returns></returns>
         public static IListObservable<T> ObservableCast<T>(this IListObservable source)
             => new ListOperatorFactory<T>(source.context, operand => new CastListOperator<T>(source, operand));
 
+        /// <summary>
+        /// Casts the elements of source.
+        /// </summary>
+        /// <typeparam name="T">Type to cast to.</typeparam>
+        /// <param name="source">The source of the elements to cast.</param>
+        /// <returns></returns>
         public static ISetObservable<T> ObservableCast<T>(this ISetObservable source)
             => new SetOperatorFactory<T>(source.context, operand => new CastSetOperator<T>(source, operand));
 
+        /// <summary>
+        /// Casts the keys and values of source.
+        /// </summary>
+        /// <typeparam name="TKey">Type to cast keys to.</typeparam>
+        /// <typeparam name="TValue">Type to cast values to.</typeparam>
+        /// <param name="source">The source of the elements to cast.</param>
+        /// <returns></returns>
         public static IDictionaryObservable<TKey, TValue> ObservableCast<TKey, TValue>(this IDictionaryObservable source)
             => new DictionaryOperatorFactory<TKey, TValue>(source.context, operand => new CastDictionaryOperator<TKey, TValue>(source, operand));
 
-        public static IEventStreamObservable<TOperation> ObservableEventStream<T, TOperation>(this IValueObservable<T> source, Func<T, TOperation> constructOperation)
-            => new EventStreamOperatorFactory<TOperation>(source.context, operand => new ValueEventStreamOperator<T, TOperation>(source, constructOperation, operand));
+        /// <summary>
+        /// Converts the operations from source to the given event type.
+        /// </summary>
+        /// <typeparam name="T">The value type of source.</typeparam>
+        /// <typeparam name="TEvent">The event type to convert to.</typeparam>
+        /// <param name="source">The source of the events to convert.</param>
+        /// <param name="convertEvent"></param>
+        /// <returns></returns>
+        public static IEventStreamObservable<TEvent> ObservableEventStream<T, TEvent>(this IValueObservable<T> source, Func<T, TEvent> convertEvent)
+            => new EventStreamOperatorFactory<TEvent>(source.context, operand => new ValueEventStreamOperator<T, TEvent>(source, convertEvent, operand));
 
         public static IEventStreamObservable<ValueOp<T>> ObservableEventStream<T>(this IValueObservable<T> source)
             => source.ObservableEventStream(x => new ValueOp<T>() { source = source, value = x });
 
-        public static IEventStreamObservable<TOperation> ObservableEventStream<T, TOperation>(this ICollectionObservable<T> source, Func<uint, T, TOperation> constructAddOperation, Func<uint, T, TOperation> constructRemoveOperation)
-            => new EventStreamOperatorFactory<TOperation>(source.context, operand => new CollectionEventStreamOperator<T, TOperation>(source, constructAddOperation, constructRemoveOperation, operand));
+        public static IEventStreamObservable<TEvent> ObservableEventStream<T, TEvent>(this ICollectionObservable<T> source, Func<uint, T, TEvent> convertAddEvent, Func<uint, T, TEvent> convertRemoveEvent)
+            => new EventStreamOperatorFactory<TEvent>(source.context, operand => new CollectionEventStreamOperator<T, TEvent>(source, convertAddEvent, convertRemoveEvent, operand));
 
         public static IEventStreamObservable<CollectionOp<T>> ObservableEventStream<T>(this ICollectionObservable<T> source)
             => new EventStreamOperatorFactory<CollectionOp<T>>(source.context, operand => new CollectionEventStreamOperator<T, CollectionOp<T>>(
@@ -37,8 +76,8 @@ namespace ObserveThing
                 operand
             ));
 
-        public static IEventStreamObservable<TOperation> ObservableEventStream<T, TOperation>(this IListObservable<T> source, Func<uint, int, T, TOperation> constructAddOperation, Func<uint, int, T, TOperation> constructRemoveOperation)
-            => new EventStreamOperatorFactory<TOperation>(source.context, operand => new ListEventStreamOperator<T, TOperation>(source, constructAddOperation, constructRemoveOperation, operand));
+        public static IEventStreamObservable<TEvent> ObservableEventStream<T, TEvent>(this IListObservable<T> source, Func<uint, int, T, TEvent> convertAddEvent, Func<uint, int, T, TEvent> convertRemoveEvent)
+            => new EventStreamOperatorFactory<TEvent>(source.context, operand => new ListEventStreamOperator<T, TEvent>(source, convertAddEvent, convertRemoveEvent, operand));
 
         public static IEventStreamObservable<ListOp<T>> ObservableEventStream<T>(this IListObservable<T> source)
             => new EventStreamOperatorFactory<ListOp<T>>(source.context, operand => new ListEventStreamOperator<T, ListOp<T>>(
@@ -48,8 +87,8 @@ namespace ObserveThing
                 operand
             ));
 
-        public static IEventStreamObservable<TOperation> ObservableEventStream<TKey, TValue, TOperation>(this IDictionaryObservable<TKey, TValue> source, Func<uint, KeyValuePair<TKey, TValue>, TOperation> constructAddOperation, Func<uint, KeyValuePair<TKey, TValue>, TOperation> constructRemoveOperation)
-            => new EventStreamOperatorFactory<TOperation>(source.context, operand => new DictionaryEventStreamOperator<TKey, TValue, TOperation>(source, constructAddOperation, constructRemoveOperation, operand));
+        public static IEventStreamObservable<TEvent> ObservableEventStream<TKey, TValue, TEvent>(this IDictionaryObservable<TKey, TValue> source, Func<uint, KeyValuePair<TKey, TValue>, TEvent> convertAddEvent, Func<uint, KeyValuePair<TKey, TValue>, TEvent> convertRemoveEvent)
+            => new EventStreamOperatorFactory<TEvent>(source.context, operand => new DictionaryEventStreamOperator<TKey, TValue, TEvent>(source, convertAddEvent, convertRemoveEvent, operand));
 
         public static IEventStreamObservable<DictionaryOp<TKey, TValue>> ObservableEventStream<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source)
             => new EventStreamOperatorFactory<DictionaryOp<TKey, TValue>>(source.context, operand => new DictionaryEventStreamOperator<TKey, TValue, DictionaryOp<TKey, TValue>>(
@@ -97,9 +136,25 @@ namespace ObserveThing
         public static IEventStreamObservable<T> ObservableCombine<T>(bool disposeOnSourceEmpty, params IEventStreamObservable<T>[] observables)
             => new ObservableSet<IEventStreamObservable<T>>(observables[0].context, observables).ObservableCombine(disposeOnSourceEmpty: disposeOnSourceEmpty);
 
+        /// <summary>
+        /// Adds an "in-line" observer which will receive calls before subsequent subscriptions.
+        /// </summary>
+        /// <typeparam name="T">The value type of the observable.</typeparam>
+        /// <param name="source">The source of the events to observe.</param>
+        /// <param name="thenObserver">The observer to add "in-line".</param>
+        /// <returns></returns>
         public static IValueObservable<T> ObservableThen<T>(this IValueObservable<T> source, IValueObserver<T> thenObserver)
             => new ValueOperatorFactory<T>(source.context, operand => new ThenValueOperator<T>(source, thenObserver, operand));
 
+        /// <summary>
+        /// Adds an "in-line" observer which will receive calls before subsequent subscriptions.
+        /// </summary>
+        /// <typeparam name="T">The value type of the observable.</typeparam>
+        /// <param name="source">The source of the events to observe.</param>
+        /// <param name="onNext">The method to call when the value updates.</param>
+        /// <param name="onDispose">The method to call when the observable or observer is disposed.</param>
+        /// <param name="onError">The method to call when the observable encounters an error.</param>
+        /// <returns></returns>
         public static IValueObservable<T> ObservableThen<T>(this IValueObservable<T> source, Action<T> onNext = default, Action onDispose = default, Action<Exception> onError = default)
             => source.ObservableThen(new ValueObserver<T>(onNext, onDispose, onError));
 
@@ -127,9 +182,27 @@ namespace ObserveThing
         public static IDictionaryObservable<TKey, TValue> ObservableThen<TKey, TValue>(this IDictionaryObservable<TKey, TValue> source, Action<KeyValuePair<TKey, TValue>> onAdd = default, Action<KeyValuePair<TKey, TValue>> onRemove = default, Action onDispose = default, Action<Exception> onError = default)
             => source.ObservableThen(new DictionaryObserver<TKey, TValue>((id, x) => onAdd?.Invoke(x), (id, x) => onRemove?.Invoke(x), onDispose, onError));
 
+        /// <summary>
+        /// Combines the source values into a tuple.
+        /// </summary>
+        /// <typeparam name="T1">The type of the first value to combine.</typeparam>
+        /// <typeparam name="T2">The type of the second value to combine.</typeparam>
+        /// <param name="source1">The first value to combine.</param>
+        /// <param name="source2">The second value to combine.</param>
+        /// <returns></returns>
         public static IValueObservable<(T1, T2)> ObservableCombineValues<T1, T2>(IValueObservable<T1> source1, IValueObservable<T2> source2)
             => new ValueOperatorFactory<(T1, T2)>(source1.context, operand => new CombineValueOperator<T1, T2>(source1, source2, operand));
 
+        /// <summary>
+        /// Combines the source values into a single value using a delegate.
+        /// </summary>
+        /// <typeparam name="T1">The type of the first value to combine.</typeparam>
+        /// <typeparam name="T2">The type of the second value to combine.</typeparam>
+        /// <typeparam name="TResult">The type of the resulting value.</typeparam>
+        /// <param name="source1">The first value to combine.</param>
+        /// <param name="source2">The second value to combine.</param>
+        /// <param name="select">The method used to combine the values.</param>
+        /// <returns></returns>
         public static IValueObservable<TResult> ObservableCombineValues<T1, T2, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, Func<T1, T2, IValueObservable<TResult>> select)
             => ObservableCombineValues(source1, source2).ObservableSelect(x => select(x.Item1, x.Item2));
 
@@ -181,15 +254,35 @@ namespace ObserveThing
         public static IValueObservable<TResult> ObservableCombineValues<T1, T2, T3, T4, T5, T6, T7, TResult>(IValueObservable<T1> source1, IValueObservable<T2> source2, IValueObservable<T3> source3, IValueObservable<T4> source4, IValueObservable<T5> source5, IValueObservable<T6> source6, IValueObservable<T7> source7, Func<T1, T2, T3, T4, T5, T6, T7, TResult> select)
             => ObservableCombineValues(source1, source2, source3, source4, source5, source6, source7).ObservableSelect(x => select(x.Item1, x.Item2, x.Item3, x.Item4, x.Item5, x.Item6, x.Item7));
 
+        /// <summary>
+        /// Create a shallow copy of a nested value observable. If the outer observable points at a null value, the value of the result will be a default value.
+        /// </summary>
+        /// <typeparam name="T">The value type of the observable.</typeparam>
+        /// <param name="source">The nested observable.</param>
+        /// <returns></returns>
         public static IValueObservable<T> ObservableUnwrap<T>(this IValueObservable<IValueObservable<T>> source)
             => new ValueOperatorFactory<T>(source.context, operand => new UnwrapValueOperator<T>(source, operand));
 
+        /// <summary>
+        /// Select a value based on the source value.
+        /// </summary>
+        /// <typeparam name="T">The type of the source value.</typeparam>
+        /// <typeparam name="U">The type of the selected value.</typeparam>
+        /// <param name="source">The source of the original value.</param>
+        /// <param name="select">The method used to select the new value.</param>
+        /// <returns>An observable representing the selected value.</returns>
         public static IValueObservable<U> ObservableSelect<T, U>(this IValueObservable<T> source, Func<T, U> select)
             => new ValueOperatorFactory<U>(source.context, operand => new SelectValueOperator<T, U>(source, select, operand));
 
         public static IValueObservable<U> ObservableSelect<T, U>(this IValueObservable<T> source, Func<T, IValueObservable<U>> select)
             => source.ObservableSelect<T, IValueObservable<U>>(select).ObservableUnwrap();
 
+        /// <summary>
+        /// Create a tuple of the current value and the previous value of the observable.
+        /// </summary>
+        /// <typeparam name="T">The value type of the source.</typeparam>
+        /// <param name="source">The source of the value.</param>
+        /// <returns>An observable representing a tuple of the source's current and previous value.</returns>
         public static IValueObservable<(T current, T previous)> ObservableWithPrevious<T>(this IValueObservable<T> source)
             => new ValueOperatorFactory<(T current, T previous)>(source.context, operand => new WithPreviousOperator<T>(source, operand));
 
