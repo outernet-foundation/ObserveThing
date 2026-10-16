@@ -11,7 +11,7 @@ namespace ObserveThing.Tests
         [SetUp]
         public void SetUp()
         {
-            Settings.DefaultExceptionHandler = UnityEngine.Debug.LogException;
+            ObservationDefaults.DefaultExceptionHandler = UnityEngine.Debug.LogException;
         }
 
         private T Peek<T>(IValueObservable<T> observable)

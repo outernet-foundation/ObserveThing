@@ -41,7 +41,7 @@ namespace ObserveThing.Tests
 
             int callCount = 0;
 
-            var stream = Observables.ObservableCombine(
+            var stream = Operators.ObservableCombine(
                 intObservable.ObservableEventStream(x => new TestValueOperation() { source = intObservable, value = x }),
                 stringObservable.ObservableEventStream(x => new TestValueOperation() { source = stringObservable, value = x })
             ).Subscribe(
@@ -176,7 +176,7 @@ namespace ObserveThing.Tests
             ObservableValue<int> intObservable = new ObservableValue<int>(context);
             ObservableValue<string> stringObservable = new ObservableValue<string>(context);
 
-            var query = Observables.ObservableCombine(
+            var query = Operators.ObservableCombine(
                 intObservable.ObservableEventStream(x => new TestValueOperation() { source = intObservable, value = x }),
                 stringObservable.ObservableEventStream(x => new TestValueOperation() { source = stringObservable, value = x })
             );
@@ -236,7 +236,7 @@ namespace ObserveThing.Tests
             var disposeCallCount = 0;
             var disposed = false;
 
-            var query = Observables.ObservableCombine(
+            var query = Operators.ObservableCombine(
                 observable1.ObservableCast<object>().ObservableEventStream(),
                 observable2.ObservableCast<object>().ObservableEventStream()
             );
@@ -327,7 +327,7 @@ namespace ObserveThing.Tests
 
             var initOps = new List<TestCollectionOperation>();
 
-            Observables.ObservableCombine(dictionary.ObservableEventStream()).Subscribe(onNext: op =>
+            Operators.ObservableCombine(dictionary.ObservableEventStream()).Subscribe(onNext: op =>
             {
                 initOps.Add(new() { source = op.source, value = new KeyValuePair<string, int>(op.key, op.value), isRemove = op.isRemove });
             });
@@ -353,7 +353,7 @@ namespace ObserveThing.Tests
             list.Add(-1000f);
             list.Insert(1, 50f);
 
-            var subscription = Observables.ObservableCombine(
+            var subscription = Operators.ObservableCombine(
                 false,
                 dictionary.ObservableEventStream(
                     (id, kvp) => new TestCollectionOperation() { source = dictionary, value = kvp, isRemove = false },

@@ -1,0 +1,29 @@
+using System;
+
+namespace ObserveThing
+{
+    public class SelectCollectionOperator<T, U> : IDisposable
+    {
+        private ObservableCollection<U> _operand;
+        private IDisposable _subscriptions;
+
+        public SelectCollectionOperator(ICollectionObservable<T> source, Func<T, U> select, ObservableCollection<U> operand)
+        {
+            _operand = operand;
+            _subscriptions = source.SubscribeWithId(
+                onAdd: (id, value) => operand.Add(id, select(value)),
+                onRemove: (id, _) => operand.Remove(id),
+                onError: operand.OnError,
+                onDispose: Dispose,
+                immediate: true
+            );
+        }
+
+        public void Dispose()
+        {
+            _subscriptions?.Dispose();
+            _subscriptions = null;
+            _operand.Dispose();
+        }
+    }
+}

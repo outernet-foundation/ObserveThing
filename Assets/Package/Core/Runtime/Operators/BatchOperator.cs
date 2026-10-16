@@ -3,56 +3,70 @@ using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    // public class BatchOperator<T> : ObservableBase<IBatchObserver<T>, BatchOp<T>>, IBatchOperand<T>, IBatchObservable<T> where T : IOperation
-    // {
-    //     private Func<IBatchOperand<T>, IInitializationOperationsProvider<T>> _generateOperator;
-    //     private IInitializationOperationsProvider<T> _operator;
-    //     private bool _active = false;
+    public class BatchOperator<T> : IInitializationOperationsProvider<IReadOnlyList<T>>, IPendingObserver
+    {
+        public bool immediate { get; } = false;
+        public uint priority { get; private set; }
+        public bool disposed { get; private set; }
 
-    //     public BatchOperator(ObservationContext context, Func<IBatchOperand<T>, IInitializationOperationsProvider<T>> generateOperator) : base(context)
-    //     {
-    //         _generateOperator = generateOperator;
-    //     }
+        private IEventStreamObservable<T> _source;
+        private ObservableEventStream<IReadOnlyList<T>> _operand;
+        private IDisposable _subscriptions;
+        private bool _pending;
 
-    //     protected override void OnFirstObserverAdded()
-    //     {
-    //         _active = true;
-    //         _operator = _generateOperator.Invoke(this);
-    //     }
+        private List<T> _batchedOperations = new List<T>();
 
-    //     protected override void OnLastObserverRemoved()
-    //     {
-    //         _active = false;
-    //         _operator?.Dispose();
-    //         _operator = null;
-    //     }
+        public BatchOperator(IEventStreamObservable<T> source, ObservableEventStream<IReadOnlyList<T>> operand)
+        {
+            priority = source.context.AllocateObserverPriority();
 
-    //     protected override void DisposeInternal()
-    //     {
-    //         _operator?.Dispose();
-    //         _operator = null;
-    //     }
+            _source = source;
+            _operand = operand;
 
-    //     void IBatchOperand<T>.EnqueuePendingOperation(IReadOnlyList<T> operation)
-    //         => EnqueuePendingOperation(new() { source = this, operations = operation });
+            _subscriptions = source.Subscribe(new EventStreamObserver<T>(
+                onNext: HandleSourceOperation,
+                onError: operand.OnError,
+                onDispose: Dispose
+            ), immediate: true);
+        }
 
-    //     void IOperand.OnError(Exception error)
-    //         => OnError(error);
+        private void HandleSourceOperation(T operation)
+        {
+            _batchedOperations.Add(operation);
 
-    //     void IOperand.OnDisposed()
-    //     {
-    //         if (!_active)
-    //             return;
+            if (_pending)
+                return;
 
-    //         Dispose();
-    //     }
+            _pending = true;
+            _source.context.RegisterPendingObserver(this);
+            _source.context.NotifyPendingObserversIfNecessary();
+        }
 
-    //     protected override IEnumerable<BatchOp<T>> GetInitializationOperations()
-    //     {
-    //         yield return new BatchOp<T>() { source = this, operations = _operator.GetInitializationOperations() };
-    //     }
+        public IEnumerable<IReadOnlyList<T>> GetInitializationOperations()
+        {
+            List<T> initOps = new List<T>();
+            var subscription = _source.Subscribe(new EventStreamObserver<T>(x => initOps.Add(x)));
+            subscription.Dispose();
+            yield return initOps;
+        }
 
-    //     protected override void SendOperation(IBatchObserver<T> observer, BatchOp<T> operation)
-    //         => observer.OnNext(operation.operations);
-    // }
+        public void SendNext()
+        {
+            _pending = false;
+
+            var batch = _batchedOperations.ToArray();
+            _batchedOperations.Clear();
+
+            _operand.EnqueueOperation(batch);
+        }
+
+        public void Dispose()
+        {
+            disposed = true;
+            _source.context.DeallocateObserverPriority(priority);
+            _subscriptions?.Dispose();
+            _subscriptions = null;
+            _operand.Dispose();
+        }
+    }
 }
