@@ -270,7 +270,7 @@ namespace ObserveThing
         /// <typeparam name="U">The type of the selected value.</typeparam>
         /// <param name="source">The source of the original value.</param>
         /// <param name="select">The method used to select the new value.</param>
-        /// <returns>An observable representing the selected value.</returns>
+        /// <returns>The selected observable value.</returns>
         public static IValueObservable<U> ObservableSelect<T, U>(this IValueObservable<T> source, Func<T, U> select)
             => new ValueOperatorFactory<U>(source.context, operand => new SelectValueOperator<T, U>(source, select, operand));
 
@@ -298,27 +298,63 @@ namespace ObserveThing
         public static ICollectionObservable<U> ObservableSelect<T, U>(this ICollectionObservable<T> source, Func<T, U> select)
             => new CollectionOperatorFactory<U>(source.context, operand => new SelectCollectionOperator<T, U>(source, select, operand));
 
+        /// <summary>
+        /// Creates an observable set which contains only the distinct elements of source.
+        /// </summary>
+        /// <typeparam name="T">The type of the elements in the source collection.</typeparam>
+        /// <param name="source">The source collection.</param>
+        /// <returns>The distinct observable set.</returns>
         public static ISetObservable<T> ObservableDistinct<T>(this ICollectionObservable<T> source)
             => new SetOperatorFactory<T>(source.context, operand => new DistinctOperator<T>(source, operand));
 
+        /// <summary>
+        /// Creates an observable collection which contains only the elements which are validated by filter.
+        /// </summary>
+        /// <typeparam name="T">The type of the elements in the source collection.</typeparam>
+        /// <param name="source">The source collection.</param>
+        /// <param name="where">The filter used to validate elements in the source collection.</param>
+        /// <returns>The filtered observable collection.</returns>
         public static ICollectionObservable<T> ObservableWhere<T>(this ICollectionObservable<T> source, Func<T, bool> where)
             => source.ObservableWhere(x => new ObservableValue<bool>(source.context, where(x)));
 
         public static ICollectionObservable<T> ObservableWhere<T>(this ICollectionObservable<T> source, Func<T, IValueObservable<bool>> where)
             => new CollectionOperatorFactory<T>(source.context, operand => new WhereOperator<T>(source, where, operand));
 
+        /// <summary>
+        /// Creates an observable collection which contains all the elements of both source collections.
+        /// </summary>
+        /// <typeparam name="T">The type of the elements in the source collections.</typeparam>
+        /// <param name="source1">The first collection to include.</param>
+        /// <param name="source2">The second collection to include.</param>
+        /// <returns>The concatinated observable collection.</returns>
         public static ICollectionObservable<T> ObservableConcat<T>(this ICollectionObservable<T> source1, IEnumerable<T> source2)
             => source1.ObservableConcat((ICollectionObservable<T>)new ObservableCollection<T>(source1.context, source2));
 
         public static ICollectionObservable<T> ObservableConcat<T>(this ICollectionObservable<T> source1, ICollectionObservable<T> source2)
             => new CollectionOperatorFactory<T>(source1.context, operand => new ConcatOperator<T>(source1, source2, operand));
 
+        /// <summary>
+        /// Creates an observable collection which contains all the elements of the selected collections.
+        /// </summary>
+        /// <typeparam name="T">The type of the elements in source.</typeparam>
+        /// <typeparam name="U">The type of the elements in the selected collections.</typeparam>
+        /// <param name="source">The source collection.</param>
+        /// <param name="selectMany">The selected observable collection.</param>
+        /// <returns></returns>
         public static ICollectionObservable<U> ObservableSelectMany<T, U>(this ICollectionObservable<T> source, Func<T, IEnumerable<U>> selectMany)
             => source.ObservableSelectMany(x => (ICollectionObservable<U>)new ObservableCollection<U>(source.context, selectMany(x)));
 
         public static ICollectionObservable<U> ObservableSelectMany<T, U>(this ICollectionObservable<T> source, Func<T, ICollectionObservable<U>> selectMany)
             => new CollectionOperatorFactory<U>(source.context, operand => new SelectManyOperator<T, U>(source, selectMany, operand));
 
+        /// <summary>
+        /// Creates an observable list of the values in source ordered by the selected values.
+        /// </summary>
+        /// <typeparam name="T">The type of the elements in source.</typeparam>
+        /// <typeparam name="U">The type of the values to order by.</typeparam>
+        /// <param name="source">The source collection.</param>
+        /// <param name="orderBy">The method used to select the values to order by.</param>
+        /// <returns></returns>
         public static IListObservable<T> ObservableOrderBy<T, U>(this ICollectionObservable<T> source, Func<T, U> orderBy)
             => source.ObservableOrderBy<T, U>(x => new ObservableValue<U>(source.context, orderBy(x)));
 
