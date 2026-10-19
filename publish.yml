@@ -1,0 +1,6 @@
+packages:
+  observething:
+    path: Assets/Package/Core
+    major_minor: "1.1"
+    registry: npm
+    identity: com.fofx.observething
