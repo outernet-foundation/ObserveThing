@@ -1,9 +1,10 @@
 
+using System;
 using System.Collections.Generic;
 
 namespace ObserveThing
 {
-    public class ObservableEventStream<T> : Observable<IEventStreamObserver<T>, T>
+    public class ObservableEventStream<T> : Observable<IEventStreamObserver<T>, T>, IEventStreamObservable<T>
     {
         private IInitializationOperationsProvider<T> _initializationOperationsProvider;
 
@@ -26,5 +27,12 @@ namespace ObserveThing
 
         public void EnqueueOperation(T operation)
             => EnqueuePendingOperation(operation);
+
+        public IDisposable Subscribe(IEventStreamObserver observer, bool immediate = false, uint? priority = null)
+            => Subscribe(new EventStreamObserver<T>(
+                onNext: x => observer.OnNext(x),
+                onDispose: observer.OnDispose,
+                onError: observer.OnError
+            ), immediate, priority);
     }
 }
