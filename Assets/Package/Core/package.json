@@ -9,13 +9,13 @@
     "C#",
     "csharp"
   ],
-  "homepage": "https://github.com/fofx-games/ObserveThing#readme",
+  "homepage": "https://github.com/FofX-Games/ObserveThing#readme",
   "bugs": {
-    "url": "https://github.com/fofx-games/ObserveThing/issues"
+    "url": "https://github.com/FofX-Games/ObserveThing/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fofx-games/ObserveThing.git"
+    "url": "https://github.com/FofX-Games/ObserveThing"
   },
   "license": "MIT",
   "author": "Elliot Pjecha <epjecha@gmail.com>",
