@@ -10,9 +10,10 @@ concurrency:
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   merge-gate:
-    uses: outernet-foundation/github-actions-toolkit/.github/workflows/merge-gate.yml@b19b471ea6ee491753630bd2fbbb24d7b9c090b9
+    uses: outernet-foundation/github-actions-toolkit/.github/workflows/merge-gate.yml@c6221cf68594e2d6bf4445da02beea0b8ee58440
     secrets:
       merge-bot-private-key: ${{ secrets.MERGE_BOT_APP_PRIVATE_KEY }}
